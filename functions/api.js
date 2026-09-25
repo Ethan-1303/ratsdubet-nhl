@@ -9,10 +9,7 @@ export async function onRequest(context) {
   const path = url.searchParams.get("path");
 
   if (!path) {
-    return new Response(JSON.stringify({ error: "Missing path parameter" }), {
-      status: 400,
-      headers: corsHeaders("application/json"),
-    });
+    return json({ error: "Missing path parameter" }, 400);
   }
 
   let targetBase = NHL_STATS;
@@ -39,7 +36,6 @@ export async function onRequest(context) {
         Accept: "application/json",
         "User-Agent": "RATSDUBET-NHL-RDB/1.0",
       },
-      cf: { cacheTtl: 60, cacheEverything: true },
     });
 
     const body = await upstream.text();
@@ -48,26 +44,24 @@ export async function onRequest(context) {
     return new Response(body, {
       status: upstream.status,
       headers: {
-        ...Object.fromEntries(corsHeaders(contentType)),
+        "Content-Type": contentType,
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
         "Cache-Control": "public, max-age=60",
       },
     });
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: "Upstream fetch failed", message: String(err) }),
-      {
-        status: 502,
-        headers: corsHeaders("application/json"),
-      }
-    );
+    return json({ error: "Upstream fetch failed", message: String(err) }, 502);
   }
 }
 
-function corsHeaders(contentType) {
-  return {
-    "Content-Type": contentType,
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
+function json(data, status) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
 }
