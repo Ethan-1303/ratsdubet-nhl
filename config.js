@@ -11,8 +11,8 @@ window.RDB_CONFIG = {
   PRODUCT_NAME: "RATSDUBET NHL — Accès Complet à Vie",
 
   /* Supabase Auth (Project Settings → API) */
-  SUPABASE_URL: "",          // ex: https://xxxx.supabase.co
-  SUPABASE_ANON_KEY: "",     // anon public key
+  SUPABASE_URL: "",          // ex: https://oprpqbvyocdzjssdmsug.supabase.co
+  SUPABASE_ANON_KEY: "",     // sb_publishable_Jg2FbOebUBjGl5toyu5H0A_WMq_-vqq
 
   /* Quota gratuit si non premium */
   FREE_ANALYSES_PER_DAY: 1,
