@@ -1,12 +1,6 @@
 /**
- * Fonction Cloudflare Pages — API proxy NHL
- * Éviter les restrictions CORS du navigateur.
- *
- * Côté client :
- * /api?path=stats/rest/en/team/summary&...
- * /api?path=api-web.nhle.com/v1/schedule/2026-09-25
+ * Cloudflare Pages Function — proxy NHL API
  */
-
 const NHL_STATS = "https://api.nhle.com";
 const NHL_WEB = "https://api-web.nhle.com";
 
@@ -14,148 +8,64 @@ export async function onRequest(context) {
   const url = new URL(context.request.url);
   const path = url.searchParams.get("path");
 
-  si (!chemin) {
-    return new Response(JSON.stringify({ error: "Paramètre de chemin manquant" }), {
-      statut : 400,
-      en-têtes : corsHeaders("application/json"),
+  if (!path) {
+    return new Response(JSON.stringify({ error: "Missing path parameter" }), {
+      status: 400,
+      headers: corsHeaders("application/json"),
     });
   }
 
-  // Déterminez la base selon le préfixe du chemin
-  soit targetBase = NHL_STATS;
-  soit targetPath = chemin;
+  let targetBase = NHL_STATS;
+  let targetPath = path;
 
-  si (chemin.commencePar("api-web.nhle.com/")) {
+  if (path.startsWith("api-web.nhle.com/")) {
     targetBase = NHL_WEB;
     targetPath = path.replace(/^api-web\.nhle\.com/, "");
   } else if (path.startsWith("api.nhle.com/")) {
-    targetBase = STATISTIQUES_NHL;
+    targetBase = NHL_STATS;
     targetPath = path.replace(/^api\.nhle\.com/, "");
   } else if (!path.startsWith("/")) {
-    chemin cible = "/" + chemin;
+    targetPath = "/" + path;
   }
 
-  // Reconstruit les paramètres de requête (sans "path")
   const targetUrl = new URL(targetPath, targetBase);
-  pour (const [k, v] de url.searchParams.entries()) {
-    si (k !== "chemin") targetUrl.searchParams.set(k, v);
+  for (const [k, v] of url.searchParams.entries()) {
+    if (k !== "path") targetUrl.searchParams.set(k, v);
   }
 
-  essayer {
+  try {
     const upstream = await fetch(targetUrl.toString(), {
-      en-têtes : {
-        Accepter : "application/json",
+      headers: {
+        Accept: "application/json",
         "User-Agent": "RATSDUBET-NHL-RDB/1.0",
       },
-      // Cache léger bord latéral
       cf: { cacheTtl: 60, cacheEverything: true },
     });
 
-    const corps = await upstream.text();
+    const body = await upstream.text();
     const contentType = upstream.headers.get("content-type") || "application/json";
 
-    retourner une nouvelle réponse(corps, {
-      statut : upstream.status,
-      en-têtes : {
+    return new Response(body, {
+      status: upstream.status,
+      headers: {
         ...Object.fromEntries(corsHeaders(contentType)),
         "Cache-Control": "public, max-age=60",
       },
     });
-  } attraper (erreur) {
-    retourner une nouvelle réponse(
-      JSON.stringify({ error: "Échec de la récupération en amont", message: String(err) }),
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: "Upstream fetch failed", message: String(err) }),
       {
-        statut : 502,
-        en-têtes : corsHeaders("application/json"),
+        status: 502,
+        headers: corsHeaders("application/json"),
       }
     );
   }
 }
 
-fonction corsHeaders(contentType) {
-  retour {
-    "Content-Type" : contentType,
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
-}/**
- * Fonction Cloudflare Pages — API proxy NHL
- * Éviter les restrictions CORS du navigateur.
- *
- * Côté client :
- * /api?path=stats/rest/en/team/summary&...
- * /api?path=api-web.nhle.com/v1/schedule/2026-09-25
- */
-
-const NHL_STATS = "https://api.nhle.com";
-const NHL_WEB = "https://api-web.nhle.com";
-
-export async function onRequest(context) {
-  const url = new URL(context.request.url);
-  const path = url.searchParams.get("path");
-
-  si (!chemin) {
-    return new Response(JSON.stringify({ error: "Paramètre de chemin manquant" }), {
-      statut : 400,
-      en-têtes : corsHeaders("application/json"),
-    });
-  }
-
-  // Déterminez la base selon le préfixe du chemin
-  soit targetBase = NHL_STATS;
-  soit targetPath = chemin;
-
-  si (chemin.commencePar("api-web.nhle.com/")) {
-    targetBase = NHL_WEB;
-    targetPath = path.replace(/^api-web\.nhle\.com/, "");
-  } else if (path.startsWith("api.nhle.com/")) {
-    targetBase = STATISTIQUES_NHL;
-    targetPath = path.replace(/^api\.nhle\.com/, "");
-  } else if (!path.startsWith("/")) {
-    chemin cible = "/" + chemin;
-  }
-
-  // Reconstruit les paramètres de requête (sans "path")
-  const targetUrl = new URL(targetPath, targetBase);
-  pour (const [k, v] de url.searchParams.entries()) {
-    si (k !== "chemin") targetUrl.searchParams.set(k, v);
-  }
-
-  essayer {
-    const upstream = await fetch(targetUrl.toString(), {
-      en-têtes : {
-        Accepter : "application/json",
-        "User-Agent": "RATSDUBET-NHL-RDB/1.0",
-      },
-      // Cache léger bord latéral
-      cf: { cacheTtl: 60, cacheEverything: true },
-    });
-
-    const corps = await upstream.text();
-    const contentType = upstream.headers.get("content-type") || "application/json";
-
-    retourner une nouvelle réponse(corps, {
-      statut : upstream.status,
-      en-têtes : {
-        ...Object.fromEntries(corsHeaders(contentType)),
-        "Cache-Control": "public, max-age=60",
-      },
-    });
-  } attraper (erreur) {
-    retourner une nouvelle réponse(
-      JSON.stringify({ error: "Échec de la récupération en amont", message: String(err) }),
-      {
-        statut : 502,
-        en-têtes : corsHeaders("application/json"),
-      }
-    );
-  }
-}
-
-fonction corsHeaders(contentType) {
-  retour {
-    "Content-Type" : contentType,
+function corsHeaders(contentType) {
+  return {
+    "Content-Type": contentType,
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
