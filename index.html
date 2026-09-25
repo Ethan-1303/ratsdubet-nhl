@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RATSDUBET NHL — RDB Match Analyzer</title>
+  <meta name="description" content="Moteur d'analyse NHL RATSDUBET : projections, marchés, gardiens, forme, fatigue et player props.">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="bg-glow glow-a"></div>
+  <div class="bg-glow glow-b"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="RATSDUBET NHL">
+      <span class="brand-rat">🐀</span>
+      <span><b>RATSDUBET</b><small>NHL RDB ENGINE</small></span>
+    </a>
+    <nav>
+      <button class="nav-btn active" data-view="analyse">Analyse</button>
+      <button class="nav-btn" data-view="matchs">Matchs</button>
+      <button class="nav-btn" data-view="equipes">Équipes</button>
+      <button class="nav-btn" data-view="props">Player Props</button>
+      <button class="nav-btn" data-view="historique">Historique</button>
+    </nav>
+    <div class="status-pill"><i></i><span id="apiStatus">Connexion NHL</span></div>
+  </header>
+
+  <main class="container">
+    <section id="view-analyse" class="view active">
+      <div class="hero">
+        <div>
+          <div class="eyebrow">🏒 LA MEUTE SUR LA NHL</div>
+          <h1>RDB <span>Match Analyzer</span></h1>
+          <p>Projection match par match basée sur la saison 2025-26, la forme récente, les gardiens, les tirs et la fatigue. En pré-saison 2026-27, le moteur utilise volontairement la base 2025-26.</p>
+        </div>
+        <div class="hero-badge">
+          <strong>NO BET</strong>
+          <span>si les données sont insuffisantes</span>
+        </div>
+      </div>
+
+      <section class="match-picker card">
+        <div class="picker-team">
+          <label>Domicile</label>
+          <select id="homeTeam"></select>
+          <div id="homeMeta" class="team-mini">—</div>
+        </div>
+        <div class="versus">VS</div>
+        <div class="picker-team">
+          <label>Extérieur</label>
+          <select id="awayTeam"></select>
+          <div id="awayMeta" class="team-mini">—</div>
+        </div>
+        <button id="analyzeBtn" class="primary-btn">ANALYSER LE MATCH <span>→</span></button>
+      </section>
+
+      <div id="loading" class="loading card hidden">
+        <div class="spinner"></div>
+        <div><b>Analyse RDB en cours…</b><small>Forme, gardiens, tirs et player props</small></div>
+      </div>
+
+      <div id="emptyState" class="empty card">
+        <div class="empty-icon">🏒</div>
+        <h2>Sélectionne deux équipes</h2>
+        <p>Le moteur RDB va construire une fiche complète et spécifique au match.</p>
+      </div>
+
+      <div id="analysis" class="hidden">
+        <section class="score-card card">
+          <div class="score-side home">
+            <div class="team-code" id="aHomeCode">—</div>
+            <div class="team-name" id="aHomeName">—</div>
+            <small>DOMICILE</small>
+          </div>
+          <div class="score-main">
+            <div class="scoreline"><span id="xgHome">0.00</span><b>–</b><span id="xgAway">0.00</span></div>
+            <div class="score-sub">xG • <span id="scoreProb">—</span> score le plus probable</div>
+            <div class="confidence"><span>Confiance</span><b id="confidence">—</b><div><i id="confidenceBar"></i></div></div>
+          </div>
+          <div class="score-side away">
+            <div class="team-code" id="aAwayCode">—</div>
+            <div class="team-name" id="aAwayName">—</div>
+            <small>EXTÉRIEUR</small>
+          </div>
+        </section>
+
+        <section class="kpis" id="kpis"></section>
+
+        <div class="grid-2">
+          <section class="card">
+            <div class="section-title"><span>📊</span> Marchés RDB</div>
+            <div id="markets" class="market-grid"></div>
+          </section>
+          <section class="card">
+            <div class="section-title"><span>🧠</span> Lecture du modèle</div>
+            <div id="modelNotes" class="notes"></div>
+          </section>
+        </div>
+
+        <div class="grid-2">
+          <section class="card">
+            <div class="section-title"><span>🧤</span> Gardiens projetés</div>
+            <div id="goalies" class="goalie-grid"></div>
+          </section>
+          <section class="card">
+            <div class="section-title"><span>⚡</span> Forme & fatigue</div>
+            <div id="form" class="form-grid"></div>
+          </section>
+        </div>
+
+        <section class="card">
+          <div class="section-title"><span>📈</span> Stats avancées (saison 2025-26)</div>
+          <div id="advancedStats" class="advanced-wrap"><div class="empty-inline">Analyse requise</div></div>
+        </section>
+
+        <section class="card">
+          <div class="section-title"><span>🎯</span> Player Props — Top 3 du match</div>
+          <div class="tabs" id="propTabs">
+            <button class="tab active" data-prop="pg">Buts</button>
+            <button class="tab" data-prop="pa">Passes</button>
+            <button class="tab" data-prop="pp">Points</button>
+            <button class="tab" data-prop="ps">Tirs</button>
+          </div>
+          <div id="playerTables" class="players-grid"></div>
+        </section>
+
+        <section class="card audit">
+          <div class="section-title"><span>🔎</span> Audit des données utilisées</div>
+          <div id="audit"></div>
+        </section>
+
+        <div class="disclaimer">Les probabilités et cotes justes sont des sorties de modèle à titre informatif. Elles ne constituent pas une garantie de résultat.</div>
+      </div>
+    </section>
+
+    <section id="view-matchs" class="view">
+      <div class="page-title"><div><div class="eyebrow">NHL</div><h2>Matchs</h2></div><button id="refreshSchedule" class="ghost-btn">↻ Actualiser</button></div>
+      <div class="card">
+        <div class="schedule-controls">
+          <button class="day-btn active" data-days="0">Aujourd'hui</button>
+          <button class="day-btn" data-days="1">Demain</button>
+          <button class="day-btn" data-days="2">J+2</button>
+          <button class="day-btn" data-days="3">J+3</button>
+        </div>
+        <div id="schedule" class="schedule"></div>
+      </div>
+    </section>
+
+    <section id="view-equipes" class="view">
+      <div class="page-title"><div><div class="eyebrow">32 ÉQUIPES</div><h2>Base RDB</h2></div><button id="refreshTeams" class="ghost-btn">↻ Actualiser</button></div>
+      <div class="card"><div id="teamTable" class="team-table"></div></div>
+    </section>
+
+    <section id="view-props" class="view">
+      <div class="page-title"><div><div class="eyebrow">MATCH SPÉCIFIQUE</div><h2>Player Props</h2></div></div>
+      <div class="card">
+        <p class="muted">Sélectionne un match dans <b>Analyse</b>, puis retrouve ici tous les joueurs exploitables du match.</p>
+        <div id="allProps" class="props-table-wrap"><div class="empty-inline">Aucune analyse chargée.</div></div>
+      </div>
+    </section>
+
+    <section id="view-historique" class="view">
+      <div class="page-title">
+        <div><div class="eyebrow">RDB LOCAL</div><h2>Historique des analyses</h2></div>
+        <button id="clearHistory" class="ghost-btn">Effacer l'historique</button>
+      </div>
+      <div class="card">
+        <p class="muted">Les analyses sont conservées localement dans ton navigateur. Aucune base de données n'est nécessaire pour cette V1.</p>
+        <div id="historyTable" class="props-table-wrap"><div class="empty-inline">Aucune analyse enregistrée.</div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>🐀 RATSDUBET NHL</span>
+    <span>Source données : NHL.com / NHL Stats</span>
+    <span id="lastUpdate">—</span>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
