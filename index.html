@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RATSDUBET NHL — RDB Match Analyzer</title>
+  <meta name="description" content="Moteur d'analyse NHL RATSDUBET : projections xG, marchés, stats avancées, player props. Accès complet à vie.">
+  <meta name="theme-color" content="#02070d">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="bg-glow glow-a"></div>
+  <div class="bg-glow glow-b"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="RATSDUBET NHL">
+      <span class="brand-rat">🐀</span>
+      <span><b>RATSDUBET</b><small>NHL RDB ENGINE</small></span>
+    </a>
+    <nav>
+      <button class="nav-btn active" data-view="analyse">Analyse</button>
+      <button class="nav-btn" data-view="actu">Actu</button>
+      <button class="nav-btn" data-view="matchs">Matchs</button>
+      <button class="nav-btn" data-view="equipes">Équipes</button>
+      <button class="nav-btn" data-view="props">Player Props</button>
+      <button class="nav-btn" data-view="historique">Historique</button>
+      <button class="nav-btn" data-view="premium">Premium</button>
+    </nav>
+    <div class="topbar-right">
+      <a class="tg-btn" id="tgLink" href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener" title="Telegram">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18 1.897-.962 6.502-1.359 8.627-.168.9-.5 1.201-.82 1.23-.697.064-1.226-.461-1.901-.903-1.056-.693-1.653-1.124-2.678-1.8-1.185-.781-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.139-5.062 3.345-.479.329-.913.489-1.302.481-.428-.009-1.252-.242-1.865-.442-.752-.244-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635.099-.002.321.023.465.141.12.099.154.232.17.326.016.093.036.305.02.47z"/></svg>
+        <span>Telegram</span>
+      </a>
+      <div class="status-pill"><i></i><span id="apiStatus">Connexion NHL</span></div>
+      <button type="button" class="auth-chip" id="authChip">Compte</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ANALYSE -->
+    <section id="view-analyse" class="view active">
+      <div class="hero">
+        <div>
+          <div class="eyebrow">🏒 LA MEUTE SUR LA NHL</div>
+          <h1>RDB <span>Match Analyzer</span></h1>
+          <p>Projection match par match : xG, possession (SAT/USAT), spécialités, gardiens, forme, fatigue et player props. Base 2025-26 en pré-saison 2026-27.</p>
+        </div>
+        <div class="hero-side">
+          <div class="hero-badge" id="planBadge">
+            <strong>FREE</strong>
+            <span>1 analyse / jour</span>
+          </div>
+          <a class="tg-card" href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">
+            <span>🐀 Rejoins la meute</span>
+            <b>t.me/RATS_DU_BET</b>
+          </a>
+        </div>
+      </div>
+
+      <section class="match-picker card">
+        <div class="picker-team">
+          <label>Domicile</label>
+          <select id="homeTeam"></select>
+          <div id="homeMeta" class="team-mini">—</div>
+        </div>
+        <div class="versus">VS</div>
+        <div class="picker-team">
+          <label>Extérieur</label>
+          <select id="awayTeam"></select>
+          <div id="awayMeta" class="team-mini">—</div>
+        </div>
+        <button id="analyzeBtn" class="primary-btn">ANALYSER LE MATCH <span>→</span></button>
+      </section>
+
+      <div id="loading" class="loading card hidden">
+        <div class="spinner"></div>
+        <div><b>Analyse RDB en cours…</b><small>Forme, gardiens, tirs et player props</small></div>
+      </div>
+
+      <div id="emptyState" class="empty card">
+        <div class="empty-icon">🏒</div>
+        <h2>Sélectionne deux équipes</h2>
+        <p>Le moteur RDB construit une fiche complète et spécifique au match.</p>
+      </div>
+
+      <div id="analysis" class="hidden">
+        <section class="score-card card">
+          <div class="score-side home">
+            <div class="team-code" id="aHomeCode">—</div>
+            <div class="team-name" id="aHomeName">—</div>
+            <small>DOMICILE</small>
+          </div>
+          <div class="score-main">
+            <div class="scoreline"><span id="xgHome">0.00</span><b>–</b><span id="xgAway">0.00</span></div>
+            <div class="score-sub">xG • <span id="scoreProb">—</span> score le plus probable</div>
+            <div class="confidence"><span>Confiance</span><b id="confidence">—</b><div><i id="confidenceBar"></i></div></div>
+          </div>
+          <div class="score-side away">
+            <div class="team-code" id="aAwayCode">—</div>
+            <div class="team-name" id="aAwayName">—</div>
+            <small>EXTÉRIEUR</small>
+          </div>
+        </section>
+
+        <section class="kpis" id="kpis"></section>
+
+        <div id="premiumLock" class="premium-lock hidden">
+          <div class="lock-card card">
+            <div class="lock-icon">🔒</div>
+            <h3>Analyse complète réservée aux membres</h3>
+            <p>Marchés, stats avancées, gardiens, forme, player props et audit — <b>20 € à vie</b>.</p>
+            <div class="lock-actions">
+              <button type="button" class="primary-btn" id="unlockBtn">Débloquer à vie — 20 €</button>
+              <button type="button" class="ghost-btn" id="lockLoginBtn">Créer un compte</button>
+            </div>
+            <a class="lock-tg" href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">Des questions ? Telegram → t.me/RATS_DU_BET</a>
+          </div>
+        </div>
+
+        <div id="premiumBody">
+          <div class="grid-2">
+            <section class="card">
+              <div class="section-title"><span>📊</span> Marchés RDB</div>
+              <div id="markets" class="market-grid"></div>
+            </section>
+            <section class="card">
+              <div class="section-title"><span>🧠</span> Lecture du modèle</div>
+              <div id="modelNotes" class="notes"></div>
+            </section>
+          </div>
+
+          <div class="grid-2">
+            <section class="card">
+              <div class="section-title"><span>🧤</span> Gardiens projetés</div>
+              <div id="goalies" class="goalie-grid"></div>
+            </section>
+            <section class="card">
+              <div class="section-title"><span>⚡</span> Forme & fatigue</div>
+              <div id="form" class="form-grid"></div>
+            </section>
+          </div>
+
+          <section class="card">
+            <div class="section-title"><span>📈</span> Stats avancées (saison 2025-26)</div>
+            <div id="advancedStats" class="advanced-wrap"><div class="empty-inline">Analyse requise</div></div>
+          </section>
+
+          <section class="card">
+            <div class="section-title"><span>🎯</span> Player Props — Top 3 du match</div>
+            <div class="tabs" id="propTabs">
+              <button class="tab active" data-prop="pg">Buts</button>
+              <button class="tab" data-prop="pa">Passes</button>
+              <button class="tab" data-prop="pp">Points</button>
+              <button class="tab" data-prop="ps">Tirs</button>
+            </div>
+            <div id="playerTables" class="players-grid"></div>
+          </section>
+
+          <section class="card audit">
+            <div class="section-title"><span>🔎</span> Audit des données utilisées</div>
+            <div id="audit"></div>
+          </section>
+        </div>
+
+        <div class="disclaimer">Les probabilités et cotes justes sont des sorties de modèle à titre informatif. Elles ne constituent pas une garantie de résultat.</div>
+      </div>
+    </section>
+
+    
+    <!-- ACTU NHL -->
+    <section id="view-actu" class="view">
+      <div class="page-title">
+        <div><div class="eyebrow">NHL</div><h2>Actualité</h2></div>
+        <button id="refreshNews" class="ghost-btn">↻ Actualiser</button>
+      </div>
+      <div class="card">
+        <div id="newsFeed" class="news-feed"><div class="empty-inline">Chargement des actus…</div></div>
+      </div>
+    </section>
+
+    <!-- MATCHS -->
+    <section id="view-matchs" class="view">
+      <div class="page-title"><div><div class="eyebrow">NHL</div><h2>Matchs</h2></div><button id="refreshSchedule" class="ghost-btn">↻ Actualiser</button></div>
+      <div class="card">
+        <div class="schedule-controls">
+          <button class="day-btn active" data-days="0">Aujourd'hui</button>
+          <button class="day-btn" data-days="1">Demain</button>
+          <button class="day-btn" data-days="2">J+2</button>
+          <button class="day-btn" data-days="3">J+3</button>
+        </div>
+        <div id="schedule" class="schedule"></div>
+      </div>
+    </section>
+
+    <!-- EQUIPES -->
+    <section id="view-equipes" class="view">
+      <div class="page-title"><div><div class="eyebrow">32 ÉQUIPES</div><h2>Base RDB</h2></div><button id="refreshTeams" class="ghost-btn">↻ Actualiser</button></div>
+      <div class="card"><div id="teamTable" class="team-table"></div></div>
+    </section>
+
+    <!-- PROPS -->
+    <section id="view-props" class="view">
+      <div class="page-title"><div><div class="eyebrow">MATCH SPÉCIFIQUE</div><h2>Player Props</h2></div></div>
+      <div class="card">
+        <p class="muted">Sélectionne un match dans <b>Analyse</b>, puis retrouve ici tous les joueurs exploitables.</p>
+        <div id="allProps" class="props-table-wrap"><div class="empty-inline">Aucune analyse chargée.</div></div>
+      </div>
+    </section>
+
+    <!-- HISTORIQUE -->
+    <section id="view-historique" class="view">
+      <div class="page-title">
+        <div><div class="eyebrow">RDB LOCAL</div><h2>Historique des analyses</h2></div>
+        <button id="clearHistory" class="ghost-btn">Effacer l'historique</button>
+      </div>
+      <div class="card">
+        <p class="muted">Conservé localement dans ton navigateur.</p>
+        <div id="historyTable" class="props-table-wrap"><div class="empty-inline">Aucune analyse enregistrée.</div></div>
+      </div>
+    </section>
+
+    <!-- PREMIUM -->
+    <section id="view-premium" class="view">
+      <div class="page-title"><div><div class="eyebrow">ACCÈS COMPLET</div><h2>Premium à vie</h2></div></div>
+      <div class="pricing-grid">
+        <div class="price-card card">
+          <div class="price-tag">FREE</div>
+          <h3>Découverte</h3>
+          <div class="price-amount">0 €</div>
+          <ul class="price-list">
+            <li>1 analyse résumé / jour</li>
+            <li>xG + score probable</li>
+            <li>Calendrier & équipes</li>
+            <li class="off">Marchés & cotes justes</li>
+            <li class="off">Stats avancées</li>
+            <li class="off">Player props complets</li>
+          </ul>
+          <button type="button" class="ghost-btn" id="freeAccountBtn">Créer un compte gratuit</button>
+        </div>
+        <div class="price-card card featured">
+          <div class="price-tag hot">À VIE</div>
+          <h3>Meute Premium</h3>
+          <div class="price-amount">20 €<small>paiement unique</small></div>
+          <ul class="price-list">
+            <li>Analyses illimitées</li>
+            <li>Tous les marchés RDB</li>
+            <li>SAT% · USAT% · PP/PK · PDO</li>
+            <li>Gardiens + forme + B2B</li>
+            <li>Player props complets</li>
+            <li>Accès à vie sur cet appareil</li>
+          </ul>
+          <button type="button" class="primary-btn" id="buyPremiumBtn">Payer 20 € — accès à vie</button>
+          <a class="price-tg" href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">Support Telegram</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>🐀 RATSDUBET NHL</span>
+    <a href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">t.me/RATS_DU_BET</a>
+    <span>Source : NHL.com / NHL Stats</span>
+    <span id="lastUpdate">—</span>
+  </footer>
+
+  <!-- MODAL AUTH -->
+  <div id="authModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="auth"></div>
+    <div class="modal-card card">
+      <button type="button" class="modal-x" data-close="auth">×</button>
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-auth="login">Connexion</button>
+        <button type="button" class="auth-tab" data-auth="register">Créer un compte</button>
+      </div>
+      <form id="authForm" class="auth-form">
+        <div id="authNameWrap" class="hidden">
+          <label>Pseudo</label>
+          <input type="text" id="authName" placeholder="La Meute" autocomplete="nickname">
+        </div>
+        <label>Email</label>
+        <input type="email" id="authEmail" required placeholder="toi@email.com" autocomplete="email">
+        <label>Mot de passe</label>
+        <input type="password" id="authPassword" required minlength="6" placeholder="6 caractères minimum" autocomplete="current-password">
+        <p id="authError" class="auth-error hidden"></p>
+        <button type="submit" class="primary-btn" id="authSubmit">Se connecter</button>
+      </form>
+      <p class="auth-hint">Déjà Premium ? Connecte-toi pour retrouver ton accès sur ce navigateur.</p>
+      <button type="button" class="ghost-btn full" id="authLogout" style="display:none">Se déconnecter</button>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
