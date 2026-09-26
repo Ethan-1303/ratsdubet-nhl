@@ -25,7 +25,7 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:20px 4vw;display:flex;
 .history-status{font-weight:800}.history-status.no{color:var(--yellow)}.history-status.ok{color:var(--green)}
 @media(max-width:760px){.history-table{min-width:900px}}
 
-/* Stats avancées */
+/* Stats avancÃ©es */
 .advanced-wrap{padding:16px}
 .adv-grid{display:grid;gap:0}
 .adv-head,.adv-row{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:10px;padding:9px 12px;align-items:center;border-bottom:1px solid #122b3e}
@@ -116,3 +116,18 @@ footer a{color:#7ec8ff;text-decoration:none}
 .news-body h3{margin:0 0 6px;font-size:14px;line-height:1.35;color:#f0f6fb}
 .news-body p{margin:0;font-size:12px;color:var(--muted);line-height:1.45}
 @media(max-width:700px){.news-card{grid-template-columns:1fr}.news-img img,.news-ph{min-height:140px}}
+
+/* Team logos */
+.team-logo,.team-logo-sm,.team-logo-lg,.team-logo-xs{object-fit:contain;vertical-align:middle;display:inline-block}
+.team-logo{width:28px;height:28px}
+.team-logo-sm{width:22px;height:22px;margin-right:4px}
+.team-logo-lg{width:36px;height:36px;margin-right:6px}
+.team-logo-xs{width:18px;height:18px;margin-right:3px}
+.team-mini{display:flex;align-items:center;gap:6px}
+.score-side .team-code{display:flex;align-items:center;justify-content:center;gap:6px}
+.sched-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #122b3e}
+.sched-teams{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sched-score{font-weight:800;color:var(--green);min-width:64px;text-align:center}
+.x-btn{display:inline-flex;align-items:center;gap:6px;background:#111;color:#fff;border:1px solid #333;border-radius:8px;padding:7px 11px;text-decoration:none;font-size:11px;font-weight:700}
+.x-btn:hover{border-color:#fff;background:#000}
+.standings-table td,.standings-table th{font-size:12px}
