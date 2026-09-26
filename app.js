@@ -342,6 +342,99 @@ async function analyze(home,away){
 }
 let CURRENT_ANALYSIS=null, CURRENT_PROP="pg", LAST_HISTORY_KEY="";
 
+function buildSummary(d){
+  const fav = d.m.home >= d.m.away ? d.home : d.away;
+  const favP = Math.max(d.m.home, d.m.away);
+  const dog = fav === d.home ? d.away : d.home;
+  const total = d.x.total;
+  let totalTxt;
+  if(total >= 6.3) totalTxt = "total très haut";
+  else if(total >= 5.8) totalTxt = "total haut";
+  else if(total <= 5.0) totalTxt = "total bas";
+  else if(total <= 5.4) totalTxt = "total plutôt bas";
+  else totalTxt = "total moyen";
+  const btts = d.m.btts >= 0.55 ? "BTTS probable" : d.m.btts <= 0.42 ? "BTTS peu probable" : null;
+  const conf = d.c >= 75 ? "confiance élevée" : d.c >= 60 ? "confiance correcte" : "confiance limitée";
+  const edge = [];
+  if(favP >= 0.58) edge.push(`${fav} favori clair (${pct(favP)} OT)`);
+  else edge.push(`${fav} légèrement devant (${pct(favP)} OT)`);
+  edge.push(totalTxt);
+  if(btts) edge.push(btts);
+  if(d.status === "NO BET") edge.push("prudence — statut NO BET");
+  else edge.push(conf);
+  return `${d.home} vs ${d.away} : ${edge.join(" · ")}. Score le plus probable ${d.best[0]}–${d.best[1]} (xG ${fmt(d.x.home)}–${fmt(d.x.away)}).`;
+}
+
+function marketValueFlags(m){
+  // VALUE si proba modèle assez nette (sans cotes book — edge interne)
+  return {
+    "Victoire domicile OT": m.home >= 0.58,
+    "Victoire extérieur OT": m.away >= 0.58,
+    "Domicile 60 min": m.home60 >= 0.55,
+    "Extérieur 60 min": m.away60 >= 0.55,
+    "Nul 60 min": m.tie60 >= 0.22,
+    "Over 4.5": m.o45 >= 0.58,
+    "Over 5.5": m.o55 >= 0.55,
+    "Under 5.5": m.u55 >= 0.55,
+    "Over 6.5": m.o65 >= 0.52,
+    "Under 6.5": m.u65 >= 0.55,
+    "BTTS": m.btts >= 0.55
+  };
+}
+
+function shareTextFrom(d){
+  const sum = buildSummary(d);
+  const lines = [
+    `🏒 BETZONE by Ratsdubet`,
+    `${d.home} vs ${d.away}`,
+    sum,
+    ``,
+    `Home OT ${pct(d.m.home)} (cote juste ${fair(d.m.home)})`,
+    `Away OT ${pct(d.m.away)} (cote juste ${fair(d.m.away)})`,
+    `Over 5.5 ${pct(d.m.o55)} · BTTS ${pct(d.m.btts)}`,
+    `Confiance ${d.c}% · ${d.status}`,
+    ``,
+    `→ https://ratsdubet-nhl.pages.dev`
+  ];
+  return lines.join("\n");
+}
+
+async function copyAnalysis(){
+  const d = CURRENT_ANALYSIS; if(!d) return;
+  const text = shareTextFrom(d);
+  try{
+    await navigator.clipboard.writeText(text);
+    flashShare("Copié ✓");
+  }catch(e){
+    // fallback
+    const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand("copy");flashShare("Copié ✓")}catch(_){flashShare("Échec copie")}
+    ta.remove();
+  }
+}
+
+async function shareAnalysis(){
+  const d = CURRENT_ANALYSIS; if(!d) return;
+  const text = shareTextFrom(d);
+  if(navigator.share){
+    try{
+      await navigator.share({title:`BETZONE · ${d.home} vs ${d.away}`, text, url:"https://ratsdubet-nhl.pages.dev"});
+      return;
+    }catch(e){ if(e.name==="AbortError") return; }
+  }
+  await copyAnalysis();
+}
+
+function flashShare(msg){
+  const b=$("shareAnalysisBtn"); if(!b) return;
+  const old=b.textContent; b.textContent=msg; b.classList.add("flash-ok");
+  setTimeout(()=>{b.textContent=old;b.classList.remove("flash-ok")},1600);
+  const c=$("copyAnalysisBtn");
+  if(c && msg.includes("Copié")){const o=c.textContent;c.textContent=msg;setTimeout(()=>c.textContent=o,1600)}
+}
+
+
+
 function applyPaywall(fullAccess){
   const lock=$("premiumLock"), body=$("premiumBody");
   if(!lock||!body)return;
@@ -384,7 +477,15 @@ function renderAnalysis(d){
   $("kpis").innerHTML=k.map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join("");
   applyPaywall(full);
   const mk=[["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],["Domicile 60 min",d.m.home60],["Extérieur 60 min",d.m.away60],["Nul 60 min",d.m.tie60],["Over 4.5",d.m.o45],["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["Over 6.5",d.m.o65],["Under 6.5",d.m.u65],["BTTS",d.m.btts]];
-  $("markets").innerHTML=mk.map(x=>`<div class="market"><div class="label">${x[0]}</div><div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div></div>`).join("");
+  const valFlags=marketValueFlags(d.m);
+  $("markets").innerHTML=mk.map(x=>{
+    const isVal=!!valFlags[x[0]];
+    return `<div class="market${isVal?" value":""}" title="${isVal?"Edge modèle détecté":""}">
+      <div class="label">${x[0]}${isVal?` <span class="value-tag">VALUE</span>`:""}</div>
+      <div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div>
+    </div>`;
+  }).join("");
+  const sumEl=$("analysisSummary"); if(sumEl) sumEl.textContent=buildSummary(d);
   const notes=[
     {t:"Projection",x:`${d.home} ${fmt(d.x.home)} xG contre ${d.away} ${fmt(d.x.away)} xG. Total modèle : ${fmt(d.x.total)} buts.`},
     {t:"Possession",x:`SAT% ${d.home} ${pct(d.h.sat)} vs ${d.away} ${pct(d.a.sat)} • USAT% ${pct(d.h.usat)} / ${pct(d.a.usat)}. Impact Corsi intégré aux xG.`},
@@ -397,7 +498,14 @@ function renderAnalysis(d){
   $("goalies").innerHTML=[["home",d.home,d.gh],["away",d.away,d.ga]].map(x=>`<div class="goalie"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span style="color:#8ea4b8">• ${x[2].name}</span></h3><div class="stat-row"><span>SV%</span><b>${pct(x[2].sv)}</b></div><div class="stat-row"><span>GAA</span><b>${fmt(x[2].gaa)}</b></div><div class="stat-row"><span>Contexte</span><b>${x[2].conf}</b></div></div>`).join("");
   $("form").innerHTML=[["home",d.home,d.fh,d.bh],["away",d.away,d.fa,d.ba]].map(x=>{
     const wins=x[2].filter(g=>g.win).length,gf=avg(x[2].map(g=>g.gf)),ga=avg(x[2].map(g=>g.ga));
-    return `<div class="form-team"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]}</h3><div class="stat-row"><span>5 derniers</span><b>${wins}V / ${x[2].length-wins}D</b></div><div class="stat-row"><span>Buts</span><b>${fmt(gf)} pour • ${fmt(ga)} contre</b></div><div class="stat-row"><span>B2B</span><b>${x[3].b2b?"OUI":"NON"}</b></div></div>`;
+    // ronds : plus ancien à gauche → plus récent à droite
+    const ordered=[...x[2]].reverse();
+    const dots=ordered.map(g=>`<span class="form-dot ${g.win?"win":"loss"}" title="${g.win?"Victoire":"Défaite"} ${g.gf}-${g.ga}"></span>`).join("")
+      || `<span class="muted">Pas de matchs récents</span>`;
+    return `<div class="form-team"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]}</h3>
+      <div class="form-dots-row"><span class="form-dots-label">Forme</span><div class="form-dots">${dots}</div><span class="form-dots-score">${wins}V-${x[2].length-wins}D</span></div>
+      <div class="stat-row"><span>Buts (moy.)</span><b>${fmt(gf)} pour · ${fmt(ga)} contre</b></div>
+      <div class="stat-row"><span>B2B</span><b>${x[3].b2b?"OUI":"NON"}</b></div></div>`;
   }).join("");
   renderAdvanced(d);
   renderPlayers(CURRENT_PROP);renderAllProps();renderAudit();
@@ -440,25 +548,118 @@ function saveHistory(d){
   h.unshift({
     ts:new Date().toISOString(),home:d.home,away:d.away,
     xh:d.x.home,xa:d.x.away,total:d.x.total,
-    homeOT:d.m.home,awayOT:d.m.away,o55:d.m.o55,btts:d.m.btts,
-    score:`${d.best[0]}–${d.best[1]}`,confidence:d.c,status:d.status
+    homeOT:d.m.home,awayOT:d.m.away,o55:d.m.o55,u55:d.m.u55,btts:d.m.btts,
+    score:`${d.best[0]}–${d.best[1]}`,confidence:d.c,status:d.status,
+    pickFav: d.m.home>=d.m.away ? "home" : "away",
+    pickOver55: d.m.o55>=0.5
   });
   h=h.slice(0,100);localStorage.setItem(key,JSON.stringify(h));renderHistory();
 }
 function getHistory(){
   try{return JSON.parse(localStorage.getItem("rdb_nhl_history_v1")||"[]")}catch(e){return []}
 }
-function renderHistory(){
-  const h=getHistory(),el=$("historyTable");if(!el)return;
-  if(!h.length){el.innerHTML=`<div class="empty-inline">Aucune analyse enregistrée.</div>`;return}
-  el.innerHTML=`<table class="props-table"><thead><tr><th>Date</th><th>Match</th><th>xG</th><th>Score probable</th><th>Home OT</th><th>Away OT</th><th>Over 5.5</th><th>Confiance</th><th>Statut</th></tr></thead><tbody>${h.map(x=>`<tr>
-    <td>${new Date(x.ts).toLocaleString("fr-FR")}</td><td class="pname">${x.home} – ${x.away}</td>
-    <td>${fmt(x.xh)} – ${fmt(x.xa)}</td><td>${x.score}</td><td class="prob">${pct(x.homeOT)}</td>
-    <td class="prob">${pct(x.awayOT)}</td><td class="prob">${pct(x.o55)}</td><td>${x.confidence}%</td>
-    <td>${x.status}</td></tr>`).join("")}</tbody></table>`;
+
+
+async function resolveHistoryResults(){
+  const hist=getHistory();
+  if(!hist.length) return {items:[],stats:null};
+  const items=[];
+  let favHit=0,favN=0,o55Hit=0,o55N=0,bttsHit=0,bttsN=0;
+  for(const h of hist.slice(0,40)){
+    let result=null;
+    try{
+      // cherche un match FINAL home/away autour de la date d'analyse (±3j)
+      const base=new Date(h.ts);
+      for(let delta=-1; delta<=3; delta++){
+        const d=new Date(base); d.setDate(d.getDate()+delta);
+        const iso=d.toISOString().slice(0,10);
+        const j=await api(`api-web.nhle.com/v1/schedule/${iso}`);
+        const games=(j.gameWeek||[]).flatMap(x=>x.games||[]);
+        const g=games.find(x=>{
+          const ha=x.homeTeam?.abbrev, aa=x.awayTeam?.abbrev;
+          return ha===h.home && aa===h.away && (x.gameState==="OFF"||x.gameState==="FINAL"||x.gameScheduleState==="OK"&&Number.isFinite(x.homeTeam?.score));
+        });
+        if(g && Number.isFinite(g.homeTeam?.score) && Number.isFinite(g.awayTeam?.score)){
+          const hs=n(g.homeTeam.score), as_=n(g.awayTeam.score);
+          result={hs,as_,total:hs+as_,homeWin:hs>as_,awayWin:as_>hs,btts:hs>0&&as_>0,date:iso};
+          break;
+        }
+      }
+    }catch(_){}
+    let hits={};
+    if(result){
+      const favHome = (h.pickFav|| (h.homeOT>=h.awayOT?"home":"away"))==="home";
+      const favOk = favHome ? result.homeWin : result.awayWin;
+      favN++; if(favOk) favHit++;
+      hits.fav=favOk;
+      const overOk = result.total > 5.5;
+      const pickedOver = h.pickOver55!=null ? h.pickOver55 : h.o55>=0.5;
+      o55N++; if(pickedOver===overOk) o55Hit++;
+      hits.o55 = pickedOver===overOk;
+      bttsN++; const bttsPick=h.btts>=0.5; if(bttsPick===result.btts) bttsHit++;
+      hits.btts = bttsPick===result.btts;
+    }
+    items.push({...h, result, hits});
+  }
+  const stats={
+    fav:{hit:favHit,n:favN,pct:favN?favHit/favN:null},
+    o55:{hit:o55Hit,n:o55N,pct:o55N?o55Hit/o55N:null},
+    btts:{hit:bttsHit,n:bttsN,pct:bttsN?bttsHit/bttsN:null}
+  };
+  return {items,stats};
 }
+
+function renderHitRate(stats){
+  const el=$("hitRateBox"); if(!el)return;
+  if(!stats || (!stats.fav.n && !stats.o55.n)){
+    el.innerHTML=`<div class="empty-inline">Pas encore assez de matchs joués pour calculer le hit rate.<br><small>Analyse des matchs, puis reviens après les résultats.</small></div>`;
+    return;
+  }
+  function card(label,s,hint){
+    const pctTxt=s.pct!=null?`${(s.pct*100).toFixed(0)}%`:"—";
+    const cls=s.pct==null?"":s.pct>=0.55?"hit-good":s.pct>=0.48?"hit-mid":"hit-bad";
+    return `<div class="hit-card ${cls}"><small>${label}</small><b>${pctTxt}</b><span>${s.hit||0}/${s.n||0} · ${hint}</span></div>`;
+  }
+  el.innerHTML=`<div class="hit-grid">
+    ${card("Favori OT",stats.fav,"côté favori modèle")}
+    ${card("Total 5.5",stats.o55,"over/under selon modèle")}
+    ${card("BTTS",stats.btts,"les deux équipes marquent")}
+  </div>
+  <p class="muted" style="margin-top:10px">Basé sur tes analyses locales dont le match est terminé. Plus tu analyses, plus la preuve est solide — argument Premium.</p>`;
+}
+
+async function renderHistory(){
+  const el=$("historyTable");if(!el)return;
+  el.innerHTML=`<div class="empty-inline">Calcul du hit rate…</div>`;
+  try{
+    const {items,stats}=await resolveHistoryResults();
+    renderHitRate(stats);
+    if(!items.length){el.innerHTML=`<div class="empty-inline">Aucune analyse enregistrée.</div>`;return}
+    el.innerHTML=`<table class="props-table"><thead><tr>
+      <th>Date</th><th>Match</th><th>xG</th><th>Pick</th><th>Résultat</th><th>Fav</th><th>O/U 5.5</th><th>Conf.</th>
+    </tr></thead><tbody>${items.map(x=>{
+      const pick=x.pickFav==="away"?x.away:x.home;
+      const res=x.result?`${x.result.as_}–${x.result.hs}`:"en attente";
+      const favI=x.hits?.fav==null?"—":(x.hits.fav?"✓":"✗");
+      const ouI=x.hits?.o55==null?"—":(x.hits.o55?"✓":"✗");
+      return `<tr>
+        <td>${new Date(x.ts).toLocaleString("fr-FR")}</td>
+        <td class="pname">${x.home} – ${x.away}</td>
+        <td>${fmt(x.xh)} – ${fmt(x.xa)}</td>
+        <td>${pick}</td>
+        <td>${res}</td>
+        <td class="${x.hits?.fav===true?"hit-yes":x.hits?.fav===false?"hit-no":""}">${favI}</td>
+        <td class="${x.hits?.o55===true?"hit-yes":x.hits?.o55===false?"hit-no":""}">${ouI}</td>
+        <td>${x.confidence}%</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+  }catch(e){
+    el.innerHTML=`<div class="empty-inline">Historique indisponible (${e.message||e}).</div>`;
+  }
+}
+
 function clearHistory(){
-  localStorage.removeItem("rdb_nhl_history_v1");renderHistory();
+  localStorage.removeItem("rdb_nhl_history_v1");renderHistory();const hr=$("hitRateBox");if(hr)hr.innerHTML="";
 }
 
 function renderAllProps(){
@@ -681,12 +882,66 @@ async function renderLeaders(sortKey="points"){
   }catch(e){el.innerHTML=`<div class="empty-inline">Classement joueurs indisponible : ${e.message||e}</div>`}
 }
 
+
+let INJURY_CACHE=null, INJURY_FILTER="all";
+async function loadInjuries(force=false){
+  const el=$("injuriesFeed"); if(!el)return;
+  el.innerHTML=`<div class="empty-inline">Chargement des blessures…</div>`;
+  try{
+    if(!INJURY_CACHE || force){
+      const r=await fetch("/api?injuries=1",{cache:"no-store"});
+      INJURY_CACHE=await r.json();
+    }
+    renderInjuries();
+  }catch(e){
+    el.innerHTML=`<div class="empty-inline">Impossible de charger les blessures (${e.message||e}).</div>`;
+  }
+}
+function renderInjuries(){
+  const el=$("injuriesFeed"); if(!el||!INJURY_CACHE)return;
+  const teams=INJURY_CACHE.teams||[];
+  const f=INJURY_FILTER;
+  let html="";
+  let total=0;
+  for(const t of teams){
+    const list=(t.injuries||[]).filter(x=>{
+      if(f==="all")return true;
+      const st=(x.status||"").toLowerCase();
+      if(f==="Out")return st.includes("out");
+      if(f==="Day-To-Day")return st.includes("day");
+      if(f==="IR")return st.includes("ir")||st.includes("injured reserve");
+      return true;
+    });
+    if(!list.length)continue;
+    total+=list.length;
+    html+=`<div class="injury-team"><h3>${t.name} <small>${list.length}</small></h3>
+      <div class="injury-list">${list.map(x=>`
+        <div class="injury-row">
+          <div class="injury-player">
+            <b>${x.name}</b>
+            <small>${x.position||"—"}${x.type?` · ${x.type}`:""}</small>
+          </div>
+          <span class="injury-status status-${(x.status||"").toLowerCase().replace(/\s+/g,"-")}">${x.status||"—"}</span>
+          <div class="injury-meta">
+            ${x.returnDate?`<span>Retour estimé : ${x.returnDate}</span>`:""}
+            ${x.comment?`<p>${x.comment}</p>`:""}
+          </div>
+        </div>`).join("")}</div></div>`;
+  }
+  if(!html){
+    el.innerHTML=`<div class="empty-inline">Aucune blessure pour ce filtre.${INJURY_CACHE.error?`<br><small>${INJURY_CACHE.error}</small>`:""}</div>`;
+    return;
+  }
+  const head=`<div class="muted" style="margin-bottom:12px">${total} joueur(s) · maj ${INJURY_CACHE.updated?new Date(INJURY_CACHE.updated).toLocaleString("fr-FR"):"—"} · ${INJURY_CACHE.source||"ESPN"}</div>`;
+  el.innerHTML=head+html;
+}
+
 function setup(){
   populateTeams();$("homeTeam").onchange=updateTeamMeta;$("awayTeam").onchange=updateTeamMeta;$("analyzeBtn").onclick=runAnalysis;
-  document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));const v=$(`view-${b.dataset.view}`); if(v)v.classList.add("active");if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points")});
+  document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));const v=$(`view-${b.dataset.view}`); if(v)v.classList.add("active");if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points");if(b.dataset.view==="blessures")loadInjuries();if(b.dataset.view==="historique")renderHistory()});
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderPlayers(b.dataset.prop)});
   document.querySelectorAll(".day-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".day-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");schedule(Number(b.dataset.days))});
-  $("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
+  $("shareAnalysisBtn")&&($("shareAnalysisBtn").onclick=()=>shareAnalysis());$("copyAnalysisBtn")&&($("copyAnalysisBtn").onclick=()=>copyAnalysis());$("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshInjuries")&&($("refreshInjuries").onclick=()=>loadInjuries(true));document.querySelectorAll(".injury-filter").forEach(b=>b.onclick=()=>{document.querySelectorAll(".injury-filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");INJURY_FILTER=b.dataset.filter;renderInjuries()});$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
   $("clearHistory").onclick=clearHistory;
   renderHistory();
   setupAuthUI();
