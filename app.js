@@ -188,8 +188,14 @@ async function getGoalieFactors(){
   f.leagueSV=avg(all)||.905;return f;
 }
 async function getSkaters(){
-  const expr=`seasonId=${BASE} and gameTypeId=2`;
-  const j=await api("stats/rest/en/skater/summary",{limit:-1,sort:"points",cayenneExp:expr});
+  // Préfère la saison courante dès qu'il y a assez de matchs, sinon base 2025-26
+  let expr=`seasonId=${CURRENT} and gameTypeId=2`;
+  let j=await api("stats/rest/en/skater/summary",{limit:-1,sort:"points",cayenneExp:expr});
+  const curRows=(j.data||[]).filter(x=>n(x.gamesPlayed)>0);
+  if(curRows.length<50){
+    expr=`seasonId=${BASE} and gameTypeId=2`;
+    j=await api("stats/rest/en/skater/summary",{limit:-1,sort:"points",cayenneExp:expr});
+  }
   const rows=[],byId={},byName={};
   for(const x of j.data||[]){
     const id=String(x.playerId||x.id||""),gp=n(x.gamesPlayed);
@@ -513,31 +519,48 @@ async function runAnalysis(){
   }
 }
 async function schedule(days=0){
-  const d=new Date();d.setDate(d.getDate()+days);const iso=d.toISOString().slice(0,10);
+  const d=new Date();d.setDate(d.getDate()+days);
+  const iso=d.toISOString().slice(0,10);
   $("schedule").innerHTML=`<div class="empty-inline">Chargement…</div>`;
   try{
-    const j=await api(`api-web.nhle.com/v1/schedule/${iso}`);const games=j.gameWeek?.flatMap(x=>x.games||[])||[];
-    const rows=games.filter(g=>g.gameType===2||g.gameType===1);
-    $("schedule").innerHTML=rows.length?rows.map(g=>{
-      const h=g.homeTeam?.abbrev||"",a=g.awayTeam?.abbrev||"",dt=new Date(g.startTimeUTC||g.gameDate);
-      const time=dt.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+    const j=await api(`api-web.nhle.com/v1/schedule/${iso}`);
+    const week=j.gameWeek||[];
+    // uniquement le jour demandé (pas toute la semaine)
+    const day=week.find(x=>(x.date||"").slice(0,10)===iso) || week.find(x=>x.numberOfGames>0) || week[0];
+    const games=(day?.games)||[];
+    const label=day?.date||iso;
+    if(!games.length){
+      $("schedule").innerHTML=`<div class="empty-inline">Aucun match le ${label}.<br><small>Pré-saison / début de saison : essaie Demain ou J+2.</small></div>`;
+      return;
+    }
+    $("schedule").innerHTML=`<div class="muted" style="margin-bottom:10px">📅 ${label} · ${games.length} match(s)</div>`+games.map(g=>{
+      const h=g.homeTeam?.abbrev||"", a=g.awayTeam?.abbrev||"";
+      const dt=new Date(g.startTimeUTC||g.gameDate||label);
+      const time=isNaN(dt)? "—" : dt.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
       const hs=g.homeTeam?.score, as_=g.awayTeam?.score;
-      const score=(Number.isFinite(hs)&&Number.isFinite(as_))?`${as_} – ${hs}`:time;
+      const hasScore=Number.isFinite(hs)&&Number.isFinite(as_);
+      const score=hasScore?`${as_} – ${hs}`:time;
+      const type=g.gameType===1?"PRÉ":g.gameType===2?"Saison":g.gameType===3?"Séries":"";
+      const state=g.gameState||"";
       return `<div class="sched-row">
-        <div class="sched-teams">${logoHTML(a,"team-logo-sm")}<span class="code">${a}</span>
-        <span class="sched-score">${score}</span>
-        ${logoHTML(h,"team-logo-sm")}<span class="code">${h}</span></div>
+        <div class="sched-teams">
+          ${logoHTML(a,"team-logo-sm")}<span class="code">${a}</span>
+          <span class="sched-score">${score}</span>
+          ${logoHTML(h,"team-logo-sm")}<span class="code">${h}</span>
+          <small class="sched-tag">${type}${state?` · ${state}`:""}</small>
+        </div>
         <button class="ghost-btn analyze-small" data-home="${h}" data-away="${a}">Analyser</button>
       </div>`;
-    }).join(""):`<div class="empty-inline">Aucun match à cette date.</div>`;
+    }).join("");
     document.querySelectorAll(".analyze-small").forEach(b=>b.onclick=()=>{
+      if(!b.dataset.home||!b.dataset.away)return;
       $("homeTeam").value=b.dataset.home;$("awayTeam").value=b.dataset.away;updateTeamMeta();
       document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
       document.querySelector('.nav-btn[data-view="analyse"]')?.classList.add("active");
       document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));$("view-analyse").classList.add("active");
       runAnalysis();
     });
-  }catch(e){$("schedule").innerHTML=`<div class="empty-inline">Impossible de charger le calendrier.</div>`}
+  }catch(e){$("schedule").innerHTML=`<div class="empty-inline">Impossible de charger le calendrier (${e.message||e}).</div>`}
 }
 async function renderTeamTable(){
   $("teamTable").innerHTML=`<div class="empty-inline">Chargement des 32 équipes…</div>`;
@@ -616,7 +639,11 @@ async function renderStandings(){
     const rows=await getStandings();
     if(!rows.length){el.innerHTML=`<div class="empty-inline">Classement indisponible (hors saison ou API).</div>`;return;}
     rows.sort((a,b)=>(a.leagueSequence||99)-(b.leagueSequence||99));
-    el.innerHTML=`<table class="props-table standings-table"><thead><tr>
+    const asOf=rows[0]?.date||rows[0]?.standingsDate||"";
+    const seasonNote=asOf&&String(asOf).startsWith("2026-0")&&Number(String(asOf).slice(5,7))<=4
+      ? "Fin de saison 2025-26 (en attente du classement 2026-27)"
+      : "Saison en cours (mis à jour automatiquement)";
+    el.innerHTML=`<p class="muted" style="margin-bottom:8px">${seasonNote}${asOf?` · au ${asOf}`:""}</p><table class="props-table standings-table"><thead><tr>
       <th>#</th><th>Équipe</th><th>MJ</th><th>V</th><th>D</th><th>DP</th><th>Pts</th><th>BP</th><th>BC</th><th>Diff</th><th>Conf</th><th>Div</th>
     </tr></thead><tbody>${rows.map(x=>{
       const abbr=(x.teamAbbrev?.default||x.teamAbbrev||"").toString().toUpperCase();
