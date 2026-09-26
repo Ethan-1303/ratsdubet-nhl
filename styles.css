@@ -163,3 +163,107 @@ footer a{color:#7ec8ff;text-decoration:none}
   .brand-text b{font-size:13px}
   .auth-chip{padding:7px 9px;font-size:10px}
 }
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   MOBILE OPTIMIZATION â€” BETZONE
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box}
+
+@media(max-width:900px){
+  .container{width:min(100%,94vw);padding:16px 0 40px}
+  .hero h1{font-size:clamp(26px,7vw,36px)}
+  .hero p{font-size:13px;line-height:1.5}
+  .hero-side{min-width:0;width:100%}
+  .card{padding:14px;border-radius:14px}
+  .match-picker{gap:10px;padding:14px}
+  .versus{font-size:12px}
+  .primary-btn{padding:14px 16px;font-size:13px;width:100%}
+  .score-side{padding:12px 8px}
+  .team-code{font-size:28px}
+  .team-name{font-size:12px}
+  .scoreline{font-size:32px}
+  .kpis{gap:8px}
+  .kpi{padding:10px 8px}
+  .kpi small{font-size:9px}
+  .kpi b{font-size:14px}
+  .section-title{font-size:13px}
+  .props-table-wrap,.team-table{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .props-table,.team-table table{min-width:640px}
+  .sched-row{flex-direction:column;align-items:stretch;gap:8px}
+  .sched-teams{justify-content:center}
+  .analyze-small{width:100%}
+  .lock-actions{flex-direction:column}
+  .lock-actions .primary-btn,.lock-actions .ghost-btn{width:100%}
+  .page-title{flex-wrap:wrap;gap:10px}
+  footer{padding:20px 4vw 32px;font-size:11px;gap:8px}
+  .modal{padding:12px;align-items:flex-end}
+  .modal-card{width:100%;max-height:90vh;overflow:auto;border-radius:16px 16px 0 0}
+}
+
+@media(max-width:580px){
+  .topbar{
+    height:auto;
+    min-height:56px;
+    flex-wrap:wrap;
+    padding:8px 10px 0;
+    gap:6px;
+  }
+  .brand{order:1}
+  .topbar-right{order:2;margin-left:auto}
+  .main-nav{
+    order:3;
+    width:100%;
+    padding:6px 0 10px;
+    gap:4px;
+    border-top:1px solid rgba(255,255,255,.05);
+  }
+  .nav-btn{
+    padding:8px 12px;
+    font-size:12px;
+    background:#071520;
+    border:1px solid #122b3e;
+  }
+  .nav-btn.active{
+    background:#0d2a1a;
+    border-color:rgba(0,230,118,.35);
+    color:#fff;
+  }
+  .nav-premium{margin-left:0}
+  .brand-text small{display:none}
+  .icon-btn{width:34px;height:34px}
+  .auth-chip{padding:8px 10px}
+  .container{width:96vw;padding-top:12px}
+  .hero{margin-bottom:14px}
+  .score-card{padding:8px}
+  .scoreline span{font-size:28px}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .market-grid{grid-template-columns:1fr}
+  .player{
+    grid-template-columns:24px 1fr auto;
+    gap:6px;
+    font-size:12px;
+  }
+  .player .proj,.player .prob{font-size:11px}
+  .news-card{padding:10px}
+  .adv-head,.adv-row{font-size:11px;padding:8px}
+  .day-btn,.tab{padding:8px 10px;font-size:12px}
+  .schedule-controls{overflow-x:auto;flex-wrap:nowrap;gap:6px}
+}
+
+/* Safe area (iPhone notch / home bar) */
+@supports(padding:max(0px)){
+  .topbar{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
+  body{padding-bottom:env(safe-area-inset-bottom)}
+  footer{padding-bottom:max(24px,env(safe-area-inset-bottom))}
+}
+
+/* Touch targets */
+.nav-btn,.icon-btn,.auth-chip,.primary-btn,.ghost-btn,.day-btn,.tab{
+  min-height:40px;
+  touch-action:manipulation;
+}
+select,input,button{font-size:16px} /* Ã©vite zoom iOS sur focus */
+.nav-btn,.day-btn,.tab,.auth-chip{font-size:12.5px}
+.picker-team select{font-size:16px;min-height:44px}
