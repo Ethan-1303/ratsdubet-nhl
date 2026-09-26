@@ -12,6 +12,22 @@ UTA:["Utah Mammoth","Ouest","Central"],VAN:["Vancouver Canucks","Ouest","Pacifiq
 WPG:["Winnipeg Jets","Ouest","Central"],WSH:["Washington Capitals","Est","Métropolitaine"]
 };
 const BASE="20252026", CURRENT="20262027";
+
+const logoURL = (code, dark=false) => `https://assets.nhle.com/logos/nhl/svg/${code}_${dark?'dark':'light'}.svg`;
+const logoHTML = (code, cls='team-logo') => code ? `<img class="${cls}" src="${logoURL(code)}" alt="${code}" width="28" height="28" loading="lazy" onerror="this.style.display='none'">` : '';
+const toiFmt = (sec) => {
+  const val = Math.round(n(sec));
+  if(!val) return "—";
+  const totalSec = val > 40 ? val : Math.round(val*60);
+  const m = Math.floor(totalSec/60), r = totalSec%60;
+  return `${m}:${String(r).padStart(2,'0')}`;
+};
+const toiMinutes = (sec) => {
+  const val = n(sec);
+  if(!val) return 0;
+  return val > 40 ? val/60 : val;
+};
+
 const $=id=>document.getElementById(id);
 const cache=new Map();
 const n=v=>Number.isFinite(Number(v))?Number(v):0;
@@ -41,7 +57,8 @@ function populateTeams(){
 }
 function updateTeamMeta(){
   for(const [id,meta] of [["homeTeam","homeMeta"],["awayTeam","awayMeta"]]){
-    const c=$(id).value; $(meta).textContent=`${TEAMS[c][1]} • ${TEAMS[c][2]}`;
+    const c=$(id).value;
+    $(meta).innerHTML=`${logoHTML(c,'team-logo-sm')} <span>${TEAMS[c][1]} • ${TEAMS[c][2]}</span>`;
   }
 }
 async function teamReport(report){
@@ -260,13 +277,13 @@ async function buildPlayers(home,away,xh,xa,sh,sa){
     let raw=[];
     for(const p of r.players){
       const s=st.byId[p.id]||st.byName[norm(p.name)];if(!s)continue;
-      let role=s.toi?clamp(s.toi/17,.55,1.45):1;if(p.position==="D")role*=.78;
+      let role=s.toi?clamp(toiMinutes(s.toi)/17,.55,1.45):1;if(p.position==="D")role*=.78;
       raw.push({id:p.id,name:p.name,team:tm,position:p.position,gp:s.gp,goals:s.goals,assists:s.assists,points:s.points,shots:s.shots,toi:s.toi,
         g:Math.max(.005,s.goals/s.gp*role),a:Math.max(.008,s.assists/s.gp*role),sht:Math.max(.15,s.shots/s.gp*role)});
     }
     if(raw.length<6){
       st.rows.filter(s=>s.team===tm).sort((a,b)=>b.points-a.points).slice(0,18).forEach(s=>{
-        let role=s.toi?clamp(s.toi/17,.55,1.45):1;if(s.position==="D")role*=.78;
+        let role=s.toi?clamp(toiMinutes(s.toi)/17,.55,1.45):1;if(s.position==="D")role*=.78;
         raw.push({id:s.id,name:s.name,team:tm,position:s.position,gp:s.gp,goals:s.goals,assists:s.assists,points:s.points,shots:s.shots,toi:s.toi,
           g:Math.max(.005,s.goals/s.gp*role),a:Math.max(.008,s.assists/s.gp*role),sht:Math.max(.15,s.shots/s.gp*role)});
       });
@@ -352,7 +369,7 @@ function renderAnalysis(d){
   if(full) window.RDB_AUTH?.consumeAnalysis?.();
   saveHistory(d);
   $("emptyState").classList.add("hidden");$("analysis").classList.remove("hidden");
-  $("aHomeCode").textContent=d.home;$("aHomeName").textContent=TEAMS[d.home][0];$("aAwayCode").textContent=d.away;$("aAwayName").textContent=TEAMS[d.away][0];
+  $("aHomeCode").innerHTML=logoHTML(d.home,"team-logo-lg")+` <span>${d.home}</span>`;$("aHomeName").textContent=TEAMS[d.home][0];$("aAwayCode").innerHTML=logoHTML(d.away,"team-logo-lg")+` <span>${d.away}</span>`;$("aAwayName").textContent=TEAMS[d.away][0];
   $("xgHome").textContent=fmt(d.x.home);$("xgAway").textContent=fmt(d.x.away);$("scoreProb").textContent=`${d.best[0]}–${d.best[1]}`;
   $("confidence").textContent=pct(d.c/100);$("confidenceBar").style.width=`${d.c}%`;
   const k=full
@@ -371,10 +388,10 @@ function renderAnalysis(d){
     {t:"Statut",x:`${d.status} — confiance modèle ${pct(d.c/100)}.`}
   ];
   $("modelNotes").innerHTML=notes.map((x,i)=>`<div class="note ${i===5&&d.status==="NO BET"?"warn":"good"}"><b>${x.t} :</b> ${x.x}</div>`).join("");
-  $("goalies").innerHTML=[["home",d.home,d.gh],["away",d.away,d.ga]].map(x=>`<div class="goalie"><h3>${x[1]} <span style="color:#8ea4b8">• ${x[2].name}</span></h3><div class="stat-row"><span>SV%</span><b>${pct(x[2].sv)}</b></div><div class="stat-row"><span>GAA</span><b>${fmt(x[2].gaa)}</b></div><div class="stat-row"><span>Contexte</span><b>${x[2].conf}</b></div></div>`).join("");
+  $("goalies").innerHTML=[["home",d.home,d.gh],["away",d.away,d.ga]].map(x=>`<div class="goalie"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span style="color:#8ea4b8">• ${x[2].name}</span></h3><div class="stat-row"><span>SV%</span><b>${pct(x[2].sv)}</b></div><div class="stat-row"><span>GAA</span><b>${fmt(x[2].gaa)}</b></div><div class="stat-row"><span>Contexte</span><b>${x[2].conf}</b></div></div>`).join("");
   $("form").innerHTML=[["home",d.home,d.fh,d.bh],["away",d.away,d.fa,d.ba]].map(x=>{
     const wins=x[2].filter(g=>g.win).length,gf=avg(x[2].map(g=>g.gf)),ga=avg(x[2].map(g=>g.ga));
-    return `<div class="form-team"><h3>${x[1]}</h3><div class="stat-row"><span>5 derniers</span><b>${wins}V / ${x[2].length-wins}D</b></div><div class="stat-row"><span>Buts</span><b>${fmt(gf)} pour • ${fmt(ga)} contre</b></div><div class="stat-row"><span>B2B</span><b>${x[3].b2b?"OUI":"NON"}</b></div></div>`;
+    return `<div class="form-team"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]}</h3><div class="stat-row"><span>5 derniers</span><b>${wins}V / ${x[2].length-wins}D</b></div><div class="stat-row"><span>Buts</span><b>${fmt(gf)} pour • ${fmt(ga)} contre</b></div><div class="stat-row"><span>B2B</span><b>${x[3].b2b?"OUI":"NON"}</b></div></div>`;
   }).join("");
   renderAdvanced(d);
   renderPlayers(CURRENT_PROP);renderAllProps();renderAudit();
@@ -404,7 +421,7 @@ function renderPlayers(key){
   const h=p.filter(x=>x.team===CURRENT_ANALYSIS.home).sort((a,b)=>b[key]-a[key]).slice(0,3),a=p.filter(x=>x.team===CURRENT_ANALYSIS.away).sort((a,b)=>b[key]-a[key]).slice(0,3);
   const labels={pg:["Buts","lg","but"],pa:["Passes","la","passe"],pp:["Points","lp","point"],ps:["Tirs","ls","tir"]};
   const [title,proj,unit]=labels[key];
-  function box(team,arr){return `<div class="player-box"><h3>${team} — TOP 3 ${title.toUpperCase()}</h3>${arr.map((p,i)=>`<div class="player"><span class="rank">#${i+1}</span><span class="name">${p.name}<small>${p.position||"—"} • ${p.gp} matchs</small></span><span class="proj">${fmt(p[proj])} ${unit}</span><span class="prob">${pct(p[key])}</span></div>`).join("")||`<div class="player"><span></span><span class="name">Données insuffisantes</span></div>`}</div>`}
+  function box(team,arr){return `<div class="player-box"><h3>${logoHTML(team,"team-logo-sm")} ${team} — TOP 3 ${title.toUpperCase()}</h3>${arr.map((p,i)=>`<div class="player"><span class="rank">#${i+1}</span><span class="name">${p.name}<small>${p.position||"—"} • ${p.gp} MJ • TOI ${toiFmt(p.toi)}</small></span><span class="proj">${fmt(p[proj])} ${unit}</span><span class="prob">${pct(p[key])}</span></div>`).join("")||`<div class="player"><span></span><span class="name">Données insuffisantes</span></div>`}</div>`}
   $("playerTables").innerHTML=box(CURRENT_ANALYSIS.home,h)+box(CURRENT_ANALYSIS.away,a);
 }
 
@@ -440,11 +457,11 @@ function clearHistory(){
 
 function renderAllProps(){
   const p=CURRENT_ANALYSIS?.players.players||[];
-  $("allProps").innerHTML=`<table class="props-table"><thead><tr><th>Joueur</th><th>Équipe</th><th>Buts proj.</th><th>P 1+ but</th><th>Passes proj.</th><th>P 1+ passe</th><th>Points proj.</th><th>P 1+ point</th><th>Tirs proj.</th><th>P 1+ tir</th></tr></thead><tbody>${p.map(x=>`<tr><td class="pname">${x.name}</td><td>${x.team}</td><td>${fmt(x.lg)}</td><td class="prob">${pct(x.pg)}</td><td>${fmt(x.la)}</td><td class="prob">${pct(x.pa)}</td><td>${fmt(x.lp)}</td><td class="prob">${pct(x.pp)}</td><td>${fmt(x.ls)}</td><td class="prob">${pct(x.ps)}</td></tr>`).join("")}</tbody></table>`;
+  $("allProps").innerHTML=`<table class="props-table"><thead><tr><th>Joueur</th><th>Équipe</th><th>TOI</th><th>Buts proj.</th><th>P 1+ but</th><th>Passes proj.</th><th>P 1+ passe</th><th>Points proj.</th><th>P 1+ point</th><th>Tirs proj.</th><th>P 1+ tir</th></tr></thead><tbody>${p.map(x=>`<tr><td class="pname">${x.name}</td><td>${logoHTML(x.team,"team-logo-xs")} ${x.team}</td><td>${toiFmt(x.toi)}</td><td>${fmt(x.lg)}</td><td class="prob">${pct(x.pg)}</td><td>${fmt(x.la)}</td><td class="prob">${pct(x.pa)}</td><td>${fmt(x.lp)}</td><td class="prob">${pct(x.pp)}</td><td>${fmt(x.ls)}</td><td class="prob">${pct(x.ps)}</td></tr>`).join("")}</tbody></table>`;
 }
 function renderAudit(){
   const d=CURRENT_ANALYSIS;
-  $("audit").innerHTML=`<table><thead><tr><th>Équipe</th><th>GP</th><th>GF</th><th>GA</th><th>Tirs</th><th>SAT%</th><th>PP%</th><th>PK%</th><th>FO%</th><th>PDO</th><th>Source</th></tr></thead><tbody>
+  $("audit").innerHTML=`<p class="muted" style="margin-bottom:8px">Rosters : API <b>/roster/{team}/current</b> (effectifs 2026-27, transferts inclus). Stats joueurs : saison régulière 2025-26.</p><table><thead><tr><th>Équipe</th><th>GP</th><th>GF</th><th>GA</th><th>Tirs</th><th>SAT%</th><th>PP%</th><th>PK%</th><th>FO%</th><th>PDO</th><th>Source</th></tr></thead><tbody>
   <tr><td><b>${d.home}</b></td><td>${d.h.gp}</td><td>${fmt(d.h.gf)}</td><td>${fmt(d.h.ga)}</td><td>${fmt(d.h.shots)}</td><td>${pct(d.h.sat)}</td><td>${pct(d.h.pp)}</td><td>${pct(d.h.pk)}</td><td>${pct(d.h.fo)}</td><td>${fmt(d.h.pdo)}</td><td>${d.h.source}</td></tr>
   <tr><td><b>${d.away}</b></td><td>${d.a.gp}</td><td>${fmt(d.a.gf)}</td><td>${fmt(d.a.ga)}</td><td>${fmt(d.a.shots)}</td><td>${pct(d.a.sat)}</td><td>${pct(d.a.pp)}</td><td>${pct(d.a.pk)}</td><td>${pct(d.a.fo)}</td><td>${fmt(d.a.pdo)}</td><td>${d.a.source}</td></tr></tbody></table>`;
 }
@@ -500,28 +517,42 @@ async function schedule(days=0){
   $("schedule").innerHTML=`<div class="empty-inline">Chargement…</div>`;
   try{
     const j=await api(`api-web.nhle.com/v1/schedule/${iso}`);const games=j.gameWeek?.flatMap(x=>x.games||[])||[];
-    const rows=games.filter(g=>g.gameType===2);
+    const rows=games.filter(g=>g.gameType===2||g.gameType===1);
     $("schedule").innerHTML=rows.length?rows.map(g=>{
-      const h=g.homeTeam?.abbrev||"",a=g.awayTeam?.abbrev||"",dt=new Date(g.startTimeUTC);
-      return `<div class="game-row"><div class="game-time">${dt.toLocaleDateString("fr-FR",{weekday:"short",day:"2-digit",month:"2-digit"})}<br>${dt.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}</div><div class="game-teams"><span>${a}</span> <b> @ </b> <span>${h}</span></div><div class="game-score">${g.gameState==="OFF"||g.gameState==="FINAL"?`${g.awayTeam.score} – ${g.homeTeam.score}`:"À venir"}</div><button class="analyze-small" data-h="${h}" data-a="${a}">ANALYSER</button></div>`;
-    }).join(""):`<div class="empty-inline">Aucun match de saison régulière trouvé ce jour-là.</div>`;
-    document.querySelectorAll(".analyze-small").forEach(b=>b.onclick=()=>{ $("homeTeam").value=b.dataset.h;$("awayTeam").value=b.dataset.a;updateTeamMeta();document.querySelector('[data-view="analyse"]').click();runAnalysis();});
+      const h=g.homeTeam?.abbrev||"",a=g.awayTeam?.abbrev||"",dt=new Date(g.startTimeUTC||g.gameDate);
+      const time=dt.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+      const hs=g.homeTeam?.score, as_=g.awayTeam?.score;
+      const score=(Number.isFinite(hs)&&Number.isFinite(as_))?`${as_} – ${hs}`:time;
+      return `<div class="sched-row">
+        <div class="sched-teams">${logoHTML(a,"team-logo-sm")}<span class="code">${a}</span>
+        <span class="sched-score">${score}</span>
+        ${logoHTML(h,"team-logo-sm")}<span class="code">${h}</span></div>
+        <button class="ghost-btn analyze-small" data-home="${h}" data-away="${a}">Analyser</button>
+      </div>`;
+    }).join(""):`<div class="empty-inline">Aucun match à cette date.</div>`;
+    document.querySelectorAll(".analyze-small").forEach(b=>b.onclick=()=>{
+      $("homeTeam").value=b.dataset.home;$("awayTeam").value=b.dataset.away;updateTeamMeta();
+      document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+      document.querySelector('.nav-btn[data-view="analyse"]')?.classList.add("active");
+      document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));$("view-analyse").classList.add("active");
+      runAnalysis();
+    });
   }catch(e){$("schedule").innerHTML=`<div class="empty-inline">Impossible de charger le calendrier.</div>`}
 }
 async function renderTeamTable(){
   $("teamTable").innerHTML=`<div class="empty-inline">Chargement des 32 équipes…</div>`;
   try{
-    const t=await getTeams(),l=await league();
+    const t=await getTeams(),l=leagueFrom(t);
     const rows=Object.keys(TEAMS).sort().map(c=>{
       const x=t[c];
       return x?`<tr>
-        <td><span class="code">${c}</span> ${TEAMS[c][0]}</td>
+        <td>${logoHTML(c,"team-logo-sm")} <span class="code">${c}</span> ${TEAMS[c][0]}</td>
         <td>${x.gp}</td><td>${fmt(x.gf)}</td><td>${fmt(x.ga)}</td>
         <td>${pct(x.sat)}</td><td>${pct(x.usat)}</td>
         <td>${pct(x.pp)}</td><td>${pct(x.pk)}</td>
         <td>${pct(x.fo)}</td><td>${fmt(x.pdo)}</td>
         <td>${fmt(x.gf/l.gf)}</td><td>${fmt(x.ga/l.ga)}</td>
-      </tr>`:`<tr><td><span class="code">${c}</span> ${TEAMS[c][0]}</td><td colspan="11">Données insuffisantes</td></tr>`;
+      </tr>`:`<tr><td>${logoHTML(c,"team-logo-sm")} <span class="code">${c}</span> ${TEAMS[c][0]}</td><td colspan="11">Données insuffisantes</td></tr>`;
     }).join("");
     $("teamTable").innerHTML=`<table><thead><tr>
       <th>Équipe</th><th>GP</th><th>GF</th><th>GA</th>
@@ -573,12 +604,62 @@ function setupAuthUI(){
   window.addEventListener("rdb:premium",()=>{refreshPlanUI();if(CURRENT_ANALYSIS)renderAnalysis(CURRENT_ANALYSIS)});
   window.addEventListener("rdb:auth",refreshPlanUI);
 }
+
+async function getStandings(){
+  const j=await api("api-web.nhle.com/v1/standings/now");
+  return j.standings||[];
+}
+async function renderStandings(){
+  const el=$("standingsTable"); if(!el)return;
+  el.innerHTML=`<div class="empty-inline">Chargement du classement…</div>`;
+  try{
+    const rows=await getStandings();
+    if(!rows.length){el.innerHTML=`<div class="empty-inline">Classement indisponible (hors saison ou API).</div>`;return;}
+    rows.sort((a,b)=>(a.leagueSequence||99)-(b.leagueSequence||99));
+    el.innerHTML=`<table class="props-table standings-table"><thead><tr>
+      <th>#</th><th>Équipe</th><th>MJ</th><th>V</th><th>D</th><th>DP</th><th>Pts</th><th>BP</th><th>BC</th><th>Diff</th><th>Conf</th><th>Div</th>
+    </tr></thead><tbody>${rows.map(x=>{
+      const abbr=(x.teamAbbrev?.default||x.teamAbbrev||"").toString().toUpperCase();
+      const name=x.teamName?.default||x.teamCommonName?.default||abbr;
+      return `<tr>
+        <td>${x.leagueSequence||"—"}</td>
+        <td class="pname">${logoHTML(abbr,"team-logo-sm")} <span class="code">${abbr}</span> ${name}</td>
+        <td>${x.gamesPlayed??"—"}</td><td>${x.wins??"—"}</td><td>${x.losses??"—"}</td><td>${x.otLosses??"—"}</td>
+        <td><b>${x.points??"—"}</b></td><td>${x.goalFor??"—"}</td><td>${x.goalAgainst??"—"}</td>
+        <td>${x.goalDifferential??"—"}</td><td>${x.conferenceAbbrev||"—"}</td><td>${x.divisionAbbrev||"—"}</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+  }catch(e){el.innerHTML=`<div class="empty-inline">Classement indisponible : ${e.message||e}</div>`}
+}
+
+let LEADERS_CACHE=null;
+async function renderLeaders(sortKey="points"){
+  const el=$("leadersTable"); if(!el)return;
+  el.innerHTML=`<div class="empty-inline">Chargement du classement joueurs…</div>`;
+  try{
+    const st = LEADERS_CACHE || await getSkaters();
+    LEADERS_CACHE = st;
+    const keyMap={points:"points",goals:"goals",assists:"assists",shots:"shots",toi:"toi"};
+    const k=keyMap[sortKey]||"points";
+    const rows=[...st.rows].filter(x=>x.gp>=1).sort((a,b)=> (k==="toi"?toiMinutes(b.toi)-toiMinutes(a.toi):b[k]-a[k])).slice(0,50);
+    el.innerHTML=`<table class="props-table"><thead><tr>
+      <th>#</th><th>Joueur</th><th>Équipe</th><th>Pos</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>Tirs</th><th>TOI/M</th>
+    </tr></thead><tbody>${rows.map((x,i)=>`<tr>
+      <td>${i+1}</td><td class="pname">${x.name}</td>
+      <td>${logoHTML(x.team,"team-logo-xs")} ${x.team||"—"}</td>
+      <td>${x.position||"—"}</td><td>${x.gp}</td>
+      <td>${x.goals}</td><td>${x.assists}</td><td><b>${x.points}</b></td>
+      <td>${x.shots}</td><td>${toiFmt(x.toi)}</td>
+    </tr>`).join("")}</tbody></table>`;
+  }catch(e){el.innerHTML=`<div class="empty-inline">Classement joueurs indisponible : ${e.message||e}</div>`}
+}
+
 function setup(){
   populateTeams();$("homeTeam").onchange=updateTeamMeta;$("awayTeam").onchange=updateTeamMeta;$("analyzeBtn").onclick=runAnalysis;
-  document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));const v=$(`view-${b.dataset.view}`); if(v)v.classList.add("active");if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews()});
+  document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));const v=$(`view-${b.dataset.view}`); if(v)v.classList.add("active");if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points")});
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderPlayers(b.dataset.prop)});
   document.querySelectorAll(".day-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".day-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");schedule(Number(b.dataset.days))});
-  $("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
+  $("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
   $("clearHistory").onclick=clearHistory;
   renderHistory();
   setupAuthUI();
