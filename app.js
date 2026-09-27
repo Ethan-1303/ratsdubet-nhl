@@ -617,7 +617,7 @@ function renderHitRate(stats){
   }
   function card(label,s,hint){
     const pctTxt=s.pct!=null?`${(s.pct*100).toFixed(0)}%`:"—";
-    const cls=s.pct==null?"":s.pct>=0.55?"hit-good":s.pct>=0.48?"hit-mid":"hit-bad";
+    const cls=s.pct==null?"":s.pct>=0.70?"hit-good":s.pct>=0.50?"hit-mid":"hit-bad";
     return `<div class="hit-card ${cls}"><small>${label}</small><b>${pctTxt}</b><span>${s.hit||0}/${s.n||0} · ${hint}</span></div>`;
   }
   el.innerHTML=`<div class="hit-grid">
