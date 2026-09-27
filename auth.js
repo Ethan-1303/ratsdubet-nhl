@@ -197,6 +197,7 @@
           body: JSON.stringify({
             email: this.user?.email || "",
             userId: this.user?.id || "",
+            promoCode: (document.getElementById("promoCode")?.value || "").trim(),
           }),
         });
         const data = await res.json();
