@@ -210,17 +210,88 @@ async function getSkaters(){
 async function getRoster(team){
   try{
     const j=await api(`api-web.nhle.com/v1/roster/${team}/current`),players=[],goalies=[];
-    for(const [arr,pos] of [[j.forwards,"F"],[j.defensemen,"D"]]){
-      for(const x of arr||[]){
-        const name=pname(x.fullName||`${pname(x.firstName)} ${pname(x.lastName)}`).trim();if(name)players.push({id:String(x.id||x.playerId||""),name,position:pos,team});
-      }
+    const forwards=[], defense=[];
+    for(const x of j.forwards||[]){
+      const name=pname(x.fullName||`${pname(x.firstName)} ${pname(x.lastName)}`).trim();
+      if(!name)continue;
+      const p={id:String(x.id||x.playerId||""),name,position:"F",team,sweater:x.sweaterNumber||x.sweater||""};
+      players.push(p); forwards.push(p);
+    }
+    for(const x of j.defensemen||[]){
+      const name=pname(x.fullName||`${pname(x.firstName)} ${pname(x.lastName)}`).trim();
+      if(!name)continue;
+      const p={id:String(x.id||x.playerId||""),name,position:"D",team,sweater:x.sweaterNumber||x.sweater||""};
+      players.push(p); defense.push(p);
     }
     for(const x of j.goalies||[]){
-      const name=pname(x.fullName||`${pname(x.firstName)} ${pname(x.lastName)}`).trim();if(name)goalies.push({id:String(x.id||x.playerId||""),name,position:"G",team});
+      const name=pname(x.fullName||`${pname(x.firstName)} ${pname(x.lastName)}`).trim();
+      if(!name)continue;
+      goalies.push({id:String(x.id||x.playerId||""),name,position:"G",team,sweater:x.sweaterNumber||x.sweater||""});
     }
-    return {players,goalies};
-  }catch(e){return {players:[],goalies:[]}}
+    return {players,goalies,forwards,defense,raw:true};
+  }catch(e){return {players:[],goalies:[],forwards:[],defense:[]}}
 }
+
+async function getGameLineup(gameId){
+  if(!gameId) return null;
+  try{
+    const j=await api(`api-web.nhle.com/v1/gamecenter/${gameId}/boxscore`);
+    const ps=j.playerByGameStats; if(!ps) return null;
+    function side(key){
+      const t=ps[key]||{};
+      const map=(arr,pos)=>(arr||[]).map(x=>({
+        id:String(x.playerId||""),
+        name:pname(x.name||`${pname(x.firstName)} ${pname(x.lastName)}`),
+        position:pos,
+        sweater:x.sweaterNumber||""
+      })).filter(x=>x.name);
+      return {
+        forwards: map(t.forwards,"F"),
+        defense: map(t.defense||t.defensemen,"D"),
+        goalies: map(t.goalies,"G")
+      };
+    }
+    return {
+      home: side("homeTeam"),
+      away: side("awayTeam"),
+      source: "boxscore",
+      state: j.gameState
+    };
+  }catch(e){return null}
+}
+
+function renderLineupBlock(title, code, data){
+  if(!data) return `<div class="lineup-team"><h3>${logoHTML(code,"team-logo-sm")} ${code}</h3><p class="muted">Composition non disponible</p></div>`;
+  const chip=(p)=>`<span class="line-chip">${p.sweater?`#${p.sweater} `:""}${p.name}</span>`;
+  const sec=(label,arr)=>arr&&arr.length?`<div class="line-sec"><small>${label}</small><div class="line-chips">${arr.map(chip).join("")}</div></div>`:"";
+  return `<div class="lineup-team">
+    <h3>${logoHTML(code,"team-logo-sm")} ${title||code}</h3>
+    ${sec("Attaquants", data.forwards)}
+    ${sec("Défenseurs", data.defense)}
+    ${sec("Gardiens", data.goalies)}
+  </div>`;
+}
+
+async function renderMatchLineups(home, away, gameId){
+  const el=$("lineupsBox"); if(!el) return;
+  el.innerHTML=`<div class="empty-inline">Chargement des compositions…</div>`;
+  try{
+    let lineup = gameId ? await getGameLineup(gameId) : null;
+    if(lineup && (lineup.home?.forwards?.length || lineup.away?.forwards?.length)){
+      el.innerHTML=`<p class="muted" style="margin-bottom:10px">Composition officielle du match (${lineup.state||"boxscore"}).</p>
+        <div class="lineup-grid">${renderLineupBlock(TEAMS[away]?.[0]||away, away, lineup.away)}${renderLineupBlock(TEAMS[home]?.[0]||home, home, lineup.home)}</div>`;
+      return;
+    }
+    // fallback roster current (probable)
+    const [rh,ra]=await Promise.all([getRoster(home),getRoster(away)]);
+    el.innerHTML=`<p class="muted" style="margin-bottom:10px">Composition <b>roster actuel</b> (lines officielles souvent publiées le jour J). Transferts 2026-27 inclus.</p>
+      <div class="lineup-grid">${renderLineupBlock(TEAMS[away]?.[0]||away, away, {forwards:ra.forwards,defense:ra.defense,goalies:ra.goalies})}
+      ${renderLineupBlock(TEAMS[home]?.[0]||home, home, {forwards:rh.forwards,defense:rh.defense,goalies:rh.goalies})}</div>`;
+  }catch(e){
+    el.innerHTML=`<div class="empty-inline">Compositions indisponibles (${e.message||e}).</div>`;
+  }
+}
+
 async function getGoalies(){
   const expr=`seasonId=${BASE} and gameTypeId=2`;
   const j=await api("stats/rest/en/goalie/summary",{limit:-1,sort:"wins",cayenneExp:expr});
@@ -338,7 +409,8 @@ async function analyze(home,away){
   if(Number.isFinite(h.sat)&&Number.isFinite(a.sat))c+=6;if(Number.isFinite(h.pp)&&Number.isFinite(a.pk))c+=4;
   if(bh.b2b||ba.b2b)c-=4;c=Math.round(clamp(c,0,95));
   const status=c<60||players.dataCount<6?"NO BET":"SURVEILLER";
-  return {home,away,h,a,l,fh,fa,bh,ba,gf,x,m,players,gh,ga,c,status,best:projectedScore(x.home,x.away)};
+  const gameId=window.__RDB_GAME_ID||null; window.__RDB_GAME_ID=null;
+  return {home,away,h,a,l,fh,fa,bh,ba,gf,x,m,players,gh,ga,c,status,best:projectedScore(x.home,x.away),gameId};
 }
 let CURRENT_ANALYSIS=null, CURRENT_PROP="pg", LAST_HISTORY_KEY="";
 
@@ -509,6 +581,7 @@ function renderAnalysis(d){
   }).join("");
   renderAdvanced(d);
   renderPlayers(CURRENT_PROP);renderAllProps();renderAudit();
+  renderMatchLineups(d.home,d.away,d.gameId||null);
 }
 function renderAdvanced(d){
   const el=$("advancedStats"); if(!el)return;
@@ -750,12 +823,13 @@ async function schedule(days=0){
           ${logoHTML(h,"team-logo-sm")}<span class="code">${h}</span>
           <small class="sched-tag">${type}${state?` · ${state}`:""}</small>
         </div>
-        <button class="ghost-btn analyze-small" data-home="${h}" data-away="${a}">Analyser</button>
+        <button class="ghost-btn analyze-small" data-home="${h}" data-away="${a}" data-game-id="${g.id||""}">Analyser</button>
       </div>`;
     }).join("");
     document.querySelectorAll(".analyze-small").forEach(b=>b.onclick=()=>{
       if(!b.dataset.home||!b.dataset.away)return;
       $("homeTeam").value=b.dataset.home;$("awayTeam").value=b.dataset.away;updateTeamMeta();
+      window.__RDB_GAME_ID=b.dataset.gameId||null;
       document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
       document.querySelector('.nav-btn[data-view="analyse"]')?.classList.add("active");
       document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));$("view-analyse").classList.add("active");
@@ -941,7 +1015,7 @@ function setup(){
   document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));const v=$(`view-${b.dataset.view}`); if(v)v.classList.add("active");if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points");if(b.dataset.view==="blessures")loadInjuries();if(b.dataset.view==="historique")renderHistory()});
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderPlayers(b.dataset.prop)});
   document.querySelectorAll(".day-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".day-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");schedule(Number(b.dataset.days))});
-  $("shareAnalysisBtn")&&($("shareAnalysisBtn").onclick=()=>shareAnalysis());$("copyAnalysisBtn")&&($("copyAnalysisBtn").onclick=()=>copyAnalysis());$("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshInjuries")&&($("refreshInjuries").onclick=()=>loadInjuries(true));document.querySelectorAll(".injury-filter").forEach(b=>b.onclick=()=>{document.querySelectorAll(".injury-filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");INJURY_FILTER=b.dataset.filter;renderInjuries()});$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
+  $("applyPromoHint")&&($("applyPromoHint").onclick=()=>alert("Code parrainage BETZONE\n\n• Le filleul saisit le code (ex. MEUTE5) avant de payer.\n• Réduction : −5 € (15 € au lieu de 20 €).\n• Les codes se créent dans Stripe → Produits → Coupons / Codes promo.\n• Tu peux aussi saisir le code directement sur la page de paiement Stripe."));$("shareAnalysisBtn")&&($("shareAnalysisBtn").onclick=()=>shareAnalysis());$("copyAnalysisBtn")&&($("copyAnalysisBtn").onclick=()=>copyAnalysis());$("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshInjuries")&&($("refreshInjuries").onclick=()=>loadInjuries(true));document.querySelectorAll(".injury-filter").forEach(b=>b.onclick=()=>{document.querySelectorAll(".injury-filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");INJURY_FILTER=b.dataset.filter;renderInjuries()});$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
   $("clearHistory").onclick=clearHistory;
   renderHistory();
   setupAuthUI();
