@@ -324,3 +324,20 @@ select,input,button{font-size:16px} /* Ã©vite zoom iOS sur focus */
 .hit-yes{color:var(--green);font-weight:800}
 .hit-no{color:#ff8a80;font-weight:800}
 @media(max-width:700px){.hit-grid{grid-template-columns:1fr}}
+
+
+/* Lineups */
+.lineup-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.lineup-team h3{font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.line-sec{margin-bottom:10px}
+.line-sec small{display:block;font-size:10px;color:var(--muted);letter-spacing:.8px;margin-bottom:6px;font-weight:700}
+.line-chips{display:flex;flex-wrap:wrap;gap:6px}
+.line-chip{background:#0a1b2b;border:1px solid #1a3a52;border-radius:999px;padding:4px 10px;font-size:11px;color:#d5e4f0}
+@media(max-width:700px){.lineup-grid{grid-template-columns:1fr}}
+
+/* Promo */
+.promo-box{margin:14px 0 12px;text-align:left}
+.promo-box label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px}
+.promo-row{display:flex;gap:8px}
+.promo-row input{flex:1;background:#020a12;border:1px solid #21425a;border-radius:9px;padding:10px 12px;color:#fff;font-size:14px}
+.promo-box small{display:block;margin-top:6px;font-size:11px;line-height:1.4}
