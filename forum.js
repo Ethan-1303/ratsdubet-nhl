@@ -280,4 +280,11 @@
   }
 
   window.RDB_FORUM = { refresh, setup, createPost };
+
+  function boot() {
+    try { setup(); } catch (e) { console.warn("forum setup", e); }
+    try { refresh(); } catch (e) { console.warn("forum refresh", e); }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
 })();
