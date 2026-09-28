@@ -122,10 +122,18 @@
     const el = document.getElementById("forumFeed");
     if (el) el.innerHTML = `<div class="empty-inline">Chargement du forum…</div>`;
     try {
-      const posts = await fetchPosts();
-      renderList(posts);
+      const posts = await Promise.race([
+        fetchPosts(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("Délai dépassé")), 8000))
+      ]);
+      renderList(posts || []);
     } catch (e) {
-      if (el) el.innerHTML = `<div class="empty-inline">Forum indisponible (${e.message || e}).</div>`;
+      // fallback local
+      try {
+        const local = loadLocal().map(normalize);
+        if (local.length) { renderList(local); return; }
+      } catch (_) {}
+      if (el) el.innerHTML = `<div class="empty-inline">Aucun message pour l'instant.<br><small>${e.message || e}</small></div>`;
     }
   }
 
