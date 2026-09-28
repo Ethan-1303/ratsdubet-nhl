@@ -260,6 +260,75 @@ async function getGameLineup(gameId){
   }catch(e){return null}
 }
 
+
+function shortName(name){
+  const n=String(name||"").trim();
+  if(!n) return "?";
+  const parts=n.split(/\s+/);
+  if(parts.length===1) return parts[0].slice(0,10);
+  return parts[parts.length-1].slice(0,12);
+}
+function chunk(arr,size){
+  const out=[]; for(let i=0;i<(arr||[]).length;i+=size) out.push(arr.slice(i,i+size));
+  return out;
+}
+function buildLines(data){
+  const F=data?.forwards||[], D=data?.defense||[], G=data?.goalies||[];
+  const fLines=chunk(F,3), dPairs=chunk(D,2);
+  const max=Math.max(fLines.length, dPairs.length, 1);
+  const lines=[];
+  for(let i=0;i<max;i++){
+    lines.push({
+      forwards: fLines[i]||[],
+      defense: dPairs[i]||[],
+      goalie: i===0 ? (G[0]||null) : (G[i]||null)
+    });
+  }
+  if(!lines.length) lines.push({forwards:[],defense:[],goalie:G[0]||null});
+  return lines;
+}
+function playerToken(p, role){
+  if(!p) return `<div class="rink-slot empty"></div>`;
+  const num=p.sweater?`#${p.sweater}`:"";
+  return `<div class="rink-player ${role||""}" title="${p.name||""}">
+    <div class="rink-avatar">${num||"•"}</div>
+    <div class="rink-name">${shortName(p.name)}</div>
+  </div>`;
+}
+function renderRinkFormation(awayData, homeData, awayCode, homeCode, lineIdx){
+  const aLines=buildLines(awayData), hLines=buildLines(homeData);
+  const max=Math.max(aLines.length, hLines.length, 1);
+  const idx=Math.min(Math.max(0,lineIdx||0), max-1);
+  const a=aLines[idx]||{forwards:[],defense:[],goalie:null};
+  const h=hLines[idx]||{forwards:[],defense:[],goalie:null};
+  // forwards: LW C RW — pad to 3
+  const af=[a.forwards[0],a.forwards[1],a.forwards[2]];
+  const hf=[h.forwards[0],h.forwards[1],h.forwards[2]];
+  const ad=[a.defense[0],a.defense[1]];
+  const hd=[h.defense[0],h.defense[1]];
+  const tabs=Array.from({length:max},(_,i)=>`<button type="button" class="formation-tab ${i===idx?"active":""}" data-line="${i}">Formation ${i+1}</button>`).join("");
+  return `<div class="formation-wrap" data-home="${homeCode}" data-away="${awayCode}">
+    <div class="formation-tabs">${tabs}</div>
+    <div class="rink">
+      <div class="rink-ice">
+        <div class="rink-zone away-zone">
+          <div class="rink-row goalie">${playerToken(a.goalie,"g")}</div>
+          <div class="rink-row defense">${playerToken(ad[0],"d")}${playerToken(ad[1],"d")}</div>
+          <div class="rink-row forwards">${playerToken(af[0],"f")}${playerToken(af[1],"f")}${playerToken(af[2],"f")}</div>
+          <div class="rink-team-tag">${logoHTML(awayCode,"team-logo-sm")} ${awayCode}</div>
+        </div>
+        <div class="rink-center-line"></div>
+        <div class="rink-zone home-zone">
+          <div class="rink-row forwards">${playerToken(hf[0],"f")}${playerToken(hf[1],"f")}${playerToken(hf[2],"f")}</div>
+          <div class="rink-row defense">${playerToken(hd[0],"d")}${playerToken(hd[1],"d")}</div>
+          <div class="rink-row goalie">${playerToken(h.goalie,"g")}</div>
+          <div class="rink-team-tag">${logoHTML(homeCode,"team-logo-sm")} ${homeCode}</div>
+        </div>
+      </div>
+    </div>
+    <p class="muted formation-note">Lignes estimées par groupes de 3 attaquants / 2 défenseurs (ordre boxscore ou roster). Les lines officielles NHL peuvent différer.</p>
+  </div>`;
+}
 function renderLineupBlock(title, code, data){
   if(!data) return `<div class="lineup-card"><div class="lineup-head">${logoHTML(code,"team-logo-sm")}<div><b>${code}</b><span>${title||""}</span></div></div><p class="muted">Composition non disponible</p></div>`;
   const chip=(p,pos)=>`<span class="line-chip pos-${pos||"F"}">${p.sweater?`<em>#${p.sweater}</em>`:""}${p.name}</span>`;
@@ -276,19 +345,34 @@ function renderLineupBlock(title, code, data){
     ${sec("Gardiens", data.goalies, "G")}
   </div>`;
 }
-
 async function renderMatchLineups(home, away, gameId){
   const el=$("lineupsBox"); if(!el) return;
   el.innerHTML=`<div class="empty-inline">Chargement des compositions…</div>`;
   try{
     let lineup = gameId ? await getGameLineup(gameId) : null;
+    let awayData, homeData, banner;
     if(lineup && (lineup.home?.forwards?.length || lineup.away?.forwards?.length)){
-      el.innerHTML=`<div class="lineup-banner official">Composition officielle · ${lineup.state||"boxscore"}</div><div class="lineup-grid">${renderLineupBlock(TEAMS[away]?.[0]||away, away, lineup.away)}${renderLineupBlock(TEAMS[home]?.[0]||home, home, lineup.home)}</div>`;
+      awayData=lineup.away; homeData=lineup.home;
+      banner=`<div class="lineup-banner official">Composition officielle · ${lineup.state||"boxscore"}</div>`;
+    }else{
+      const [rh,ra]=await Promise.all([getRoster(home),getRoster(away)]);
+      awayData={forwards:ra.forwards,defense:ra.defense,goalies:ra.goalies};
+      homeData={forwards:rh.forwards,defense:rh.defense,goalies:rh.goalies};
+      banner=`<div class="lineup-banner roster">Roster actuel · formations estimées · transferts 2026-27 inclus</div>`;
+    }
+    const hasPlayers=(awayData.forwards?.length||0)+(homeData.forwards?.length||0)>0;
+    if(!hasPlayers){
+      el.innerHTML=`<div class="empty-inline">Composition non disponible pour ce match.</div>`;
       return;
     }
-    // fallback roster current (probable)
-    const [rh,ra]=await Promise.all([getRoster(home),getRoster(away)]);
-    el.innerHTML=`<div class="lineup-banner roster">Roster actuel · lines officielles souvent le jour J · transferts 2026-27 inclus</div><div class="lineup-grid">${renderLineupBlock(TEAMS[away]?.[0]||away, away, {forwards:ra.forwards,defense:ra.defense,goalies:ra.goalies})}${renderLineupBlock(TEAMS[home]?.[0]||home, home, {forwards:rh.forwards,defense:rh.defense,goalies:rh.goalies})}</div>`;
+    function paint(lineIdx){
+      el.innerHTML=banner+renderRinkFormation(awayData,homeData,away,home,lineIdx)+
+        `<details class="lineup-details"><summary>Voir listes complètes</summary><div class="lineup-grid">${renderLineupBlock(TEAMS[away]?.[0]||away,away,awayData)}${renderLineupBlock(TEAMS[home]?.[0]||home,home,homeData)}</div></details>`;
+      el.querySelectorAll(".formation-tab").forEach(btn=>{
+        btn.onclick=()=>paint(Number(btn.dataset.line||0));
+      });
+    }
+    paint(0);
   }catch(e){
     el.innerHTML=`<div class="empty-inline">Compositions indisponibles (${e.message||e}).</div>`;
   }
