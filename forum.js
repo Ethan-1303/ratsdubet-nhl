@@ -1,5 +1,5 @@
 /**
- * BETZONE Forum — Supabase (forum_posts) + fallback localStorage
+ * BETZONE Forum — Supabase + images (Storage) + fallback local
  */
 (function () {
   const LOCAL_KEY = "rdb_forum_v1";
@@ -10,11 +10,14 @@
     loss: { label: "Perdant", cls: "t-loss" },
   };
 
+  let filter = "all";
+  let pendingDataUrl = null;
+
   function loadLocal() {
     try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]"); } catch { return []; }
   }
   function saveLocal(arr) {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(arr.slice(0, 200)));
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(arr.slice(0, 100)));
   }
 
   async function getSb() {
@@ -23,10 +26,24 @@
     try {
       const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
       return createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
-    } catch { return null; }
+    } catch (e) {
+      console.warn("Supabase load failed", e);
+      return null;
+    }
   }
 
-  let filter = "all";
+  function normalize(p) {
+    return {
+      id: p.id || ("local_" + Date.now()),
+      type: p.type || "discussion",
+      title: p.title || "",
+      body: p.body || "",
+      image_url: p.image_url || p.imageUrl || null,
+      author_name: p.author_name || p.author || "Anonyme",
+      author_id: p.author_id || "",
+      created_at: p.created_at || p.ts || new Date().toISOString(),
+    };
+  }
 
   async function fetchPosts() {
     const sb = await getSb();
@@ -34,28 +51,69 @@
       try {
         const { data, error } = await sb
           .from("forum_posts")
-          .select("id,type,title,body,author_name,author_id,created_at")
+          .select("id,type,title,body,image_url,author_name,author_id,created_at")
           .order("created_at", { ascending: false })
           .limit(80);
-        if (!error && data) return data.map(normalize);
-      } catch (_) {}
+        if (!error && Array.isArray(data)) return data.map(normalize);
+        if (error) console.warn("forum fetch", error);
+      } catch (e) {
+        console.warn(e);
+      }
     }
     return loadLocal().map(normalize);
   }
 
-  function normalize(p) {
-    return {
-      id: p.id || crypto.randomUUID?.() || String(Date.now()),
-      type: p.type || "discussion",
-      title: p.title || "",
-      body: p.body || "",
-      author_name: p.author_name || p.author || "Anonyme",
-      author_id: p.author_id || "",
-      created_at: p.created_at || p.ts || new Date().toISOString(),
-    };
+  function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      if (!file) return resolve(null);
+      if (!file.type.startsWith("image/")) return reject(new Error("Fichier image uniquement (jpg, png, webp, gif)."));
+      if (file.size > 3 * 1024 * 1024) return reject(new Error("Image max 3 Mo."));
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const max = 1200;
+        let w = img.width, h = img.height;
+        if (w > max || h > max) {
+          const r = Math.min(max / w, max / h);
+          w = Math.round(w * r); h = Math.round(h * r);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image illisible.")); };
+      img.src = url;
+    });
   }
 
-  async function createPost({ type, title, body }) {
+  async function uploadImage(dataUrl, userId) {
+    if (!dataUrl) return null;
+    const sb = await getSb();
+    if (!sb || !userId) return dataUrl; // local fallback: store data url in post body path
+
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const path = `${userId}/${Date.now()}.jpg`;
+      const { error } = await sb.storage.from("forum-images").upload(path, blob, {
+        contentType: "image/jpeg",
+        upsert: false,
+      });
+      if (error) {
+        console.warn("storage upload", error);
+        return dataUrl; // fallback inline
+      }
+      const { data } = sb.storage.from("forum-images").getPublicUrl(path);
+      return data?.publicUrl || dataUrl;
+    } catch (e) {
+      console.warn(e);
+      return dataUrl;
+    }
+  }
+
+  async function createPost({ type, title, body, imageDataUrl }) {
     const A = window.RDB_AUTH;
     if (!A?.isLoggedIn?.()) throw new Error("Connecte-toi pour publier.");
     const author_name = A.user?.name || A.user?.email?.split("@")[0] || "Membre";
@@ -67,23 +125,38 @@
       author_name,
       author_id,
       created_at: new Date().toISOString(),
+      image_url: null,
     };
     if (!row.title || !row.body) throw new Error("Titre et message obligatoires.");
+
+    if (imageDataUrl) {
+      row.image_url = await uploadImage(imageDataUrl, author_id || "anon");
+    }
 
     const sb = await getSb();
     if (sb && author_id) {
       try {
-        const { data, error } = await sb.from("forum_posts").insert({
+        const payload = {
           type: row.type,
           title: row.title,
           body: row.body,
           author_name: row.author_name,
           author_id: row.author_id,
-        }).select().single();
-        if (!error && data) return normalize(data);
-      } catch (_) {}
+          image_url: row.image_url && String(row.image_url).startsWith("http") ? row.image_url : null,
+        };
+        // if only data-url, keep local
+        if (row.image_url && row.image_url.startsWith("data:")) {
+          // store locally with image
+        } else {
+          const { data, error } = await sb.from("forum_posts").insert(payload).select().single();
+          if (!error && data) return normalize(data);
+          if (error) console.warn("insert", error);
+        }
+      } catch (e) {
+        console.warn(e);
+      }
     }
-    // local fallback
+
     row.id = "local_" + Date.now();
     const list = loadLocal();
     list.unshift(row);
@@ -94,8 +167,8 @@
   function renderList(posts) {
     const el = document.getElementById("forumFeed");
     if (!el) return;
-    let list = posts;
-    if (filter !== "all") list = posts.filter((p) => p.type === filter);
+    let list = posts || [];
+    if (filter !== "all") list = list.filter((p) => p.type === filter);
     if (!list.length) {
       el.innerHTML = `<div class="empty-inline">Aucun message pour ce filtre.<br><small>Sois le premier à poster un ticket ou une discussion.</small></div>`;
       return;
@@ -106,6 +179,9 @@
       const when = isNaN(d) ? "" : d.toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
       const body = (p.body || "").replace(/</g, "&lt;").replace(/\n/g, "<br>");
       const title = (p.title || "").replace(/</g, "&lt;");
+      const img = p.image_url
+        ? `<a class="forum-img-link" href="${p.image_url}" target="_blank" rel="noopener"><img class="forum-img" src="${p.image_url}" alt="" loading="lazy"></a>`
+        : "";
       return `<article class="forum-card ${t.cls}">
         <div class="forum-card-top">
           <span class="forum-badge ${t.cls}">${t.label}</span>
@@ -113,6 +189,7 @@
         </div>
         <h3>${title}</h3>
         <div class="forum-body">${body}</div>
+        ${img}
         <div class="forum-meta">👤 ${p.author_name}</div>
       </article>`;
     }).join("");
@@ -124,16 +201,15 @@
     try {
       const posts = await Promise.race([
         fetchPosts(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error("Délai dépassé")), 8000))
+        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 6000)),
       ]);
       renderList(posts || []);
     } catch (e) {
-      // fallback local
       try {
         const local = loadLocal().map(normalize);
-        if (local.length) { renderList(local); return; }
+        if (local.length) return renderList(local);
       } catch (_) {}
-      if (el) el.innerHTML = `<div class="empty-inline">Aucun message pour l'instant.<br><small>${e.message || e}</small></div>`;
+      if (el) el.innerHTML = `<div class="empty-inline">Aucun message pour l'instant.<br><small>Tu peux publier ci-dessus (compte connecté).</small></div>`;
     }
   }
 
@@ -146,21 +222,57 @@
         refresh();
       };
     });
+
+    const fileInput = document.getElementById("forumImage");
+    const preview = document.getElementById("forumImagePreview");
+    if (fileInput) {
+      fileInput.onchange = async () => {
+        const err = document.getElementById("forumError");
+        if (err) err.textContent = "";
+        pendingDataUrl = null;
+        if (preview) preview.innerHTML = "";
+        const f = fileInput.files && fileInput.files[0];
+        if (!f) return;
+        try {
+          pendingDataUrl = await readFileAsDataURL(f);
+          if (preview && pendingDataUrl) {
+            preview.innerHTML = `<img src="${pendingDataUrl}" alt="Aperçu"><button type="button" class="ghost-btn" id="forumImageClear">Retirer</button>`;
+            document.getElementById("forumImageClear").onclick = () => {
+              pendingDataUrl = null;
+              fileInput.value = "";
+              preview.innerHTML = "";
+            };
+          }
+        } catch (ex) {
+          if (err) err.textContent = ex.message || String(ex);
+          fileInput.value = "";
+        }
+      };
+    }
+
     const form = document.getElementById("forumForm");
     if (form) {
       form.onsubmit = async (e) => {
         e.preventDefault();
         const err = document.getElementById("forumError");
         if (err) err.textContent = "";
-        const type = document.getElementById("forumType")?.value || "discussion";
-        const title = document.getElementById("forumTitle")?.value || "";
-        const body = document.getElementById("forumBody")?.value || "";
+        const btn = form.querySelector('button[type="submit"]');
+        if (btn) { btn.disabled = true; btn.textContent = "Publication…"; }
         try {
-          await createPost({ type, title, body });
+          await createPost({
+            type: document.getElementById("forumType")?.value || "discussion",
+            title: document.getElementById("forumTitle")?.value || "",
+            body: document.getElementById("forumBody")?.value || "",
+            imageDataUrl: pendingDataUrl,
+          });
           form.reset();
+          pendingDataUrl = null;
+          if (preview) preview.innerHTML = "";
           await refresh();
         } catch (ex) {
           if (err) err.textContent = ex.message || String(ex);
+        } finally {
+          if (btn) { btn.disabled = false; btn.textContent = "Publier"; }
         }
       };
     }
