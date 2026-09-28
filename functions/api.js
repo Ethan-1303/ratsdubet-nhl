@@ -1,5 +1,5 @@
 /**
- * Cloudflare Pages Function — proxy NHL + Actualites
+ * Cloudflare Pages Function — proxy NHL + Actualités
  * GET /api?path=...
  * GET /api?news=1
  */
@@ -20,6 +20,11 @@ export async function onRequest(context) {
   if (url.searchParams.get("news") === "1") {
     const articles = await fetchNews();
     return json({ articles, updated: new Date().toISOString(), count: articles.length });
+  }
+
+  if (url.searchParams.get("injuries") === "1") {
+    const data = await fetchInjuries();
+    return json(data);
   }
 
   const path = url.searchParams.get("path");
@@ -72,7 +77,10 @@ async function fetchNews() {
 
 async function fromEspn() {
   const up = await fetch(ESPN_NEWS, {
-    headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; RATSDUBET/1.3)" },
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Mozilla/5.0 (compatible; RATSDUBET/1.3)",
+    },
   });
   const ct = up.headers.get("content-type") || "";
   if (!ct.includes("json")) throw new Error("espn not json");
@@ -110,14 +118,18 @@ async function fromGoogleRss() {
   while ((m = re.exec(xml)) && items.length < 20) {
     const block = m[1];
     const title = decodeXml(pickTag(block, "title"));
-    const link = pickTag(block, "link");
+    let link = pickTag(block, "link");
     const pub = pickTag(block, "pubDate");
     const desc = decodeXml(stripTags(pickTag(block, "description")));
     const source = pickTag(block, "source") || "Google News";
     if (!title) continue;
+    // Google wraps links — prefer title source site when possible
+    if (link && link.includes("news.google.com")) {
+      // keep google redirect; users can open it
+    }
     items.push({
       id: link || title,
-      title,
+      title: title.replace(/\s+-\s+[^-]+$/, (s) => s), // keep source in title often
       description: desc.slice(0, 220),
       published: pub ? new Date(pub).toISOString() : "",
       url: link || "https://www.nhl.com/news",
@@ -129,28 +141,30 @@ async function fromGoogleRss() {
 }
 
 async function fromScoreboard() {
-  const up = await fetch(NHL_WEB + "/v1/scoreboard/now", {
+  const up = await fetch(`${NHL_WEB}/v1/scoreboard/now`, {
     headers: { Accept: "application/json", "User-Agent": "RATSDUBET-NHL/1.3" },
   });
   const data = await up.json();
   const arts = [];
   for (const day of data.gamesByDate || []) {
     for (const g of day.games || []) {
-      const home = g.homeTeam?.abbrev || "?";
-      const away = g.awayTeam?.abbrev || "?";
+      const home = g.homeTeam?.abbrev || g.homeTeam?.name?.default || "?";
+      const away = g.awayTeam?.abbrev || g.awayTeam?.name?.default || "?";
       const hs = g.homeTeam?.score;
       const as = g.awayTeam?.score;
-      const state = g.gameState || "";
+      const state = g.gameState || g.gameScheduleState || "";
       const title =
         Number.isFinite(hs) && Number.isFinite(as)
-          ? away + " " + as + " – " + hs + " " + home
-          : away + " @ " + home;
+          ? `${away} ${as} – ${hs} ${home}`
+          : `${away} @ ${home}`;
       arts.push({
         id: String(g.id || title),
-        title: "NHL · " + title,
-        description: (day.date || "") + " · " + state,
+        title: `NHL · ${title}`,
+        description: `${day.date || ""} · ${state} · Clique pour le centre de match NHL`,
         published: g.startTimeUTC || day.date || "",
-        url: g.gameCenterLink ? "https://www.nhl.com" + g.gameCenterLink : "https://www.nhl.com/scores",
+        url: g.gameCenterLink
+          ? `https://www.nhl.com${g.gameCenterLink}`
+          : "https://www.nhl.com/scores",
         image: null,
         source: "NHL Scoreboard",
       });
@@ -161,9 +175,8 @@ async function fromScoreboard() {
 }
 
 function pickTag(block, tag) {
-  const m =
-    block.match(new RegExp("<" + tag + "[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/" + tag + ">", "i")) ||
-    block.match(new RegExp("<" + tag + "[^>]*>([\\s\\S]*?)<\\/" + tag + ">", "i"));
+  const m = block.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`, "i"))
+    || block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
   return m ? m[1].trim() : "";
 }
 function stripTags(s) {
@@ -178,6 +191,7 @@ function decodeXml(s) {
     .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'");
 }
+
 function cors() {
   return {
     "Access-Control-Allow-Origin": "*",
@@ -185,9 +199,58 @@ function cors() {
     "Access-Control-Allow-Headers": "Content-Type",
   };
 }
-function json(data, status) {
+function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
-    status: status || 200,
+    status,
     headers: { "Content-Type": "application/json", ...cors(), "Cache-Control": "public, max-age=120" },
   });
+}
+
+
+async function fetchInjuries() {
+  try {
+    const up = await fetch("https://site.web.api.espn.com/apis/site/v2/sports/hockey/nhl/injuries", {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0 (compatible; BETZONE/1.0)",
+      },
+      cf: { cacheTtl: 300, cacheEverything: true },
+    });
+    if (!up.ok) throw new Error("ESPN " + up.status);
+    const d = await up.json();
+    const teams = [];
+    for (const t of d.injuries || []) {
+      const list = [];
+      for (const inj of t.injuries || []) {
+        const ath = inj.athlete || {};
+        const det = inj.details || {};
+        list.push({
+          id: inj.id,
+          name: ath.displayName || `${ath.firstName || ""} ${ath.lastName || ""}`.trim(),
+          position: ath.position?.abbreviation || ath.position?.displayName || "",
+          status: inj.status || det.fantasyStatus?.description || "—",
+          type: det.type || "",
+          returnDate: det.returnDate || "",
+          comment: inj.shortComment || inj.longComment || "",
+          date: inj.date || "",
+        });
+      }
+      if (list.length) {
+        teams.push({
+          id: t.id,
+          name: t.displayName,
+          injuries: list,
+        });
+      }
+    }
+    return {
+      teams,
+      updated: d.timestamp || new Date().toISOString(),
+      season: d.season?.displayName || "",
+      count: teams.reduce((n, t) => n + t.injuries.length, 0),
+      source: "ESPN",
+    };
+  } catch (e) {
+    return { teams: [], error: String(e), count: 0, updated: new Date().toISOString() };
+  }
 }
