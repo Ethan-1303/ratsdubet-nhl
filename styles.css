@@ -440,3 +440,25 @@ body{background:#03080f}
   .rink-player{width:64px}
   .rink-avatar{width:40px;height:40px}
 }
+
+
+/* Forum form fix â€” always vertical dark inputs */
+#view-forum .forum-compose form{display:flex;flex-direction:column;gap:4px}
+#view-forum .forum-compose select,
+#view-forum .forum-compose input,
+#view-forum .forum-compose textarea{
+  width:100%!important;max-width:100%!important;
+  background:#020a12!important;border:1px solid #21425a!important;
+  border-radius:9px!important;padding:12px!important;
+  color:#fff!important;font:inherit!important;
+  margin-bottom:8px!important;display:block!important;
+  -webkit-appearance:none;appearance:none;
+}
+#view-forum .forum-compose textarea{min-height:110px}
+#view-forum .forum-label{display:block;width:100%;margin-top:6px}
+#view-forum .forum-layout{display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:16px}
+@media(max-width:900px){#view-forum .forum-layout{grid-template-columns:1fr}}
+
+/* Bigger logo */
+.brand-logo img{width:48px!important;height:48px!important;object-fit:contain;border-radius:12px}
+.brand{gap:12px}
