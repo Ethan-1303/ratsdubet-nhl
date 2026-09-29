@@ -17,6 +17,28 @@
     return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
+
+  const LEVELS = [
+    { id: 0, key: "nouveau", name: "Nouveau Rat", short: "Nouveau", emoji: "🐀", cls: "lv-0" },
+    { id: 1, key: "confirme", name: "Rat confirmé", short: "Confirmé", emoji: "🐀", cls: "lv-1" },
+    { id: 2, key: "meute", name: "Rat de la meute", short: "Meute", emoji: "🐺", cls: "lv-2" },
+    { id: 3, key: "premium", name: "Rat premium", short: "Premium", emoji: "⭐", cls: "lv-3" },
+    { id: 4, key: "elite", name: "Rat élite", short: "Élite", emoji: "👑", cls: "lv-4" },
+    { id: 5, key: "chef", name: "Chef de meute", short: "Chef", emoji: "🏆", cls: "lv-5" },
+  ];
+
+  function computeLevel({ isAdmin, premium, trialActive, postsCount, ticketsCount }) {
+    if (isAdmin) return 5;
+    const posts = postsCount || 0;
+    const tickets = ticketsCount || 0;
+    const lifePrem = !!premium && !trialActive;
+    if (lifePrem && posts >= 20) return 4;
+    if (lifePrem) return 3;
+    if (posts >= 10 || tickets >= 5) return 2;
+    if (posts >= 3 || trialActive) return 1;
+    return 0;
+  }
+
   let supabase = null;
 
   async function initSupabase() {
@@ -69,7 +91,7 @@
       try {
         const sb = await initSupabase();
         const { data } = await sb.from("profiles")
-          .select("premium,name,email,trial_expires")
+          .select("premium,name,email,trial_expires,posts_count,tickets_count,level,is_admin")
           .eq("id", u.id).maybeSingle();
         const name = data?.name || u.user_metadata?.name || u.email?.split("@")[0];
         const trialExp = data?.trial_expires ? new Date(data.trial_expires).getTime() : null;
@@ -90,12 +112,21 @@
           save(KEY_PREMIUM, { at: Date.now(), expires: trialExp, source: "trial48h" });
         }
 
+        if (data?.posts_count != null) {
+          this.user_posts = data.posts_count;
+          save("rdb_posts_count_v1", data.posts_count);
+        }
+        if (data?.tickets_count != null) save("rdb_tickets_count_v1", data.tickets_count);
         this.user = {
           id: u.id,
           email: u.email,
           name,
           premium,
           trialExpires: trialExp || null,
+          posts_count: data?.posts_count || load("rdb_posts_count_v1", 0),
+          tickets_count: data?.tickets_count || load("rdb_tickets_count_v1", 0),
+          level: data?.level,
+          is_admin: !!data?.is_admin,
           provider: "supabase",
         };
       } catch {
@@ -111,6 +142,53 @@
     },
 
     isLoggedIn() { return !!this.user?.email; },
+
+    getPostsCount() { return this.user?.posts_count || load("rdb_posts_count_v1", 0) || 0; },
+    getTicketsCount() { return this.user?.tickets_count || load("rdb_tickets_count_v1", 0) || 0; },
+    isAdmin() {
+      const chefs = (CFG().CHEF_EMAILS || []).map((e) => String(e).toLowerCase());
+      const email = (this.user?.email || "").toLowerCase();
+      if (email && chefs.includes(email)) return true;
+      return !!this.user?.is_admin;
+    },
+    getLevel() {
+      return computeLevel({
+        isAdmin: this.isAdmin(),
+        premium: this.isPremium() && !this.isTrialActive?.(),
+        trialActive: !!this.isTrialActive?.(),
+        postsCount: this.getPostsCount(),
+        ticketsCount: this.getTicketsCount(),
+      });
+    },
+    getLevelInfo() {
+      const id = this.getLevel();
+      return LEVELS[id] || LEVELS[0];
+    },
+    async bumpActivity(type) {
+      let posts = this.getPostsCount();
+      let tickets = this.getTicketsCount();
+      posts += 1;
+      if (type === "ticket" || type === "win" || type === "loss") tickets += 1;
+      save("rdb_posts_count_v1", posts);
+      save("rdb_tickets_count_v1", tickets);
+      if (this.user) {
+        this.user.posts_count = posts;
+        this.user.tickets_count = tickets;
+        this.user.level = this.getLevel();
+        save(KEY_USER, this.user);
+      }
+      await this._syncProfilePremium({
+        premium: this.isPremium() && !this.isTrialActive?.(),
+        trial_expires: this.isTrialActive?.()
+          ? new Date(Date.now() + (this.trialRemainingMs?.() || 0)).toISOString()
+          : (load(KEY_PREMIUM, null)?.source === "trial48h" ? load(KEY_PREMIUM).expires : null),
+        posts_count: posts,
+        tickets_count: tickets,
+        level: this.getLevel(),
+      });
+      window.dispatchEvent(new CustomEvent("rdb:auth"));
+    },
+
     isPremium() {
       const meta = load(KEY_PREMIUM, null);
       if (meta && meta.source === "trial48h") {
@@ -156,7 +234,7 @@
       this._syncProfilePremium({ premium: true, trial_expires: new Date(expires).toISOString() });
       if (!silent) window.dispatchEvent(new CustomEvent("rdb:premium"));
     },
-    async _syncProfilePremium({ premium, trial_expires }) {
+    async _syncProfilePremium({ premium, trial_expires, posts_count, tickets_count, level }) {
       try {
         if (!this.user?.id || this.user.provider !== "supabase") return;
         const sb = await initSupabase();
@@ -167,7 +245,14 @@
           name: this.user.name,
           premium: !!premium,
         };
-        if (trial_expires !== undefined) row.trial_expires = trial_expires; // null = lifetime
+        if (trial_expires !== undefined) {
+          row.trial_expires = trial_expires
+            ? (typeof trial_expires === "number" ? new Date(trial_expires).toISOString() : trial_expires)
+            : null;
+        }
+        if (posts_count != null) row.posts_count = posts_count;
+        if (tickets_count != null) row.tickets_count = tickets_count;
+        if (level != null) row.level = level;
         await sb.from("profiles").upsert(row);
       } catch (e) { console.warn("sync profile", e); }
     },
@@ -214,6 +299,27 @@
       this.grantTrial48h(true);
       window.dispatchEvent(new CustomEvent("rdb:auth"));
       return this.user;
+    },
+
+    async resetPassword(email) {
+      email = String(email || "").trim().toLowerCase();
+      if (!email) throw new Error("Indique ton email.");
+      const sb = await initSupabase();
+      if (!sb) throw new Error("Réinitialisation disponible uniquement avec le compte en ligne (Supabase).");
+      const redirectTo = (CFG().SITE_URL || window.location.origin || "https://betzone-rdb.com").replace(/\/$/, "") + "/";
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) throw new Error(error.message || "Impossible d'envoyer l'email.");
+      return true;
+    },
+
+    async updatePassword(newPassword) {
+      if (!newPassword || String(newPassword).length < 6)
+        throw new Error("Mot de passe : 6 caractères minimum.");
+      const sb = await initSupabase();
+      if (!sb) throw new Error("Session Supabase requise.");
+      const { error } = await sb.auth.updateUser({ password: newPassword });
+      if (error) throw new Error(error.message || "Impossible de changer le mot de passe.");
+      return true;
     },
 
     async login(email, password) {
@@ -324,6 +430,8 @@
   };
 
   window.RDB_AUTH = Auth;
+  window.RDB_LEVELS = LEVELS;
+  window.RDB_computeLevel = computeLevel;
   // auto-init
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => Auth.init());
