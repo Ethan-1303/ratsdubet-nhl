@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css?v=20260929k">
+  <link rel="stylesheet" href="/styles.css?v=20260929m">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -80,16 +80,28 @@
   <main class="container">
     <!-- ANALYSE -->
     <section id="view-analyse" class="view active">
-      <div class="hero">
-        <div>
-          <div class="eyebrow">🏒 NHL ANALYTICS</div>
-          <h1>BETZONE <span>Analyzer</span></h1>
-          <p>Projection match par match : xG, possession (SAT/USAT), spécialités, gardiens, forme, fatigue et player props. Base 2025-26 en pré-saison 2026-27.</p>
+      <div id="trialBanner" class="trial-banner hidden"></div>
+
+      <div class="hero hero-pro">
+        <div class="hero-main">
+          <div class="eyebrow">🏒 NHL ANALYTICS · BETZONE</div>
+          <h1>Analyse NHL <span>claire</span>, props & kombos</h1>
+          <p>xG, possession, gardiens, forme, blessures et player props — pour lire un match en 30 secondes. <b>Essai Premium 48 h offert</b> à la création de compte.</p>
+          <div class="hero-cta-row">
+            <button type="button" class="primary-btn" id="heroAnalyzeBtn">Analyser un match →</button>
+            <button type="button" class="ghost-btn" id="heroAccountBtn">Créer un compte (essai 48 h)</button>
+            <a class="ghost-btn" href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">Telegram</a>
+          </div>
+          <ul class="hero-points">
+            <li>Fiche match complète</li>
+            <li>Kombos du jour (cotes book)</li>
+            <li>Forum meute</li>
+          </ul>
         </div>
         <div class="hero-side">
           <div class="hero-badge" id="planBadge">
             <strong>FREE</strong>
-            <span>1 analyse / jour</span>
+            <span>Essai 48h à l’inscription</span>
           </div>
           <a class="tg-card" href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">
             <span>Rejoins la meute</span>
@@ -470,10 +482,10 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20260929k"></script>
-  <script src="/auth.js?v=20260929k"></script>
-  <script src="/forum.js?v=20260929k"></script>
-  <script src="/app.js?v=20260929k"></script>
+  <script src="/config.js?v=20260929m"></script>
+  <script src="/auth.js?v=20260929m"></script>
+  <script src="/forum.js?v=20260929m"></script>
+  <script src="/app.js?v=20260929m"></script>
 
   <script>
   (function(){
