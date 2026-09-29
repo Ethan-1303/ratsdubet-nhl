@@ -1407,21 +1407,67 @@ function buildValueCombo(pool, targetOdds, maxLegs){
   return {legs:[usable[0]], odds:usable[0].bookOdds, score:usable[0].p};
 }
 
+function renderKombosPayload(el, dayKey, payload, oddsNote){
+  if(!el||!payload) return;
+  const {safe, kombo, mortal} = payload;
+  function card(title, subtitle, color, pick){
+    if(!pick||!pick.legs?.length){
+      return `<div class="kombo-card ${color}"><div class="kombo-head"><h3>${title}</h3><span>${subtitle}</span></div>
+        <p class="muted">Pas assez de données aujourd'hui pour cette suggestion.</p></div>`;
+    }
+    const legs=pick.legs.map(l=>`<li>
+      <b>${l.name}</b>
+      <small>${l.match||""} · proba modèle ${pct(l.p)} · cote book <b>${fmtOdds(l.bookOdds)}</b>${l.book?` (${l.book})`:""}${l.isBook?"":" · estimée"}</small>
+    </li>`).join("");
+    const mode=pick.legs.length===1?"Simple":`Combiné ${pick.legs.length} sélections`;
+    const allBook=pick.legs.every(l=>l.isBook);
+    return `<div class="kombo-card ${color}">
+      <div class="kombo-head"><h3>${title}</h3><span>${subtitle}</span></div>
+      <div class="kombo-odds">Cote combinée ${allBook?"bookmakers":"indicative"} <b>~${fmtOdds(pick.odds)}</b> <em>${mode}</em></div>
+      <ul class="kombo-legs">${legs}</ul>
+      <p class="kombo-disc">Sélections = meilleures probas modèle BETZONE · cotes = bookmakers quand disponibles. Suggestions uniquement, pas un conseil de pari.</p>
+    </div>`;
+  }
+  const html=`<p class="muted" style="margin-bottom:12px">${oddsNote||"Cotes bookmakers actives"}<br>Suggestions du <b>${dayKey}</b> · <span class="kombo-once">1 calcul / jour pour tous les membres</span></p>
+    <div class="kombo-grid">
+      ${card("🟢 Safe","Cote book ~2", "k-safe", safe)}
+      ${card("🔵 Kombo","Points / passes · cote book ~5", "k-kombo", kombo)}
+      ${card("🔴 Mortal Kombo","Meilleurs buteurs · cote book ~10", "k-mortal", mortal)}
+    </div>`;
+  el.innerHTML=html;
+}
+
 async function loadKombos(force){
   const el=$("kombosBox"); if(!el) return;
   const dayKey = new Date().toISOString().slice(0,10);
-  const cacheKey = "rdb_kombos_bk2_"+dayKey;
+
+  // 1) Résultat partagé du jour (tous les membres)
   if(!force){
     try{
-      const cached=JSON.parse(localStorage.getItem(cacheKey)||"null");
-      if(cached && cached.at && Date.now()-cached.at < 90*60*1000 && cached.html){
-        el.innerHTML=cached.html;
-        $("refreshKombos")&&($("refreshKombos").onclick=()=>loadKombos(true));
-        return;
+      const r=await fetch("/kombos-daily");
+      if(r.ok){
+        const j=await r.json();
+        if(j.ok && j.payload){
+          renderKombosPayload(el, j.date||dayKey, j.payload, "Cotes bookmakers actives");
+          return;
+        }
+      }
+    }catch(_){}
+  } else {
+    // force ignoré : toujours 1 calcul / jour
+    try{
+      const r=await fetch("/kombos-daily");
+      if(r.ok){
+        const j=await r.json();
+        if(j.ok && j.payload){
+          renderKombosPayload(el, j.date||dayKey, j.payload, "Cotes bookmakers actives · déjà calculé aujourd'hui");
+          return;
+        }
       }
     }catch(_){}
   }
-  el.innerHTML=`<div class="empty-inline">Analyse des matchs + récupération des cotes bookmakers…</div>`;
+
+  el.innerHTML=`<div class="empty-inline">Calcul du jour en cours (1× pour tous les membres)…</div>`;
   try{
     const oddsPack=await fetchOddsEvents();
     const oddsEvents=oddsPack.events||[];
@@ -1543,15 +1589,27 @@ async function loadKombos(force){
       </div>`;
     }
 
-    const html=`<p class="muted" style="margin-bottom:12px">${oddsNote}<br>Suggestions du <b>${dayKey}</b> · <button type="button" class="ghost-btn" id="refreshKombos">↻ Recalculer</button></p>
-      <div class="kombo-grid">
-        ${card("🟢 Safe","Cote book ~2", "k-safe", safe)}
-        ${card("🔵 Kombo","Points / passes · cote book ~5", "k-kombo", kombo)}
-        ${card("🔴 Mortal Kombo","Meilleurs buteurs · cote book ~10", "k-mortal", mortal)}
-      </div>`;
-    el.innerHTML=html;
-    $("refreshKombos")&&($("refreshKombos").onclick=()=>loadKombos(true));
-    try{ localStorage.setItem(cacheKey, JSON.stringify({at:Date.now(),html})); }catch(_){}
+    const payload = { safe, kombo, mortal };
+    // Publier pour tous les membres (1er calcul du jour gagne)
+    try{
+      await fetch("/kombos-daily", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload }),
+      });
+    }catch(_){}
+    // Re-fetch au cas où un autre membre a publié en premier
+    try{
+      const r2=await fetch("/kombos-daily");
+      if(r2.ok){
+        const j2=await r2.json();
+        if(j2.ok && j2.payload){
+          renderKombosPayload(el, j2.date||dayKey, j2.payload, oddsNote);
+          return;
+        }
+      }
+    }catch(_){}
+    renderKombosPayload(el, dayKey, payload, oddsNote);
   }catch(e){
     el.innerHTML=`<div class="empty-inline">Kombos indisponibles (${e.message||e}).</div>`;
   }
