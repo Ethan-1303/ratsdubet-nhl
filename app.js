@@ -1399,11 +1399,19 @@ function renderInjuries(){
   el.innerHTML=head+html;
 }
 
+function syncAnalyzeSticky(){
+  const active = document.querySelector(".nav-btn.active");
+  const view = active?.dataset?.view || "analyse";
+  document.body.classList.toggle("show-analyze-sticky", view === "analyse");
+}
 function setup(){
   $("heroAnalyzeBtn")&&($("heroAnalyzeBtn").onclick=()=>$("analyzeBtn")?.scrollIntoView({behavior:"smooth",block:"center"}));
   $("heroAccountBtn")&&($("heroAccountBtn").onclick=()=>$("authChip")?.click());
   populateTeams();$("homeTeam").onchange=updateTeamMeta;$("awayTeam").onchange=updateTeamMeta;$("analyzeBtn").onclick=runAnalysis;
   $("analyzeBtnSticky")&&($("analyzeBtnSticky").onclick=()=>$("analyzeBtn")?.click());
+  // Premium button also in topbar-right
+  document.getElementById("navPremium")?.addEventListener("click", ()=>setTimeout(syncAnalyzeSticky,0));
+  syncAnalyzeSticky();
   
 
 /* ═══ Kombos du jour — proba modèle + cotes bookmakers ═══ */
@@ -1793,7 +1801,7 @@ async function loadKombos(force){
 
 
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));const v=$(`view-${b.dataset.view}`); if(v)v.classList.add("active");
-    document.body.classList.toggle("show-analyze-sticky", b.dataset.view==="analyse");if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points");if(b.dataset.view==="blessures")loadInjuries();if(b.dataset.view==="historique")renderHistory();if(b.dataset.view==="forum"){window.RDB_FORUM?.setup?.();window.RDB_FORUM?.refresh?.()}if(b.dataset.view==="kombos")loadKombos()});
+    syncAnalyzeSticky();if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points");if(b.dataset.view==="blessures")loadInjuries();if(b.dataset.view==="historique")renderHistory();if(b.dataset.view==="forum"){window.RDB_FORUM?.setup?.();window.RDB_FORUM?.refresh?.()}if(b.dataset.view==="kombos")loadKombos()});
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderPlayers(b.dataset.prop)});
   document.querySelectorAll(".day-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".day-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");schedule(Number(b.dataset.days))});
   $("applyPromoHint")&&($("applyPromoHint").onclick=()=>alert("Code parrainage BETZONE\n\n• Le filleul saisit le code (ex. MEUTE5) avant de payer.\n• Réduction : −5 € (15 € au lieu de 20 €).\n• Les codes se créent dans Stripe → Produits → Coupons / Codes promo.\n• Tu peux aussi saisir le code directement sur la page de paiement Stripe."));$("shareAnalysisBtn")&&($("shareAnalysisBtn").onclick=()=>shareAnalysis());$("copyAnalysisBtn")&&($("copyAnalysisBtn").onclick=()=>copyAnalysis());$("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshInjuries")&&($("refreshInjuries").onclick=()=>loadInjuries(true));document.querySelectorAll(".injury-filter").forEach(b=>b.onclick=()=>{document.querySelectorAll(".injury-filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");INJURY_FILTER=b.dataset.filter;renderInjuries()});$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
