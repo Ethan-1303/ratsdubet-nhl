@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css?v=20260929p">
+  <link rel="stylesheet" href="/styles.css?v=20260929s">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -463,36 +463,93 @@
     <span id="lastUpdate">—</span>
   </footer>
 
-  <!-- MODAL AUTH -->
+  <!-- MODAL AUTH / MON COMPTE -->
   <div id="authModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-backdrop" data-close="auth"></div>
     <div class="modal-card card">
       <button type="button" class="modal-x" data-close="auth">×</button>
-      <div class="auth-tabs">
-        <button type="button" class="auth-tab active" data-auth="login">Connexion</button>
-        <button type="button" class="auth-tab" data-auth="register">Créer un compte</button>
-      </div>
-      <form id="authForm" class="auth-form">
-        <div id="authNameWrap" class="hidden">
-          <label>Pseudo</label>
-          <input type="text" id="authName" placeholder="La Meute" autocomplete="nickname">
+
+      <!-- Panneau connecté -->
+      <div id="accountPanel" class="account-panel hidden">
+        <div class="account-head">
+          <span class="account-emoji" id="accEmoji">🐀</span>
+          <div>
+            <h3 id="accTitle">Mon compte</h3>
+            <p class="muted" id="accLevelName">Nouveau Rat</p>
+          </div>
         </div>
-        <label>Email</label>
-        <input type="email" id="authEmail" required placeholder="toi@email.com" autocomplete="email">
-        <label>Mot de passe</label>
-        <input type="password" id="authPassword" required minlength="6" placeholder="6 caractères minimum" autocomplete="current-password">
-        <p id="authError" class="auth-error hidden"></p>
-        <button type="submit" class="primary-btn" id="authSubmit">Se connecter</button>
-      </form>
-      <p class="auth-hint">Déjà Premium ? Connecte-toi pour retrouver ton accès sur ce navigateur.</p>
-      <button type="button" class="ghost-btn full" id="authLogout" style="display:none">Se déconnecter</button>
+        <div class="account-rows">
+          <div class="account-row"><span>Pseudo</span><b id="accName">—</b></div>
+          <div class="account-row"><span>Email</span><b id="accEmail">—</b></div>
+          <div class="account-row"><span>Niveau</span><b id="accLevel">—</b></div>
+          <div class="account-row"><span>Plan</span><b id="accPlan">—</b></div>
+          <div class="account-row"><span>Posts forum</span><b id="accPosts">0</b></div>
+          <div class="account-row"><span>Tickets</span><b id="accTickets">0</b></div>
+        </div>
+        <p class="account-hint muted" id="accNext">Continue à poster pour monter de niveau.</p>
+        <div class="account-actions">
+          <button type="button" class="primary-btn" id="accPremiumBtn">Passer Premium</button>
+          <button type="button" class="ghost-btn full" id="accChangePassBtn">Changer le mot de passe</button>
+          <button type="button" class="ghost-btn full" id="authLogout">Se déconnecter</button>
+        </div>
+      </div>
+
+      <!-- Panneau connexion / inscription -->
+      <div id="authLoginPanel">
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" data-auth="login">Connexion</button>
+          <button type="button" class="auth-tab" data-auth="register">Créer un compte</button>
+        </div>
+        <form id="authForm" class="auth-form">
+          <div id="authNameWrap" class="hidden">
+            <label>Pseudo</label>
+            <input type="text" id="authName" placeholder="La Meute" autocomplete="nickname">
+          </div>
+          <label>Email</label>
+          <input type="email" id="authEmail" required placeholder="toi@email.com" autocomplete="email">
+          <label>Mot de passe</label>
+          <input type="password" id="authPassword" required minlength="6" placeholder="6 caractères minimum" autocomplete="current-password">
+          <button type="button" class="link-btn" id="forgotPasswordBtn">Mot de passe oublié ?</button>
+          <p id="authError" class="auth-error hidden"></p>
+          <button type="submit" class="primary-btn" id="authSubmit">Se connecter</button>
+        </form>
+        <p class="auth-hint">Essai Premium 48 h offert à la création de compte.</p>
+      </div>
+
+      <!-- Mot de passe oublié -->
+      <div id="authForgotPanel" class="hidden">
+        <h3 class="auth-panel-title">Mot de passe oublié</h3>
+        <p class="muted" style="font-size:13px;margin:0 0 12px">Indique l’email de ton compte. Tu recevras un lien pour en choisir un nouveau.</p>
+        <div class="auth-form">
+          <label>Email</label>
+          <input type="email" id="forgotEmail" placeholder="toi@email.com" autocomplete="email">
+          <p id="forgotError" class="auth-error hidden"></p>
+          <p id="forgotOk" class="auth-ok hidden"></p>
+          <button type="button" class="primary-btn" id="forgotSubmit">Envoyer le lien</button>
+          <button type="button" class="ghost-btn full" id="forgotBack">← Retour</button>
+        </div>
+      </div>
+
+      <!-- Nouveau mot de passe (après clic lien email) -->
+      <div id="authNewPassPanel" class="hidden">
+        <h3 class="auth-panel-title">Nouveau mot de passe</h3>
+        <p class="muted" style="font-size:13px;margin:0 0 12px">Choisis un nouveau mot de passe (6 caractères min.).</p>
+        <div class="auth-form">
+          <label>Nouveau mot de passe</label>
+          <input type="password" id="newPassword" minlength="6" placeholder="6 caractères minimum" autocomplete="new-password">
+          <label>Confirmer</label>
+          <input type="password" id="newPassword2" minlength="6" placeholder="Répète le mot de passe" autocomplete="new-password">
+          <p id="newPassError" class="auth-error hidden"></p>
+          <button type="button" class="primary-btn" id="newPassSubmit">Enregistrer</button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <script src="/config.js?v=20260929p"></script>
-  <script src="/auth.js?v=20260929p"></script>
-  <script src="/forum.js?v=20260929p"></script>
-  <script src="/app.js?v=20260929p"></script>
+  <script src="/config.js?v=20260929s"></script>
+  <script src="/auth.js?v=20260929s"></script>
+  <script src="/forum.js?v=20260929s"></script>
+  <script src="/app.js?v=20260929s"></script>
 
   <script>
   (function(){
