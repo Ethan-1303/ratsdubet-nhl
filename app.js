@@ -29,6 +29,41 @@ const toiMinutes = (sec) => {
 };
 
 const $=id=>document.getElementById(id);
+function skeleton(n=3){
+  return `<div class="skeleton-stack">${Array.from({length:n},()=>`<div class="skeleton-card"><div class="sk-line w40"></div><div class="sk-line"></div><div class="sk-line w70"></div></div>`).join("")}</div>`;
+}
+function showApiError(msg){
+  const el=$("apiErrorToast"); if(!el) return;
+  el.classList.remove("hidden");
+  el.innerHTML=`<div><b>NHL temporairement indisponible</b><span>${msg||"Réessaie dans quelques instants."}</span></div><button type="button" class="ghost-btn" id="apiErrorClose">Fermer</button>`;
+  $("apiErrorClose")&&($("apiErrorClose").onclick=()=>el.classList.add("hidden"));
+  clearTimeout(showApiError._t);
+  showApiError._t=setTimeout(()=>el.classList.add("hidden"),8000);
+}
+function checkKombosNotif(){
+  const el=$("kombosNotif"); if(!el) return;
+  const day=new Date().toISOString().slice(0,10);
+  const key="rdb_kombos_notif_"+day;
+  if(localStorage.getItem(key)){ el.classList.add("hidden"); return; }
+  // show if daily payload exists
+  fetch("/kombos-daily").then(r=>r.ok?r.json():null).then(j=>{
+    if(!j||!j.ok||!j.payload) return;
+    el.classList.remove("hidden");
+    el.innerHTML=`<div><b>Kombos du jour prêts</b> · Safe · Kombo · Mortal disponibles</div>
+      <button type="button" class="ghost-btn" id="kombosNotifGo">Voir</button>
+      <button type="button" class="ghost-btn" id="kombosNotifDismiss">✕</button>`;
+    $("kombosNotifGo")&&($("kombosNotifGo").onclick=()=>{
+      localStorage.setItem(key,"1");
+      el.classList.add("hidden");
+      document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+      document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+      const b=[...document.querySelectorAll(".nav-btn")].find(x=>x.dataset.view==="kombos");
+      if(b){b.classList.add("active");$("view-kombos")?.classList.add("active");loadKombos();syncAnalyzeSticky?.()}
+    });
+    $("kombosNotifDismiss")&&($("kombosNotifDismiss").onclick=()=>{localStorage.setItem(key,"1");el.classList.add("hidden")});
+  }).catch(()=>{});
+}
+
 const cache=new Map();
 const n=v=>Number.isFinite(Number(v))?Number(v):0;
 const avg=a=>a.length?a.reduce((s,x)=>s+n(x),0)/a.length:0;
@@ -347,7 +382,7 @@ function renderLineupBlock(title, code, data){
 }
 async function renderMatchLineups(home, away, gameId){
   const el=$("lineupsBox"); if(!el) return;
-  el.innerHTML=`<div class="empty-inline">Chargement des compositions…</div>`;
+  el.innerHTML=skeleton(2);
   try{
     let lineup = gameId ? await getGameLineup(gameId) : null;
     let awayData, homeData, banner;
@@ -897,7 +932,7 @@ function renderAudit(){
 
 async function loadNews(){
   const el=$("newsFeed"); if(!el)return;
-  el.innerHTML=`<div class="empty-inline">Chargement des actus NHL…</div>`;
+  el.innerHTML=skeleton(4);
   try{
     const r=await fetch("/api?news=1",{cache:"no-store"});
     const j=await r.json();
@@ -944,7 +979,7 @@ async function runAnalysis(){
 async function schedule(days=0){
   const d=new Date();d.setDate(d.getDate()+days);
   const iso=d.toISOString().slice(0,10);
-  $("schedule").innerHTML=`<div class="empty-inline">Chargement…</div>`;
+  $("schedule").innerHTML=skeleton(3);
   try{
     const j=await api(`api-web.nhle.com/v1/schedule/${iso}`);
     const week=j.gameWeek||[];
@@ -987,7 +1022,7 @@ async function schedule(days=0){
   }catch(e){$("schedule").innerHTML=`<div class="empty-inline">Impossible de charger le calendrier (${e.message||e}).</div>`}
 }
 async function renderTeamTable(){
-  $("teamTable").innerHTML=`<div class="empty-inline">Chargement des 32 équipes…</div>`;
+  $("teamTable").innerHTML=skeleton(4);
   try{
     const t=await getTeams(),l=leagueFrom(t);
     const rows=Object.keys(TEAMS).sort().map(c=>{
@@ -1058,7 +1093,11 @@ async function getStandings(){
 }
 async function renderStandings(){
   const el=$("standingsTable"); if(!el)return;
-  el.innerHTML=`<div class="empty-inline">Chargement du classement…</div>`;
+  el.innerHTML=skeleton(4);
+  if(STANDINGS_CACHE && Date.now()-STANDINGS_CACHE_AT < 20*60*1000){
+    el.innerHTML=STANDINGS_CACHE;
+    return;
+  }
   try{
     const rows=await getStandings();
     if(!rows.length){el.innerHTML=`<div class="empty-inline">Classement indisponible (hors saison ou API).</div>`;return;}
@@ -1144,6 +1183,7 @@ async function renderStandings(){
       }).join("")}</tbody></table>
     </div>`;
     el.innerHTML=html;
+    STANDINGS_CACHE=html; STANDINGS_CACHE_AT=Date.now();
     el.querySelectorAll(".standings-mode").forEach(btn=>{
       btn.onclick=()=>{
         el.querySelectorAll(".standings-mode").forEach(b=>b.classList.remove("active"));
@@ -1154,10 +1194,11 @@ async function renderStandings(){
         else{divV?.classList.add("hidden");legV?.classList.remove("hidden");}
       };
     });
-  }catch(e){el.innerHTML=`<div class="empty-inline">Classement indisponible : ${e.message||e}</div>`}
+  }catch(e){el.innerHTML=`<div class="empty-inline">Classement indisponible : ${e.message||e}</div>`; showApiError(e.message||e)}
 }
 
-let LEADERS_CACHE=null;
+let STANDINGS_CACHE=null, STANDINGS_CACHE_AT=0;
+let LEADERS_CACHE=null, LEADERS_CACHE_AT=0;
 let LEADERS_STREAK={}; // id -> {goals:[0/1], assists, points} last 5 (oldest->newest or newest first)
 
 async function enrichTeamsFromLeadersAPI(rows){
@@ -1229,10 +1270,24 @@ function streakDots(arr){
 
 async function renderLeaders(sortKey="points"){
   const el=$("leadersTable"); if(!el)return;
-  el.innerHTML=`<div class="empty-inline">Chargement du classement joueurs…</div>`;
+  el.innerHTML=skeleton(5);
   try{
-    const st = LEADERS_CACHE || await getSkaters();
-    LEADERS_CACHE = st;
+    if(!LEADERS_CACHE){
+      try{
+        const ls=JSON.parse(localStorage.getItem("rdb_leaders_v1")||"null");
+        if(ls && ls.at && Date.now()-ls.at < 30*60*1000 && ls.rows){
+          LEADERS_CACHE={rows:ls.rows,byId:{},byName:{}};
+          LEADERS_CACHE_AT=ls.at;
+        }
+      }catch(_){}
+    }
+    let st = LEADERS_CACHE;
+    if(!st || !LEADERS_CACHE_AT || Date.now()-LEADERS_CACHE_AT > 30*60*1000){
+      st = await getSkaters();
+      LEADERS_CACHE = st;
+      LEADERS_CACHE_AT = Date.now();
+      try{ localStorage.setItem("rdb_leaders_v1", JSON.stringify({at:Date.now(), rows:st.rows?.slice?.(0,80)})); }catch(_){}
+    }
     if(st.rows.some(r=>!r.team)) await enrichTeamsFromLeadersAPI(st.rows);
 
     const keyMap={points:"points",goals:"goals",assists:"assists",shots:"shots",toi:"toi"};
@@ -1280,7 +1335,7 @@ async function renderLeaders(sortKey="points"){
         }
       })();
     }
-  }catch(e){el.innerHTML=`<div class="empty-inline">Classement joueurs indisponible : ${e.message||e}</div>`}
+  }catch(e){el.innerHTML=`<div class="empty-inline">Classement joueurs indisponible : ${e.message||e}</div>`; showApiError(e.message||e)}
 }
 
 
@@ -1349,7 +1404,7 @@ function renderMatchInjuries(home, away){
 
 async function loadInjuries(force=false){
   const el=$("injuriesFeed"); if(!el)return;
-  el.innerHTML=`<div class="empty-inline">Chargement des blessures…</div>`;
+  el.innerHTML=skeleton(4);
   try{
     if(!INJURY_CACHE || force){
       const r=await fetch("/api?injuries=1",{cache:"no-store"});
@@ -1412,6 +1467,7 @@ function setup(){
   // Premium button also in topbar-right
   document.getElementById("navPremium")?.addEventListener("click", ()=>setTimeout(syncAnalyzeSticky,0));
   syncAnalyzeSticky();
+  try{ checkKombosNotif(); }catch(_){}
   
 
 /* ═══ Kombos du jour — proba modèle + cotes bookmakers ═══ */
