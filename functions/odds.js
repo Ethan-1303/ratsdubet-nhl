@@ -47,7 +47,7 @@ function json(data, status = 200) {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Cache-Control": "public, max-age=120",
+      "Cache-Control": "public, max-age=86400, s-maxage=86400",
     },
   });
 }
