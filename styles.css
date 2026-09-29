@@ -681,3 +681,72 @@ body{background:#03080f}
   .nav-btn{padding:6px 7px !important;font-size:11px !important}
   .topbar-right .social-links{display:none}
 }
+
+/* ═══ Topbar final — Premium fixe à droite, nav scroll ═══ */
+header.topbar{
+  height:62px !important;
+  min-height:62px !important;
+  max-height:62px !important;
+  display:flex !important;
+  flex-wrap:nowrap !important;
+  align-items:center !important;
+  gap:8px !important;
+  padding:0 12px !important;
+  overflow:visible;
+}
+header.topbar .main-nav{
+  flex:1 1 0 !important;
+  min-width:0 !important;
+  max-width:100%;
+  width:auto !important;
+  order:unset !important;
+  flex-wrap:nowrap !important;
+  overflow-x:auto !important;
+  overflow-y:hidden !important;
+  -webkit-overflow-scrolling:touch;
+  gap:1px !important;
+  padding:2px 3px !important;
+  margin:0 4px !important;
+}
+header.topbar .nav-btn{
+  padding:6px 9px !important;
+  font-size:11.5px !important;
+  line-height:1.2;
+}
+header.topbar .topbar-right{
+  flex:0 0 auto !important;
+  display:flex !important;
+  align-items:center;
+  gap:6px !important;
+  margin-left:auto !important;
+}
+header.topbar .topbar-right .nav-premium{
+  margin:0 !important;
+  padding:6px 12px !important;
+  border-radius:999px !important;
+  font-weight:800 !important;
+  font-size:12px !important;
+  color:#00e676 !important;
+  border:1px solid rgba(0,230,118,.4) !important;
+  background:rgba(0,230,118,.1) !important;
+  white-space:nowrap;
+}
+header.topbar .topbar-right .nav-premium.active{
+  background:rgba(0,230,118,.22) !important;
+  color:#fff !important;
+}
+@media(max-width:1200px){
+  header.topbar .status-pill{display:none !important}
+  header.topbar .brand-text small{display:none !important}
+}
+@media(max-width:900px){
+  header.topbar .social-links{display:none !important}
+  header.topbar .nav-btn{padding:6px 7px !important;font-size:11px !important}
+  header.topbar .topbar-right .nav-premium{padding:6px 10px !important;font-size:11px !important}
+}
+@media(max-width:640px){
+  header.topbar{height:54px !important;min-height:54px !important;max-height:54px !important;padding:0 6px !important}
+  header.topbar .brand-text b{font-size:11px !important}
+  header.topbar .auth-chip{padding:5px 8px !important;font-size:11px !important}
+  header.topbar .topbar-right .nav-premium{padding:5px 8px !important}
+}
