@@ -13,6 +13,9 @@ window.RDB_CONFIG = {
   FREE_ANALYSES_PER_DAY: 1,
   FREE_SHOW_SUMMARY: true,
 
+  /* Emails Chef de meute (niveau 5) — mets ton email */
+  CHEF_EMAILS: ["djovins@hotmail.fr"],
+
   SITE_URL: "https://betzone-rdb.com",
 
   /* Cotes bookmakers (clé côté Cloudflare uniquement — ne pas coller ici)
