@@ -811,18 +811,22 @@ header.topbar .topbar-right .nav-premium.active{
 .forum-like{background:#0a1824;border:1px solid #1a3a52;color:#c5d4e0;border-radius:999px;padding:4px 10px;cursor:pointer;font-size:12px}
 .forum-like.on{color:#ff6b8a;border-color:rgba(255,107,138,.4)}
 
-/* Mobile sticky analyze */
+/* Mobile sticky analyze — UNIQUEMENT onglet Analyse + petit écran */
 .analyze-sticky{
-  display:none;position:fixed;left:0;right:0;bottom:0;z-index:40;
+  display:none !important;
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
   padding:10px 12px calc(10px + env(safe-area-inset-bottom));
   background:linear-gradient(180deg,transparent,rgba(2,7,13,.92) 30%,#02070d);
+  pointer-events:none;
 }
-.analyze-sticky .primary-btn{width:100%;height:48px}
+.analyze-sticky .primary-btn{width:100%;height:48px;pointer-events:auto}
 @media(max-width:760px){
-  .analyze-sticky{display:block}
-  .match-picker .primary-btn{display:none}
-  #view-analyse.view.active ~ .analyze-sticky,
-  body.show-analyze-sticky .analyze-sticky{display:block}
-  .container{padding-bottom:80px}
+  body.show-analyze-sticky .analyze-sticky{display:block !important;pointer-events:auto}
+  body.show-analyze-sticky .match-picker .primary-btn{display:none !important}
+  body.show-analyze-sticky .container{padding-bottom:88px}
   header.topbar .nav-btn{padding:5px 6px !important;font-size:10.5px !important}
+}
+@media(min-width:761px){
+  .analyze-sticky{display:none !important}
+  .match-picker .primary-btn{display:inline-flex !important}
 }
