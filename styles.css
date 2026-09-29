@@ -794,3 +794,35 @@ header.topbar .topbar-right .nav-premium.active{
 .summary-bar .summary-main{width:100%}
 .summary-bar .summary-actions{margin-top:10px;display:flex;gap:8px}
 @media(max-width:900px){.summary-bar .summary-kpis{grid-template-columns:repeat(2,1fr)}}
+
+/* Form chips */
+.form-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px}
+.form-chip{font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px}
+.form-chip.win{background:rgba(0,230,118,.12);color:#00e676}
+.form-chip.loss{background:rgba(255,82,99,.12);color:#ff8a94}
+
+/* Kombo why */
+.kombo-why{display:block;margin-top:6px;font-size:11px;color:#9ec9b0;font-style:normal;line-height:1.35}
+
+/* Forum living */
+.forum-pin{border-color:rgba(0,230,118,.35)!important;box-shadow:0 0 0 1px rgba(0,230,118,.12)}
+.forum-pin-tag{font-size:10px;font-weight:800;color:#00e676;margin-left:6px}
+.forum-meta{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px}
+.forum-like{background:#0a1824;border:1px solid #1a3a52;color:#c5d4e0;border-radius:999px;padding:4px 10px;cursor:pointer;font-size:12px}
+.forum-like.on{color:#ff6b8a;border-color:rgba(255,107,138,.4)}
+
+/* Mobile sticky analyze */
+.analyze-sticky{
+  display:none;position:fixed;left:0;right:0;bottom:0;z-index:40;
+  padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,transparent,rgba(2,7,13,.92) 30%,#02070d);
+}
+.analyze-sticky .primary-btn{width:100%;height:48px}
+@media(max-width:760px){
+  .analyze-sticky{display:block}
+  .match-picker .primary-btn{display:none}
+  #view-analyse.view.active ~ .analyze-sticky,
+  body.show-analyze-sticky .analyze-sticky{display:block}
+  .container{padding-bottom:80px}
+  header.topbar .nav-btn{padding:5px 6px !important;font-size:10.5px !important}
+}
