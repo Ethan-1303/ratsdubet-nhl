@@ -68,16 +68,34 @@
       let premium = this.premium;
       try {
         const sb = await initSupabase();
-        const { data } = await sb.from("profiles").select("premium,name,email").eq("id", u.id).maybeSingle();
-        if (data?.premium) {
+        const { data } = await sb.from("profiles")
+          .select("premium,name,email,trial_expires")
+          .eq("id", u.id).maybeSingle();
+        const name = data?.name || u.user_metadata?.name || u.email?.split("@")[0];
+        const trialExp = data?.trial_expires ? new Date(data.trial_expires).getTime() : null;
+
+        if (data?.premium && trialExp && trialExp > Date.now()) {
+          // Essai 48h encore valide (multi-appareils)
+          this.premium = true;
+          save(KEY_PREMIUM, { at: Date.now(), expires: trialExp, source: "trial48h" });
           premium = true;
+        } else if (data?.premium && !trialExp) {
+          // Premium à vie
           this.grantPremium("supabase", true);
+          premium = true;
+        } else if (data?.premium && trialExp && trialExp <= Date.now()) {
+          // Essai expiré côté serveur
+          this.premium = false;
+          premium = false;
+          save(KEY_PREMIUM, { at: Date.now(), expires: trialExp, source: "trial48h" });
         }
+
         this.user = {
           id: u.id,
           email: u.email,
-          name: data?.name || u.user_metadata?.name || u.email?.split("@")[0],
+          name,
           premium,
+          trialExpires: trialExp || null,
           provider: "supabase",
         };
       } catch {
@@ -103,6 +121,7 @@
         // essai expiré
         this.premium = false;
         if (this.user) this.user.premium = false;
+        this._trialEnded = true;
         return false;
       }
       // Premium à vie (stripe / demo / supabase)
@@ -116,6 +135,14 @@
       if (!meta || meta.source !== "trial48h" || !meta.expires) return 0;
       return Math.max(0, meta.expires - Date.now());
     },
+    isTrialActive() {
+      return this.trialRemainingMs() > 0;
+    },
+    hasTrialEnded() {
+      const meta = load(KEY_PREMIUM, null);
+      if (meta && meta.source === "trial48h" && meta.expires && Date.now() > meta.expires) return true;
+      return !!this._trialEnded;
+    },
     grantTrial48h(silent) {
       const expires = Date.now() + 48 * 3600 * 1000;
       this.premium = true;
@@ -125,7 +152,24 @@
         this.user.trialExpires = expires;
         save(KEY_USER, this.user);
       }
+      // Sync multi-appareils Supabase
+      this._syncProfilePremium({ premium: true, trial_expires: new Date(expires).toISOString() });
       if (!silent) window.dispatchEvent(new CustomEvent("rdb:premium"));
+    },
+    async _syncProfilePremium({ premium, trial_expires }) {
+      try {
+        if (!this.user?.id || this.user.provider !== "supabase") return;
+        const sb = await initSupabase();
+        if (!sb) return;
+        const row = {
+          id: this.user.id,
+          email: this.user.email,
+          name: this.user.name,
+          premium: !!premium,
+        };
+        if (trial_expires !== undefined) row.trial_expires = trial_expires; // null = lifetime
+        await sb.from("profiles").upsert(row);
+      } catch (e) { console.warn("sync profile", e); }
     },
     hasSupabase() { return !!(CFG().SUPABASE_URL && CFG().SUPABASE_ANON_KEY); },
 
@@ -204,6 +248,7 @@
       save(KEY_PREMIUM, { at: Date.now(), source: source || "stripe", expires: null });
       if (this.user) {
         this.user.premium = true;
+        this.user.trialExpires = null;
         save(KEY_USER, this.user);
         const users = load("rdb_users_db_v1", {});
         if (this.user.email && users[this.user.email]) {
@@ -211,6 +256,7 @@
           save("rdb_users_db_v1", users);
         }
       }
+      this._syncProfilePremium({ premium: true, trial_expires: null });
       if (!silent) window.dispatchEvent(new CustomEvent("rdb:premium"));
     },
 
