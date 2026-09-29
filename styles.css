@@ -877,3 +877,45 @@ header.topbar .topbar-right .nav-premium.active{
 .api-error-toast.hidden{display:none !important}
 .api-error-toast b{display:block;margin-bottom:2px}
 .api-error-toast span{color:#ffb3bc;font-size:12px}
+
+/* Niveaux meute */
+.level-badge{
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;
+  vertical-align:middle;margin-left:6px;letter-spacing:.2px;
+}
+.level-badge.lv-0{background:#1a2430;color:#9aa8b5;border:1px solid #2a3a4a}
+.level-badge.lv-1{background:rgba(0,180,120,.12);color:#6ddea8;border:1px solid rgba(0,180,120,.25)}
+.level-badge.lv-2{background:rgba(24,168,255,.12);color:#7ec8ff;border:1px solid rgba(24,168,255,.3)}
+.level-badge.lv-3{background:rgba(0,230,118,.15);color:#00e676;border:1px solid rgba(0,230,118,.35)}
+.level-badge.lv-4{background:rgba(255,216,77,.12);color:#ffd84d;border:1px solid rgba(255,216,77,.35)}
+.level-badge.lv-5{background:rgba(255,82,99,.15);color:#ff8a94;border:1px solid rgba(255,82,99,.4)}
+.level-under{display:block;margin-top:4px;font-size:11px;color:var(--muted);font-weight:600}
+.chip-level{margin-right:2px}
+.forum-author{display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px}
+
+/* Mon compte */
+.account-panel{display:flex;flex-direction:column;gap:14px}
+.account-panel.hidden{display:none !important}
+#authLoginPanel.hidden{display:none !important}
+.account-head{display:flex;align-items:center;gap:14px}
+.account-emoji{font-size:36px;line-height:1}
+.account-head h3{margin:0;font-size:18px}
+.account-rows{display:grid;gap:0;border:1px solid #15334c;border-radius:12px;overflow:hidden}
+.account-row{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:11px 14px;border-bottom:1px solid #122b3e;font-size:13px;
+}
+.account-row:last-child{border-bottom:0}
+.account-row span{color:var(--muted)}
+.account-row b{color:#fff;font-weight:700;text-align:right;word-break:break-all}
+.account-actions{display:grid;gap:8px}
+.account-hint{font-size:12px;margin:0}
+
+.link-btn{
+  background:none;border:0;color:#7ec8ff;font-size:12px;cursor:pointer;
+  padding:4px 0 8px;text-align:left;text-decoration:underline;
+}
+.auth-ok{color:#00e676;font-size:13px;margin:8px 0}
+.auth-panel-title{margin:0 0 8px;font-size:18px}
+#authForgotPanel.hidden,#authNewPassPanel.hidden{display:none !important}
