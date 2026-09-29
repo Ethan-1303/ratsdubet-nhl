@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css?v=20260929o">
+  <link rel="stylesheet" href="/styles.css?v=20260929p">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -77,10 +77,12 @@
     </div>
   </header>
 
+  <div id="apiErrorToast" class="api-error-toast hidden" role="alert"></div>
   <main class="container">
     <!-- ANALYSE -->
     <section id="view-analyse" class="view active">
       <div id="trialBanner" class="trial-banner hidden"></div>
+      <div id="kombosNotif" class="kombos-notif hidden" role="status"></div>
 
       <div class="hero hero-pro">
         <div class="hero-main">
@@ -393,7 +395,9 @@
             <button type="button" class="day-btn forum-filter" data-filter="win">Gagnants</button>
             <button type="button" class="day-btn forum-filter" data-filter="loss">Perdants</button>
             <button type="button" class="day-btn forum-filter" data-filter="discussion">Discussions</button>
+            <button type="button" class="day-btn forum-filter" data-filter="mine">Mes posts</button>
           </div>
+          <div id="forumSocial" class="forum-social muted"></div>
           <div id="forumFeed"><div class="empty-inline">Ouverture du forum…</div></div>
         </div>
       </div>
@@ -485,10 +489,10 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20260929o"></script>
-  <script src="/auth.js?v=20260929o"></script>
-  <script src="/forum.js?v=20260929o"></script>
-  <script src="/app.js?v=20260929o"></script>
+  <script src="/config.js?v=20260929p"></script>
+  <script src="/auth.js?v=20260929p"></script>
+  <script src="/forum.js?v=20260929p"></script>
+  <script src="/app.js?v=20260929p"></script>
 
   <script>
   (function(){
