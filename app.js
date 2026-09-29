@@ -1103,24 +1103,101 @@ async function renderStandings(){
 }
 
 let LEADERS_CACHE=null;
+let LEADERS_STREAK={}; // id -> {goals:[0/1], assists, points} last 5 (oldest->newest or newest first)
+
+async function enrichTeamsFromLeadersAPI(rows){
+  try{
+    const cats=["points","goals","assists"];
+    for(const cat of cats){
+      const j=await api(`api-web.nhle.com/v1/skater-stats-leaders/current?categories=${cat}&limit=100`);
+      const list=j[cat]||[];
+      for(const p of list){
+        const id=String(p.id||p.playerId||"");
+        const tm=String(p.teamAbbrev||"").toUpperCase();
+        if(!id||!tm) continue;
+        const row=rows.find(r=>r.id===id) || rows.find(r=>norm(r.name)===norm(`${p.firstName?.default||p.firstName||""} ${p.lastName?.default||p.lastName||""}`));
+        if(row && !row.team) row.team=tm;
+        else if(row) row.team=row.team||tm;
+      }
+    }
+  }catch(e){ console.warn("enrich teams", e); }
+  return rows;
+}
+
+async function fetchPlayerStreak(playerId){
+  if(!playerId) return null;
+  if(LEADERS_STREAK[playerId]) return LEADERS_STREAK[playerId];
+  try{
+    // try current then base season
+    let j=await api(`api-web.nhle.com/v1/player/${playerId}/game-log/${CURRENT}/2`);
+    let gl=j.gameLog||[];
+    if(gl.length<3){
+      j=await api(`api-web.nhle.com/v1/player/${playerId}/game-log/${BASE}/2`);
+      gl=j.gameLog||[];
+    }
+    // API returns most recent first
+    const last5=gl.slice(0,5);
+    const streak={
+      goals: last5.map(g=>n(g.goals)>0?1:0),
+      assists: last5.map(g=>n(g.assists)>0?1:0),
+      points: last5.map(g=>n(g.points)>0?1:0),
+      team: last5[0]?String(last5[0].teamAbbrev||"").toUpperCase():""
+    };
+    LEADERS_STREAK[playerId]=streak;
+    return streak;
+  }catch(_){
+    return {goals:[],assists:[],points:[],team:""};
+  }
+}
+
+function streakDots(arr){
+  if(!arr||!arr.length) return `<span class="streak-dots muted">—</span>`;
+  // show chronological left=oldest of the 5, right=most recent
+  const ordered=[...arr].reverse();
+  return `<span class="streak-dots" title="5 derniers matchs (gauche→droite = plus récent à droite)">${ordered.map(v=>
+    `<i class="streak-dot ${v? "hit":"miss"}"></i>`
+  ).join("")}</span>`;
+}
+
 async function renderLeaders(sortKey="points"){
   const el=$("leadersTable"); if(!el)return;
   el.innerHTML=`<div class="empty-inline">Chargement du classement joueurs…</div>`;
   try{
     const st = LEADERS_CACHE || await getSkaters();
     LEADERS_CACHE = st;
+    if(st.rows.some(r=>!r.team)) await enrichTeamsFromLeadersAPI(st.rows);
+
     const keyMap={points:"points",goals:"goals",assists:"assists",shots:"shots",toi:"toi"};
     const k=keyMap[sortKey]||"points";
     const rows=[...st.rows].filter(x=>x.gp>=1).sort((a,b)=> (k==="toi"?toiMinutes(b.toi)-toiMinutes(a.toi):b[k]-a[k])).slice(0,50);
-    el.innerHTML=`<table class="props-table"><thead><tr>
-      <th>#</th><th>Joueur</th><th>Équipe</th><th>Pos</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>Tirs</th><th>TOI/M</th>
-    </tr></thead><tbody>${rows.map((x,i)=>`<tr>
-      <td>${i+1}</td><td class="pname">${x.name}</td>
-      <td>${logoHTML(x.team,"team-logo-xs")} ${x.team||"—"}</td>
+
+    // séries pour le top 40 (parallèle limité)
+    const needStreak = ["points","goals","assists"].includes(k);
+    if(needStreak){
+      const batch=rows.slice(0,40);
+      await Promise.all(batch.map(async r=>{
+        const s=await fetchPlayerStreak(r.id);
+        if(s?.team && !r.team) r.team=s.team;
+      }));
+    }
+
+    const streakHeader = needStreak ? `<th>Série 5</th>` : "";
+    el.innerHTML=`<table class="props-table leaders-table"><thead><tr>
+      <th>#</th><th>Joueur</th><th>Équipe</th><th>Pos</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>Tirs</th><th>TOI/M</th>${streakHeader}
+    </tr></thead><tbody>${rows.map((x,i)=>{
+      const streakKey = k==="goals"?"goals":k==="assists"?"assists":"points";
+      const dots = needStreak ? `<td>${streakDots(LEADERS_STREAK[x.id]?.[streakKey])}</td>` : "";
+      const tm=x.team||"";
+      return `<tr>
+      <td>${i+1}</td>
+      <td class="pname">${x.name}</td>
+      <td class="team-cell">${tm?logoHTML(tm,"team-logo-sm"):""} <span class="code">${tm||"—"}</span></td>
       <td>${x.position||"—"}</td><td>${x.gp}</td>
       <td>${x.goals}</td><td>${x.assists}</td><td><b>${x.points}</b></td>
-      <td>${x.shots}</td><td>${toiFmt(x.toi)}</td>
-    </tr>`).join("")}</tbody></table>`;
+      <td>${x.shots}</td><td>${toiFmt(x.toi)}</td>${dots}
+    </tr>`;
+    }).join("")}</tbody></table>
+    ${needStreak?`<p class="muted" style="margin-top:10px;font-size:11px">Série 5 : ronds <span style="color:#00e676">verts</span> = au moins 1 ${k==="goals"?"but":k==="assists"?"passe":"point"} sur le match · <span style="color:#ff5263">rouges</span> = 0 (5 derniers matchs, droite = plus récent).</p>`:""}`;
   }catch(e){el.innerHTML=`<div class="empty-inline">Classement joueurs indisponible : ${e.message||e}</div>`}
 }
 
