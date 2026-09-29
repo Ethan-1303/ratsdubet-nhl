@@ -609,22 +609,58 @@ function applyPaywall(fullAccess){
 }
 function refreshPlanUI(){
   const A=window.RDB_AUTH, badge=$("planBadge"), chip=$("authChip");
+  const banner=$("trialBanner");
   const trialMs=A?.trialRemainingMs?.()||0;
+  const trialEnded=A?.hasTrialEnded?.()||false;
+
+  if(banner){
+    if(A?.isPremium() && trialMs>0){
+      const h=Math.floor(trialMs/3600000);
+      const m=Math.floor((trialMs%3600000)/60000);
+      banner.className="trial-banner trial-active";
+      banner.innerHTML=`<div><b>Essai Premium actif</b> — il te reste <strong>${h}h ${m}min</strong> d’accès complet (analyses illimitées, props, kombos…).</div>
+        <button type="button" class="ghost-btn trial-cta" id="trialBannerPremium">Garder Premium à vie →</button>`;
+      banner.classList.remove("hidden");
+      $("trialBannerPremium")&&($("trialBannerPremium").onclick=()=>{
+        document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+        document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+        const b=document.getElementById("navPremium"); if(b) b.classList.add("active");
+        $("view-premium")?.classList.add("active");
+      });
+    }else if(trialEnded && A?.isLoggedIn() && !A?.isPremium()){
+      banner.className="trial-banner trial-ended";
+      banner.innerHTML=`<div><b>Essai 48 h terminé</b> — tu es repassé en Free (1 analyse / jour). Passe Premium pour tout débloquer à vie.</div>
+        <button type="button" class="primary-btn trial-cta" id="trialBannerBuy">Passer Premium 20 € →</button>`;
+      banner.classList.remove("hidden");
+      $("trialBannerBuy")&&($("trialBannerBuy").onclick=()=>{
+        document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+        document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+        document.getElementById("navPremium")?.classList.add("active");
+        $("view-premium")?.classList.add("active");
+        window.RDB_AUTH?.openCheckout?.();
+      });
+    }else{
+      banner.classList.add("hidden");
+      banner.innerHTML="";
+    }
+  }
+
   if(A?.isPremium() && trialMs>0){
     const h=Math.ceil(trialMs/3600000);
-    if(badge){badge.innerHTML=`<strong>ESSAI</strong><span>${h}h restantes</span>`;badge.classList.add("prem")}
+    if(badge){badge.innerHTML=`<strong>ESSAI 48H</strong><span>${h}h restantes</span>`;badge.classList.add("prem")}
     if(chip)chip.textContent=A.user?.name?`⭐ ${A.user.name}`:"⭐ Essai";
   }else if(A?.isPremium()){
     if(badge){badge.innerHTML=`<strong>PREMIUM</strong><span>Accès à vie</span>`;badge.classList.add("prem")}
     if(chip)chip.textContent=A.user?.name?`⭐ ${A.user.name}`:"⭐ Premium";
   }else if(A?.isLoggedIn()){
-    if(badge){badge.innerHTML=`<strong>FREE</strong><span>1 analyse / jour</span>`;badge.classList.remove("prem")}
+    if(badge){badge.innerHTML=`<strong>FREE</strong><span>${trialEnded?"Essai terminé":"1 analyse / jour"}</span>`;badge.classList.remove("prem")}
     if(chip)chip.textContent=A.user?.name||A.user?.email||"Compte";
   }else{
-    if(badge){badge.innerHTML=`<strong>FREE</strong><span>1 analyse / jour</span>`;badge.classList.remove("prem")}
+    if(badge){badge.innerHTML=`<strong>FREE</strong><span>Essai 48h à l’inscription</span>`;badge.classList.remove("prem")}
     if(chip)chip.textContent="Compte";
   }
 }
+
 function renderAnalysis(d){
   CURRENT_ANALYSIS=d;
   const access=window.RDB_AUTH?.canAnalyzeFull?.()||{ok:true};
@@ -651,7 +687,24 @@ function renderAnalysis(d){
       <div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div>
     </div>`;
   }).join("");
-  const sumEl=$("analysisSummary"); if(sumEl) sumEl.textContent=buildSummary(d);
+  const sumEl=$("analysisSummary");
+  if(sumEl){
+    const fav = d.m.home >= d.m.away ? d.home : d.away;
+    const favP = Math.max(d.m.home, d.m.away);
+    const total = d.x.total;
+    const totalLbl = total>=6.2?"Total haut":total<=5.2?"Total bas":"Total moyen";
+    const conf = d.c>=75?"Élevée":d.c>=60?"Correcte":"Limitée";
+    sumEl.innerHTML=`<div class="summary-rich">
+      <p class="summary-text">${buildSummary(d)}</p>
+      <div class="summary-kpis">
+        <div><span>Favori OT</span><b>${fav} ${pct(favP)}</b></div>
+        <div><span>xG</span><b>${fmt(d.x.home)} – ${fmt(d.x.away)}</b></div>
+        <div><span>${totalLbl}</span><b>${fmt(total)}</b></div>
+        <div><span>Confiance</span><b class="${d.c>=60?"ok":"warn"}">${conf} (${d.c}%)</b></div>
+        <div><span>Statut</span><b class="${d.status==="NO BET"?"warn":"ok"}">${d.status}</b></div>
+      </div>
+    </div>`;
+  }
   const notes=[
     {t:"Projection",x:`${d.home} ${fmt(d.x.home)} xG contre ${d.away} ${fmt(d.x.away)} xG. Total modèle : ${fmt(d.x.total)} buts.`},
     {t:"Possession",x:`SAT% ${d.home} ${pct(d.h.sat)} vs ${d.away} ${pct(d.a.sat)} • USAT% ${pct(d.h.usat)} / ${pct(d.a.usat)}. Impact Corsi intégré aux xG.`},
@@ -1318,6 +1371,8 @@ function renderInjuries(){
 }
 
 function setup(){
+  $("heroAnalyzeBtn")&&($("heroAnalyzeBtn").onclick=()=>$("analyzeBtn")?.scrollIntoView({behavior:"smooth",block:"center"}));
+  $("heroAccountBtn")&&($("heroAccountBtn").onclick=()=>$("authChip")?.click());
   populateTeams();$("homeTeam").onchange=updateTeamMeta;$("awayTeam").onchange=updateTeamMeta;$("analyzeBtn").onclick=runAnalysis;
   
 
