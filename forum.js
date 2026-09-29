@@ -12,6 +12,17 @@
 
   let filter = "all";
   let pendingDataUrl = null;
+  const LIKES_KEY = "rdb_forum_likes_v1";
+  function loadLikes(){ try{ return JSON.parse(localStorage.getItem(LIKES_KEY)||"{}"); }catch{ return {}; } }
+  function saveLikes(o){ localStorage.setItem(LIKES_KEY, JSON.stringify(o)); }
+  function toggleLike(id){
+    const o=loadLikes();
+    o[id]=o[id]||{count:0,me:false};
+    if(o[id].me){ o[id].count=Math.max(0,(o[id].count||1)-1); o[id].me=false; }
+    else { o[id].count=(o[id].count||0)+1; o[id].me=true; }
+    saveLikes(o);
+    return o[id];
+  }
 
   function loadLocal() {
     try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]"); } catch { return []; }
@@ -218,15 +229,21 @@
       const img = p.image_url
         ? `<a class="forum-img-link" href="${p.image_url}" target="_blank" rel="noopener"><img class="forum-img" src="${p.image_url}" alt="" loading="lazy"></a>`
         : "";
-      return `<article class="forum-card ${t.cls}">
+      const likes=loadLikes()[p.id]||{count:0,me:false};
+      const pin = p.type==="ticket" ? " forum-pin" : "";
+      return `<article class="forum-card ${t.cls}${pin}" data-id="${p.id}">
         <div class="forum-card-top">
           <span class="forum-badge ${t.cls}">${t.label}</span>
+          ${p.type==="ticket"?`<span class="forum-pin-tag">📌 Ticket du jour</span>`:""}
           <time>${when}</time>
         </div>
         <h3>${title}</h3>
         <div class="forum-body">${body}</div>
         ${img}
-        <div class="forum-meta">👤 ${p.author_name}</div>
+        <div class="forum-meta">
+          <span>👤 ${p.author_name}</span>
+          <button type="button" class="forum-like ${likes.me?"on":""}" data-like="${p.id}">♥ ${likes.count||0}</button>
+        </div>
       </article>`;
     }).join("");
   }
@@ -240,6 +257,14 @@
         new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 6000)),
       ]);
       renderList(posts || []);
+      el?.querySelectorAll("[data-like]").forEach(btn=>{
+        btn.onclick=()=>{
+          const id=btn.getAttribute("data-like");
+          const L=toggleLike(id);
+          btn.textContent="♥ "+(L.count||0);
+          btn.classList.toggle("on", !!L.me);
+        };
+      });
     } catch (e) {
       try {
         const local = loadLocal().map(normalize);
