@@ -248,14 +248,30 @@
     }).join("");
   }
 
+  function updateSocial(posts) {
+    const el = document.getElementById("forumSocial");
+    if (!el) return;
+    const day = new Date().toISOString().slice(0, 10);
+    const today = (posts || []).filter((p) => String(p.created_at || "").slice(0, 10) === day);
+    const tickets = today.filter((p) => p.type === "ticket" || p.type === "win" || p.type === "loss");
+    const n = tickets.length || today.filter((p) => p.type === "ticket").length;
+    const totalToday = today.length;
+    if (totalToday === 0) {
+      el.textContent = "Meute calme pour l’instant — sois le premier à partager un ticket.";
+    } else {
+      el.innerHTML = `<b>${n}</b> ticket${n > 1 ? "s" : ""} partagé${n > 1 ? "s" : ""} aujourd’hui · <b>${totalToday}</b> message${totalToday > 1 ? "s" : ""} dans la meute`;
+    }
+  }
+
   async function refresh() {
     const el = document.getElementById("forumFeed");
-    if (el) el.innerHTML = `<div class="empty-inline">Chargement du forum…</div>`;
+    if (el) el.innerHTML = `<div class="skeleton-stack">${[1,2,3].map(()=>`<div class="skeleton-card"><div class="sk-line w40"></div><div class="sk-line"></div><div class="sk-line w70"></div></div>`).join("")}</div>`;
     try {
       const posts = await Promise.race([
         fetchPosts(),
         new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 6000)),
       ]);
+      updateSocial(posts || []);
       renderList(posts || []);
       el?.querySelectorAll("[data-like]").forEach(btn=>{
         btn.onclick=()=>{
