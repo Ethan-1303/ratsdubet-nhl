@@ -43,6 +43,29 @@
     }
   }
 
+  function levelBadgeHtml(levelId) {
+    const L = (window.RDB_LEVELS || [])[levelId] || { name: "Nouveau Rat", emoji: "🐀", cls: "lv-0", short: "Nouveau" };
+    return `<span class="level-badge ${L.cls}" title="${L.name}">${L.emoji} ${L.short}</span>`;
+  }
+  function levelForAuthor(posts, authorId, authorName) {
+    const mine = window.RDB_AUTH?.user;
+    if (mine && ((authorId && mine.id === authorId) || (authorName && mine.name === authorName))) {
+      return window.RDB_AUTH.getLevel?.() ?? 0;
+    }
+    const list = (posts || []).filter((p) =>
+      (authorId && p.author_id === authorId) ||
+      (authorName && p.author_name === authorName)
+    );
+    const postsCount = list.length;
+    const ticketsCount = list.filter((p) => ["ticket", "win", "loss"].includes(p.type)).length;
+    return (window.RDB_computeLevel || (() => 0))({
+      isAdmin: false,
+      premium: false,
+      trialActive: false,
+      postsCount,
+      ticketsCount,
+    });
+  }
   function normalize(p) {
     return {
       id: p.id || ("local_" + Date.now()),
@@ -166,6 +189,7 @@
     list.unshift(row);
     saveLocal(list);
     console.log("forum post saved local", row.id, row.title);
+    try { await window.RDB_AUTH?.bumpActivity?.(row.type); } catch (_) {}
 
     // Publication partagée via Cloudflare → Supabase (tous les membres voient)
     try {
@@ -241,7 +265,7 @@
         <div class="forum-body">${body}</div>
         ${img}
         <div class="forum-meta">
-          <span>👤 ${p.author_name}</span>
+          <span class="forum-author">👤 ${p.author_name} ${levelBadgeHtml(levelForAuthor(allPosts, p.author_id, p.author_name))}</span>
           <button type="button" class="forum-like ${likes.me?"on":""}" data-like="${p.id}">♥ ${likes.count||0}</button>
         </div>
       </article>`;
