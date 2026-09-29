@@ -682,14 +682,38 @@ function refreshPlanUI(){
 
   if(A?.isPremium() && trialMs>0){
     const h=Math.ceil(trialMs/3600000);
-    if(badge){badge.innerHTML=`<strong>ESSAI 48H</strong><span>${h}h restantes</span>`;badge.classList.add("prem")}
-    if(chip)chip.textContent=A.user?.name?`⭐ ${A.user.name}`:"⭐ Essai";
+    if(badge){
+      const L=A.getLevelInfo?.();
+      badge.innerHTML=`<strong>ESSAI 48H</strong><span>${h}h restantes</span><small class="level-under">${L?.emoji||""} ${L?.name||""}</small>`;
+      badge.classList.add("prem");
+    }
+    if(chip){
+      const L=A.getLevelInfo?.();
+      chip.innerHTML=A.user?.name?`<span class="chip-level">${L?.emoji||"🐀"}</span> ${A.user.name}`:`${L?.emoji||"⭐"} Essai`;
+      chip.title=L?.name||"";
+    }
   }else if(A?.isPremium()){
-    if(badge){badge.innerHTML=`<strong>PREMIUM</strong><span>Accès à vie</span>`;badge.classList.add("prem")}
-    if(chip)chip.textContent=A.user?.name?`⭐ ${A.user.name}`:"⭐ Premium";
+    if(badge){
+      const L=A.getLevelInfo?.();
+      badge.innerHTML=`<strong>PREMIUM</strong><span>Accès à vie</span><small class="level-under">${L?.emoji||""} ${L?.name||""}</small>`;
+      badge.classList.add("prem");
+    }
+    if(chip){
+      const L=A.getLevelInfo?.();
+      chip.innerHTML=`<span class="chip-level">${L?.emoji||"⭐"}</span> ${A.user?.name||"Premium"}`;
+      chip.title=L?.name||"Premium";
+    }
   }else if(A?.isLoggedIn()){
-    if(badge){badge.innerHTML=`<strong>FREE</strong><span>${trialEnded?"Essai terminé":"1 analyse / jour"}</span>`;badge.classList.remove("prem")}
-    if(chip)chip.textContent=A.user?.name||A.user?.email||"Compte";
+    if(badge){
+      const L=A.getLevelInfo?.();
+      badge.innerHTML=`<strong>FREE</strong><span>${trialEnded?"Essai terminé":"1 analyse / jour"}</span><small class="level-under">${L?.emoji||""} ${L?.name||"Nouveau Rat"}</small>`;
+      badge.classList.remove("prem");
+    }
+    if(chip){
+      const L=A.getLevelInfo?.();
+      chip.innerHTML=`<span class="chip-level">${L?.emoji||"🐀"}</span> ${A.user?.name||A.user?.email||"Compte"}`;
+      chip.title=L?.name||"";
+    }
   }else{
     if(badge){badge.innerHTML=`<strong>FREE</strong><span>Essai 48h à l’inscription</span>`;badge.classList.remove("prem")}
     if(chip)chip.textContent="Compte";
@@ -1043,24 +1067,109 @@ async function renderTeamTable(){
     </tr></thead><tbody>${rows}</tbody></table>`;
   }catch(e){$("teamTable").innerHTML=`<div class="empty-inline">${e.message}</div>`}
 }
+function fillAccountPanel(){
+  const A=window.RDB_AUTH; if(!A?.isLoggedIn()) return;
+  const L=A.getLevelInfo?.()||{name:"Nouveau Rat",emoji:"🐀",id:0};
+  const trialMs=A.trialRemainingMs?.()||0;
+  const trialEnded=A.hasTrialEnded?.()||false;
+  let plan="Free · 1 analyse / jour";
+  if(A.isPremium() && trialMs>0) plan=`Essai Premium · ${Math.ceil(trialMs/3600000)}h restantes`;
+  else if(A.isPremium()) plan="Premium à vie";
+  else if(trialEnded) plan="Free · essai terminé";
+  $("accEmoji")&&($("accEmoji").textContent=L.emoji||"🐀");
+  $("accLevelName")&&($("accLevelName").textContent=L.name||"");
+  $("accName")&&($("accName").textContent=A.user?.name||"—");
+  $("accEmail")&&($("accEmail").textContent=A.user?.email||"—");
+  $("accLevel")&&($("accLevel").textContent=`${L.emoji||""} ${L.name||""} (niv. ${L.id ?? A.getLevel?.() ?? 0})`);
+  $("accPlan")&&($("accPlan").textContent=plan);
+  $("accPosts")&&($("accPosts").textContent=String(A.getPostsCount?.()??0));
+  $("accTickets")&&($("accTickets").textContent=String(A.getTicketsCount?.()??0));
+  const next=[
+    "Publie sur le forum pour progresser.",
+    "Encore quelques posts pour Rat confirmé (3 posts ou essai).",
+    "Objectif : 10 posts ou 5 tickets → Rat de la meute.",
+    "Passe Premium pour devenir Rat premium.",
+    "20 posts forum + Premium → Rat élite.",
+    "Tu es au sommet de la meute. 🏆",
+  ];
+  const lv=A.getLevel?.()??0;
+  $("accNext")&&($("accNext").textContent=next[Math.min(lv,5)]||next[0]);
+  const premBtn=$("accPremiumBtn");
+  if(premBtn){
+    if(A.isPremium() && trialMs<=0){ premBtn.classList.add("hidden"); }
+    else { premBtn.classList.remove("hidden"); premBtn.textContent = trialMs>0 ? "Garder Premium à vie" : "Passer Premium 20 €"; }
+  }
+}
+function showAuthSection(which){
+  // which: account | login | forgot | newpass
+  $("accountPanel")?.classList.toggle("hidden", which!=="account");
+  $("authLoginPanel")?.classList.toggle("hidden", which!=="login");
+  $("authForgotPanel")?.classList.toggle("hidden", which!=="forgot");
+  $("authNewPassPanel")?.classList.toggle("hidden", which!=="newpass");
+}
 function openAuth(mode){
   const m=$("authModal"); if(!m)return;
   m.classList.remove("hidden");
+  const A=window.RDB_AUTH;
+  const logged=!!A?.isLoggedIn();
+  if(mode==="forgot"){ showAuthSection("forgot"); return; }
+  if(mode==="newpass"){ showAuthSection("newpass"); return; }
+  if(logged){ showAuthSection("account"); fillAccountPanel(); return; }
+  showAuthSection("login");
   const isReg=mode==="register";
   document.querySelectorAll(".auth-tab").forEach(t=>t.classList.toggle("active",t.dataset.auth===(isReg?"register":"login")));
   $("authNameWrap")?.classList.toggle("hidden",!isReg);
   $("authSubmit").textContent=isReg?"Créer mon compte":"Se connecter";
   $("authError")?.classList.add("hidden");
-  const A=window.RDB_AUTH;
-  const lo=$("authLogout");
-  if(lo)lo.style.display=A?.isLoggedIn()?"block":"none";
 }
 function closeAuth(){ $("authModal")?.classList.add("hidden"); }
 function setupAuthUI(){
   const A=window.RDB_AUTH; if(!A)return;
   A.checkUnlockParam?.();
   refreshPlanUI();
-  $("authChip")?.addEventListener("click",()=>openAuth(A.isLoggedIn()?"login":"register"));
+  $("authChip")?.addEventListener("click",()=>openAuth(A.isLoggedIn()?"account":"register"));
+  $("accPremiumBtn")?.addEventListener("click",()=>{closeAuth();A.openCheckout?.();});
+  $("forgotPasswordBtn")?.addEventListener("click",()=>{
+    const em=$("authEmail")?.value||"";
+    openAuth("forgot");
+    if($("forgotEmail")&&em) $("forgotEmail").value=em;
+    $("forgotError")?.classList.add("hidden");
+    $("forgotOk")?.classList.add("hidden");
+  });
+  $("forgotBack")?.addEventListener("click",()=>openAuth("login"));
+  $("forgotSubmit")?.addEventListener("click",async()=>{
+    const err=$("forgotError"), ok=$("forgotOk");
+    err?.classList.add("hidden"); ok?.classList.add("hidden");
+    try{
+      await A.resetPassword?.($("forgotEmail")?.value);
+      if(ok){ ok.textContent="Email envoyé. Vérifie ta boîte (et les spams). Clique le lien pour choisir un nouveau mot de passe."; ok.classList.remove("hidden"); }
+    }catch(ex){
+      if(err){ err.textContent=ex.message||String(ex); err.classList.remove("hidden"); }
+    }
+  });
+  $("accChangePassBtn")?.addEventListener("click",()=>{
+    openAuth("forgot");
+    if($("forgotEmail")&&A.user?.email) $("forgotEmail").value=A.user.email;
+  });
+  $("newPassSubmit")?.addEventListener("click",async()=>{
+    const err=$("newPassError"); err?.classList.add("hidden");
+    const p1=$("newPassword")?.value||"", p2=$("newPassword2")?.value||"";
+    if(p1!==p2){ if(err){err.textContent="Les mots de passe ne correspondent pas."; err.classList.remove("hidden");} return; }
+    try{
+      await A.updatePassword?.(p1);
+      alert("Mot de passe mis à jour.");
+      closeAuth(); refreshPlanUI();
+    }catch(ex){
+      if(err){ err.textContent=ex.message||String(ex); err.classList.remove("hidden"); }
+    }
+  });
+  // Lien email Supabase recovery
+  try{
+    const hash=location.hash||"";
+    if(hash.includes("type=recovery") || hash.includes("type%3Drecovery")){
+      openAuth("newpass");
+    }
+  }catch(_){}
   $("unlockBtn")?.addEventListener("click",()=>A.openCheckout());
   $("buyPremiumBtn")?.addEventListener("click",()=>A.openCheckout());
   $("lockLoginBtn")?.addEventListener("click",()=>openAuth("register"));
