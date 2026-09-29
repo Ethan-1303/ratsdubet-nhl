@@ -254,3 +254,4 @@ async function fetchInjuries() {
     return { teams: [], error: String(e), count: 0, updated: new Date().toISOString() };
   }
 }
+
