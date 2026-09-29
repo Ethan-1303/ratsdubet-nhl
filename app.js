@@ -721,10 +721,12 @@ function renderAnalysis(d){
     const ordered=[...x[2]].reverse();
     const dots=ordered.map(g=>`<span class="form-dot ${g.win?"win":"loss"}" title="${g.win?"Victoire":"Défaite"} ${g.gf}-${g.ga}"></span>`).join("")
       || `<span class="muted">Pas de matchs récents</span>`;
+    const detail=ordered.map(g=>`<span class="form-chip ${g.win?"win":"loss"}">${g.win?"V":"D"} ${g.gf}-${g.ga}</span>`).join("")||"";
     return `<div class="form-team"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]}</h3>
-      <div class="form-dots-row"><span class="form-dots-label">Forme</span><div class="form-dots">${dots}</div><span class="form-dots-score">${wins}V-${x[2].length-wins}D</span></div>
+      <div class="form-dots-row"><span class="form-dots-label">5 derniers</span><div class="form-dots">${dots}</div><span class="form-dots-score">${wins}V-${x[2].length-wins}D</span></div>
+      <div class="form-chips">${detail}</div>
       <div class="stat-row"><span>Buts (moy.)</span><b>${fmt(gf)} pour · ${fmt(ga)} contre</b></div>
-      <div class="stat-row"><span>B2B</span><b>${x[3].b2b?"OUI":"NON"}</b></div></div>`;
+      <div class="stat-row"><span>B2B</span><b>${x[3].b2b?"OUI ⚠️":"NON"}</b></div></div>`;
   }).join("");
   renderAdvanced(d);
   renderPlayers(CURRENT_PROP);renderAllProps();renderAudit();
@@ -1177,18 +1179,30 @@ async function enrichTeamsFromLeadersAPI(rows){
   return rows;
 }
 
+const STREAK_LS_KEY="rdb_streaks_v1";
+function loadStreakCache(){
+  try{
+    const o=JSON.parse(localStorage.getItem(STREAK_LS_KEY)||"{}");
+    if(o && o.at && Date.now()-o.at < 6*3600*1000 && o.map) return o.map;
+  }catch(_){}
+  return {};
+}
+function saveStreakCache(){
+  try{ localStorage.setItem(STREAK_LS_KEY, JSON.stringify({at:Date.now(), map:LEADERS_STREAK})); }catch(_){}
+}
+// hydrate memory from LS once
+try{ Object.assign(LEADERS_STREAK, loadStreakCache()); }catch(_){}
+
 async function fetchPlayerStreak(playerId){
   if(!playerId) return null;
-  if(LEADERS_STREAK[playerId]) return LEADERS_STREAK[playerId];
+  if(LEADERS_STREAK[playerId] && LEADERS_STREAK[playerId].points) return LEADERS_STREAK[playerId];
   try{
-    // try current then base season
     let j=await api(`api-web.nhle.com/v1/player/${playerId}/game-log/${CURRENT}/2`);
     let gl=j.gameLog||[];
     if(gl.length<3){
       j=await api(`api-web.nhle.com/v1/player/${playerId}/game-log/${BASE}/2`);
       gl=j.gameLog||[];
     }
-    // API returns most recent first
     const last5=gl.slice(0,5);
     const streak={
       goals: last5.map(g=>n(g.goals)>0?1:0),
@@ -1197,6 +1211,7 @@ async function fetchPlayerStreak(playerId){
       team: last5[0]?String(last5[0].teamAbbrev||"").toUpperCase():""
     };
     LEADERS_STREAK[playerId]=streak;
+    saveStreakCache();
     return streak;
   }catch(_){
     return {goals:[],assists:[],points:[],team:""};
@@ -1224,23 +1239,16 @@ async function renderLeaders(sortKey="points"){
     const k=keyMap[sortKey]||"points";
     const rows=[...st.rows].filter(x=>x.gp>=1).sort((a,b)=> (k==="toi"?toiMinutes(b.toi)-toiMinutes(a.toi):b[k]-a[k])).slice(0,50);
 
-    // séries pour le top 40 (parallèle limité)
     const needStreak = ["points","goals","assists"].includes(k);
-    if(needStreak){
-      const batch=rows.slice(0,40);
-      await Promise.all(batch.map(async r=>{
-        const s=await fetchPlayerStreak(r.id);
-        if(s?.team && !r.team) r.team=s.team;
-      }));
-    }
-
+    const streakKey = k==="goals"?"goals":k==="assists"?"assists":"points";
     const streakHeader = needStreak ? `<th>Série 5</th>` : "";
+    // Affiche d'abord le tableau (rapide), séries en lazy-load
     el.innerHTML=`<table class="props-table leaders-table"><thead><tr>
       <th>#</th><th>Joueur</th><th>Équipe</th><th>Pos</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>Tirs</th><th>TOI/M</th>${streakHeader}
     </tr></thead><tbody>${rows.map((x,i)=>{
-      const streakKey = k==="goals"?"goals":k==="assists"?"assists":"points";
-      const dots = needStreak ? `<td>${streakDots(LEADERS_STREAK[x.id]?.[streakKey])}</td>` : "";
       const tm=x.team||"";
+      const cached = needStreak ? LEADERS_STREAK[x.id]?.[streakKey] : null;
+      const dots = needStreak ? `<td class="streak-cell" data-pid="${x.id}">${cached?streakDots(cached):`<span class="streak-dots muted">…</span>`}</td>` : "";
       return `<tr>
       <td>${i+1}</td>
       <td class="pname">${x.name}</td>
@@ -1250,7 +1258,28 @@ async function renderLeaders(sortKey="points"){
       <td>${x.shots}</td><td>${toiFmt(x.toi)}</td>${dots}
     </tr>`;
     }).join("")}</tbody></table>
-    ${needStreak?`<p class="muted" style="margin-top:10px;font-size:11px">Série 5 : ronds <span style="color:#00e676">verts</span> = au moins 1 ${k==="goals"?"but":k==="assists"?"passe":"point"} sur le match · <span style="color:#ff5263">rouges</span> = 0 (5 derniers matchs, droite = plus récent).</p>`:""}`;
+    ${needStreak?`<p class="muted" style="margin-top:10px;font-size:11px">Série 5 : <span style="color:#00e676">vert</span> = ≥1 ${k==="goals"?"but":k==="assists"?"passe":"point"} · <span style="color:#ff5263">rouge</span> = 0 (droite = plus récent).</p>`:""}`;
+
+    if(needStreak){
+      // Lazy : par paquets de 8 pour ne pas bloquer l'UI
+      const ids=rows.slice(0,40).map(r=>r.id).filter(Boolean);
+      (async()=>{
+        for(let i=0;i<ids.length;i+=8){
+          const chunk=ids.slice(i,i+8);
+          await Promise.all(chunk.map(async id=>{
+            const s=await fetchPlayerStreak(id);
+            const cell=el.querySelector(`.streak-cell[data-pid="${id}"]`);
+            if(cell) cell.innerHTML=streakDots(s?.[streakKey]);
+            const row=rows.find(r=>r.id===id);
+            if(row && s?.team && !row.team){
+              row.team=s.team;
+              const tc=cell?.parentElement?.querySelector(".team-cell");
+              if(tc) tc.innerHTML=`${logoHTML(s.team,"team-logo-sm")} <span class="code">${s.team}</span>`;
+            }
+          }));
+        }
+      })();
+    }
   }catch(e){el.innerHTML=`<div class="empty-inline">Classement joueurs indisponible : ${e.message||e}</div>`}
 }
 
@@ -1374,6 +1403,7 @@ function setup(){
   $("heroAnalyzeBtn")&&($("heroAnalyzeBtn").onclick=()=>$("analyzeBtn")?.scrollIntoView({behavior:"smooth",block:"center"}));
   $("heroAccountBtn")&&($("heroAccountBtn").onclick=()=>$("authChip")?.click());
   populateTeams();$("homeTeam").onchange=updateTeamMeta;$("awayTeam").onchange=updateTeamMeta;$("analyzeBtn").onclick=runAnalysis;
+  $("analyzeBtnSticky")&&($("analyzeBtnSticky").onclick=()=>$("analyzeBtn")?.click());
   
 
 /* ═══ Kombos du jour — proba modèle + cotes bookmakers ═══ */
@@ -1547,10 +1577,20 @@ function renderKombosPayload(el, dayKey, payload, oddsNote){
       return `<div class="kombo-card ${color}"><div class="kombo-head"><h3>${title}</h3><span>${subtitle}</span></div>
         <p class="muted">Pas assez de données aujourd'hui pour cette suggestion.</p></div>`;
     }
-    const legs=pick.legs.map(l=>`<li>
+    const legs=pick.legs.map(l=>{
+      const why = l.why || (l.kind==="but"
+        ? `Parmi les meilleures proba but du jour (${pct(l.p)})`
+        : l.kind==="passe" || l.kind==="point"
+          ? `Forte projection ${l.kind} (${pct(l.p)})`
+          : l.kind==="team"
+            ? `Edge modèle match (${pct(l.p)})`
+            : `Proba modèle ${pct(l.p)}`);
+      return `<li>
       <b>${l.name}</b>
-      <small>${l.match||""} · proba modèle ${pct(l.p)} · cote book <b>${fmtOdds(l.bookOdds)}</b>${l.book?` (${l.book})`:""}${l.isBook?"":" · estimée"}</small>
-    </li>`).join("");
+      <small>${l.match||""} · cote book <b>${fmtOdds(l.bookOdds)}</b>${l.book?` (${l.book})`:""}${l.isBook?"":" · estimée"}</small>
+      <em class="kombo-why">Pourquoi : ${why}</em>
+    </li>`;
+    }).join("");
     const mode=pick.legs.length===1?"Simple":`Combiné ${pick.legs.length} sélections`;
     const allBook=pick.legs.every(l=>l.isBook);
     return `<div class="kombo-card ${color}">
@@ -1657,7 +1697,8 @@ async function loadKombos(force){
             name:x.name, p:x.p, match, kind:"team",
             bookOdds: bk?.odds || fairOdds(x.p),
             book: bk?.book || "modèle",
-            isBook: !!bk
+            isBook: !!bk,
+            why:`Probabilité modèle ${pct(x.p)} sur ${match}`
           });
         }
 
@@ -1673,21 +1714,24 @@ async function loadKombos(force){
             p:p.pg, match, kind:"but",
             bookOdds: gBk?.odds || fairOdds(p.pg),
             book: gBk?.book || "modèle",
-            isBook: !!gBk
+            isBook: !!gBk,
+            why:`Top proba but sur ${match} (${pct(p.pg)})`
           });
           candidates.kombo.push({
             name:`${p.name} (${p.team}) · 1+ point`,
             p:p.pp, match, kind:"point",
             bookOdds: ptBk?.odds || fairOdds(p.pp),
             book: ptBk?.book || "modèle",
-            isBook: !!ptBk
+            isBook: !!ptBk,
+            why:`Projection points élevée (${pct(p.pp)})`
           });
           candidates.kombo.push({
             name:`${p.name} (${p.team}) · 1+ passe`,
             p:p.pa, match, kind:"passe",
             bookOdds: aBk?.odds || fairOdds(p.pa),
             book: aBk?.book || "modèle",
-            isBook: !!aBk
+            isBook: !!aBk,
+            why:`Projection passes (${pct(p.pa)})`
           });
         }
       }catch(e){ console.warn("kombo analyze",home,away,e); }
@@ -1748,7 +1792,8 @@ async function loadKombos(force){
 }
 
 
-document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));const v=$(`view-${b.dataset.view}`); if(v)v.classList.add("active");if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points");if(b.dataset.view==="blessures")loadInjuries();if(b.dataset.view==="historique")renderHistory();if(b.dataset.view==="forum"){window.RDB_FORUM?.setup?.();window.RDB_FORUM?.refresh?.()}if(b.dataset.view==="kombos")loadKombos()});
+document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));const v=$(`view-${b.dataset.view}`); if(v)v.classList.add("active");
+    document.body.classList.toggle("show-analyze-sticky", b.dataset.view==="analyse");if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points");if(b.dataset.view==="blessures")loadInjuries();if(b.dataset.view==="historique")renderHistory();if(b.dataset.view==="forum"){window.RDB_FORUM?.setup?.();window.RDB_FORUM?.refresh?.()}if(b.dataset.view==="kombos")loadKombos()});
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderPlayers(b.dataset.prop)});
   document.querySelectorAll(".day-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".day-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");schedule(Number(b.dataset.days))});
   $("applyPromoHint")&&($("applyPromoHint").onclick=()=>alert("Code parrainage BETZONE\n\n• Le filleul saisit le code (ex. MEUTE5) avant de payer.\n• Réduction : −5 € (15 € au lieu de 20 €).\n• Les codes se créent dans Stripe → Produits → Coupons / Codes promo.\n• Tu peux aussi saisir le code directement sur la page de paiement Stripe."));$("shareAnalysisBtn")&&($("shareAnalysisBtn").onclick=()=>shareAnalysis());$("copyAnalysisBtn")&&($("copyAnalysisBtn").onclick=()=>copyAnalysis());$("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshInjuries")&&($("refreshInjuries").onclick=()=>loadInjuries(true));document.querySelectorAll(".injury-filter").forEach(b=>b.onclick=()=>{document.querySelectorAll(".injury-filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");INJURY_FILTER=b.dataset.filter;renderInjuries()});$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
