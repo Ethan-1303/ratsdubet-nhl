@@ -980,3 +980,14 @@ header.topbar .topbar-right .nav-premium.active{
 }
 .injury-return{display:block;margin-top:3px;font-size:11px;color:#9ec9b0}
 .match-injury-row{align-items:flex-start}
+
+/* Email confirmé */
+.email-confirm-card{text-align:center;max-width:400px;padding:28px 24px}
+.email-confirm-icon{font-size:48px;line-height:1;margin-bottom:8px}
+.email-confirm-card h3{margin:0 0 10px;font-size:22px}
+.email-confirm-card p{color:#c5d4e0;font-size:14px;line-height:1.45;margin:0 0 14px}
+.email-confirm-list{list-style:none;padding:0;margin:0 0 18px;text-align:left}
+.email-confirm-list li{
+  padding:8px 12px;margin:6px 0;border-radius:10px;font-size:13px;
+  background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.2);color:#e8fff2;
+}
