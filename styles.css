@@ -1290,3 +1290,50 @@ header.topbar{
   backdrop-filter:blur(14px);
   border-bottom:1px solid var(--line);
 }
+
+/* Forme & fatigue — lisibilité pro */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-team.card-inner,.form-team{
+  background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.06);
+  border-radius:14px;padding:14px 14px 12px;
+}
+.form-team-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.form-team-head h3{margin:0;display:flex;align-items:center;gap:8px;font-size:15px}
+.form-record{
+  font-size:12px;font-weight:800;color:var(--muted);
+  background:rgba(255,255,255,.05);padding:3px 8px;border-radius:999px;margin-left:6px;
+}
+.form-dots{display:flex;gap:5px;align-items:center}
+.form-dot{
+  width:10px;height:10px;border-radius:50%;display:inline-block;
+  background:#ff5263;box-shadow:0 0 0 2px rgba(255,82,99,.15);
+}
+.form-dot.win{background:#00e676;box-shadow:0 0 0 2px rgba(0,230,118,.15)}
+.form-pills{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.form-pill{
+  display:grid;grid-template-columns:28px 44px 1fr;align-items:center;gap:8px;
+  padding:8px 10px;border-radius:10px;font-size:12px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);
+}
+.form-pill.win{border-color:rgba(0,230,118,.2);background:rgba(0,230,118,.06)}
+.form-pill.loss{border-color:rgba(255,82,99,.2);background:rgba(255,82,99,.06)}
+.form-pill-res{font-weight:900;font-style:normal;text-align:center}
+.form-pill.win .form-pill-res{color:#00e676}
+.form-pill.loss .form-pill-res{color:#ff8a94}
+.form-pill-score{font-weight:800;color:#fff}
+.form-pill-opp{color:var(--muted);font-size:11px}
+.form-note{font-size:11px;color:#9eb2c4;margin:0 0 10px;line-height:1.35}
+.form-stats{display:grid;gap:0;border-top:1px solid rgba(255,255,255,.06);padding-top:4px}
+.form-stat{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;
+}
+.form-stat:last-child{border-bottom:0}
+.form-stat span{color:var(--muted)}
+.form-stat b{font-weight:700;text-align:right}
+.form-stat em.ok{color:#00e676;font-style:normal}
+.form-stat em.bad{color:#ff8a94;font-style:normal}
+.form-stat b.warn{color:#ffd84d}
+@media(max-width:700px){
+  .form-grid{grid-template-columns:1fr}
+}
