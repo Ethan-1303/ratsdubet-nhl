@@ -310,22 +310,41 @@ async function getGoalieFactors(){
   f.leagueSV=avg(all)||.905;return f;
 }
 async function getSkaters(){
-  // Préfère la saison courante dès qu'il y a assez de matchs, sinon base 2025-26
-  let expr=`seasonId=${CURRENT} and gameTypeId=2`;
-  let j=await api("stats/rest/en/skater/summary",{limit:-1,sort:"points",cayenneExp:expr});
-  const curRows=(j.data||[]).filter(x=>n(x.gamesPlayed)>0);
-  if(curRows.length<50){
-    expr=`seasonId=${BASE} and gameTypeId=2`;
-    j=await api("stats/rest/en/skater/summary",{limit:-1,sort:"points",cayenneExp:expr});
+  // Fusionne saison courante + base 2025-26 (début de saison = peu de MJ)
+  async function fetchSeason(seasonId){
+    try{
+      const j=await api("stats/rest/en/skater/summary",{limit:-1,sort:"points",cayenneExp:`seasonId=${seasonId} and gameTypeId=2`});
+      return j.data||[];
+    }catch(_){ return []; }
   }
+  const [cur, base] = await Promise.all([fetchSeason(CURRENT), fetchSeason(BASE)]);
+  // Préfère stats CURRENT si le joueur a déjà joué, sinon BASE
+  const byKey={};
+  function ingest(list, seasonTag){
+    for(const x of list){
+      const id=String(x.playerId||x.id||""),gp=n(x.gamesPlayed);
+      const name=pname(x.skaterFullName||x.playerName||x.fullName||`${x.firstName||""} ${x.lastName||""}`).trim();
+      if(!name||gp<=0)continue;
+      const tm=String(x.teamAbbrev||x.teamAbbreviation||x.teamCode||"").toUpperCase();
+      const key=id||norm(name);
+      const prev=byKey[key];
+      // CURRENT prioritaire dès 1 MJ
+      if(prev && seasonTag==="base" && prev._season==="cur") continue;
+      byKey[key]={
+        id,name,team:TEAMS[tm]?tm:"",gp,goals:n(x.goals),assists:n(x.assists),points:n(x.points),
+        shots:n(x.shots||x.shotsOnGoal),toi:n(x.timeOnIcePerGame||x.avgTimeOnIcePerGame||x.toiPerGame),
+        position:String(x.positionCode||x.position||""),_season:seasonTag
+      };
+    }
+  }
+  ingest(base,"base");
+  ingest(cur,"cur");
   const rows=[],byId={},byName={};
-  for(const x of j.data||[]){
-    const id=String(x.playerId||x.id||""),gp=n(x.gamesPlayed);
-    const name=pname(x.skaterFullName||x.playerName||x.fullName||`${x.firstName||""} ${x.lastName||""}`).trim();
-    if(!name||gp<=0)continue;
-    const tm=String(x.teamAbbrev||x.teamAbbreviation||x.teamCode||"").toUpperCase();
-    const r={id,name,team:TEAMS[tm]?tm:"",gp,goals:n(x.goals),assists:n(x.assists),points:n(x.points),shots:n(x.shots||x.shotsOnGoal),toi:n(x.timeOnIcePerGame||x.avgTimeOnIcePerGame||x.toiPerGame),position:String(x.positionCode||x.position||"")};
-    rows.push(r);if(id)byId[id]=r;byName[norm(name)]=r;
+  for(const r of Object.values(byKey)){
+    delete r._season;
+    rows.push(r);
+    if(r.id) byId[r.id]=r;
+    byName[norm(r.name)]=r;
   }
   return {rows,byId,byName};
 }
@@ -419,7 +438,8 @@ function playerToken(p, role){
 }
 function renderRinkFormation(awayData, homeData, awayCode, homeCode, lineIdx){
   const aLines=buildLines(awayData), hLines=buildLines(homeData);
-  const max=Math.max(aLines.length, hLines.length, 1);
+  // Flashscore-style : 4 formations max (L1–L3 + 4e / PP approximatif)
+  const max=Math.min(4, Math.max(aLines.length, hLines.length, 1));
   const idx=Math.min(Math.max(0,lineIdx||0), max-1);
   const a=aLines[idx]||{forwards:[],defense:[],goalie:null};
   const h=hLines[idx]||{forwards:[],defense:[],goalie:null};
@@ -566,9 +586,32 @@ async function buildPlayers(home,away,xh,xa,sh,sa){
       raw.push({id:p.id,name:p.name,team:tm,position:p.position,gp:s.gp,goals:s.goals,assists:s.assists,points:s.points,shots:s.shots,toi:s.toi,
         g:Math.max(.005,s.goals/s.gp*role),a:Math.max(.008,s.assists/s.gp*role),sht:Math.max(.15,s.shots/s.gp*role)});
     }
-    if(raw.length<6){
-      st.rows.filter(s=>s.team===tm).sort((a,b)=>b.points-a.points).slice(0,18).forEach(s=>{
-        let role=s.toi?clamp(toiMinutes(s.toi)/17,.55,1.45):1;if(s.position==="D")role*=.78;
+    // Toujours compléter avec les stats équipe (début de saison / IDs non matchés)
+    if(raw.length<10){
+      const have=new Set(raw.map(x=>x.id||norm(x.name)));
+      st.rows
+        .filter(s=>{
+          if(s.team===tm) return true;
+          // si team vide côté stats, match par nom roster
+          if(!s.team && (roster.players||[]).some(p=>norm(p.name)===norm(s.name))) return true;
+          return false;
+        })
+        .sort((a,b)=>b.points-a.points)
+        .slice(0,22)
+        .forEach(s=>{
+          const k=s.id||norm(s.name);
+          if(have.has(k)||!s.gp) return;
+          have.add(k);
+          let role=s.toi?clamp(toiMinutes(s.toi)/17,.55,1.45):1;if(s.position==="D")role*=.78;
+          raw.push({id:s.id,name:s.name,team:tm,position:s.position,gp:s.gp,goals:s.goals,assists:s.assists,points:s.points,shots:s.shots,toi:s.toi,
+            g:Math.max(.005,s.goals/s.gp*role),a:Math.max(.008,s.assists/s.gp*role),sht:Math.max(.15,s.shots/s.gp*role)});
+        });
+    }
+    // Dernier recours : top points de la ligue sans filtre équipe
+    if(raw.length<3){
+      st.rows.sort((a,b)=>b.points-a.points).slice(0,8).forEach(s=>{
+        if(!s.gp) return;
+        let role=s.toi?clamp(toiMinutes(s.toi)/17,.55,1.45):1;
         raw.push({id:s.id,name:s.name,team:tm,position:s.position,gp:s.gp,goals:s.goals,assists:s.assists,points:s.points,shots:s.shots,toi:s.toi,
           g:Math.max(.005,s.goals/s.gp*role),a:Math.max(.008,s.assists/s.gp*role),sht:Math.max(.15,s.shots/s.gp*role)});
       });
@@ -880,14 +923,20 @@ function renderAnalysis(d){
       for(const g of list){
         if(g.winner===d.home) hw++; else if(g.winner===d.away) aw++;
       }
-      h2hEl.innerHTML=`<div class="section-title" style="border:0;padding:0 0 8px"><span>⚔️</span> Derniers H2H <small class="muted">${d.home} ${hw}–${aw} ${d.away}</small></div>
+      h2hEl.innerHTML=`<div class="section-title" style="border:0;padding:0 0 10px"><span>⚔️</span> Derniers H2H
+        <small class="h2h-scoreline">${logoHTML(d.home,"team-logo-sm")} <b>${hw}</b> – <b>${aw}</b> ${logoHTML(d.away,"team-logo-sm")}</small>
+      </div>
         <div class="h2h-list">${list.map(g=>{
           const dt=g.date?new Date(g.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"";
-          const homeWin=g.winner===g.home;
-          return `<div class="h2h-row">
-            <span class="h2h-date">${dt}</span>
-            <span class="${g.winner===d.home?"h2h-win":""}">${g.away} ${g.as}–${g.hs} ${g.home}</span>
-            <span class="h2h-badge">${g.winner==="TIE"?"N":"V "+g.winner}</span>
+          const wHome=g.winner===g.home, wAway=g.winner===g.away;
+          return `<div class="h2h-card">
+            <div class="h2h-date">${dt}</div>
+            <div class="h2h-match">
+              <div class="h2h-side ${wAway?"winner":""}">${logoHTML(g.away,"team-logo-sm")}<span>${g.away}</span><b>${g.as}</b></div>
+              <span class="h2h-vs">–</span>
+              <div class="h2h-side ${wHome?"winner":""}"><b>${g.hs}</b><span>${g.home}</span>${logoHTML(g.home,"team-logo-sm")}</div>
+            </div>
+            <div class="h2h-result">${g.winner==="TIE"?"Match nul":`Victoire ${g.winner}`}</div>
           </div>`;
         }).join("")}</div>`;
     }
@@ -1513,7 +1562,9 @@ async function renderLeaders(sortKey="points"){
       try{
         const ls=JSON.parse(localStorage.getItem("rdb_leaders_v1")||"null");
         if(ls && ls.at && Date.now()-ls.at < 30*60*1000 && ls.rows){
-          LEADERS_CACHE={rows:ls.rows,byId:{},byName:{}};
+          const byId={},byName={};
+          for(const r of ls.rows){ if(r.id) byId[r.id]=r; if(r.name) byName[norm(r.name)]=r; }
+          LEADERS_CACHE={rows:ls.rows,byId,byName};
           LEADERS_CACHE_AT=ls.at;
         }
       }catch(_){}
@@ -1613,6 +1664,39 @@ function injuriesForTeams(home, away){
   }
   return out;
 }
+function frInjuryStatus(s){
+  const k=String(s||"").toLowerCase().trim();
+  const map={
+    "injured reserve":"Réserve blessés","ir":"Réserve blessés","ir-lt":"Réserve long terme",
+    "day-to-day":"Au jour le jour","day to day":"Au jour le jour","dtd":"Au jour le jour",
+    "out":"Absent","out for season":"Absent pour la saison","out indefinitely":"Absent (indéterminé)",
+    "doubtful":"Douteux","questionable":"Incertain","probable":"Probable",
+    "suspended":"Suspendu","personal":"Absent (personnel)","healthy scratch":"Écarté"
+  };
+  return map[k]||s||"—";
+}
+function frInjuryType(t){
+  const k=String(t||"").toLowerCase();
+  return k
+    .replace("upper body","Haut du corps").replace("lower body","Bas du corps")
+    .replace("undisclosed","Non communiqué").replace("personal","Personnel")
+    .replace("illness","Maladie").replace("knee","Genou").replace("ankle","Cheville")
+    .replace("shoulder","Épaule").replace("back","Dos").replace("hand","Main")
+    .replace("wrist","Poignet").replace("concussion","Commotion").replace("groin","Aine")
+    || t || "";
+}
+function frPosition(p){
+  const m={C:"Centre",LW:"AG",RW:"AD",D:"D",G:"G",F:"A"};
+  return m[String(p||"").toUpperCase()]||p||"";
+}
+function formatReturnDate(d){
+  if(!d) return "";
+  try{
+    const dt=new Date(d);
+    if(isNaN(dt)) return String(d);
+    return dt.toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"});
+  }catch(_){ return String(d); }
+}
 function renderMatchInjuries(home, away){
   const el=$("matchInjuriesBox");
   if(!el) return;
@@ -1628,11 +1712,21 @@ function renderMatchInjuries(home, away){
   for(const side of [away, home]){
     const rows=by[side]||[];
     html+=`<div class="match-injury-side"><div class="match-injury-label">${logoHTML(side,"team-logo-sm")} ${side}</div>`;
-    if(!rows.length) html+=`<p class="muted" style="font-size:12px;margin:6px 0">—</p>`;
-    else html+=rows.map(x=>`<div class="match-injury-row">
-      <div><b>${x.name}</b><small>${x.position||""}${x.type?` · ${x.type}`:""}</small></div>
-      <span class="injury-status status-${(x.status||"").toLowerCase().replace(/\s+/g,"-")}">${x.status||"—"}</span>
-    </div>`).join("");
+    if(!rows.length) html+=`<p class="muted" style="font-size:12px;margin:6px 0">Aucune signalée</p>`;
+    else html+=rows.map(x=>{
+      const ret=formatReturnDate(x.returnDate||x.date||x.return);
+      const pos=frPosition(x.position);
+      const typ=frInjuryType(x.type||x.detail||"");
+      const st=frInjuryStatus(x.status);
+      return `<div class="match-injury-row">
+        <div>
+          <b>${x.name}</b>
+          <small>${[pos,typ].filter(Boolean).join(" · ")}</small>
+          ${ret?`<small class="injury-return">Retour estimé : <b>${ret}</b></small>`:`<small class="injury-return muted">Retour : non communiqué</small>`}
+        </div>
+        <span class="injury-status status-${(x.status||"").toLowerCase().replace(/\s+/g,"-")}">${st}</span>
+      </div>`;
+    }).join("");
     html+=`</div>`;
   }
   html+=`</div>`;
@@ -1674,11 +1768,11 @@ function renderInjuries(){
         <div class="injury-row">
           <div class="injury-player">
             <b>${x.name}</b>
-            <small>${x.position||"—"}${x.type?` · ${x.type}`:""}</small>
+            <small>${frPosition(x.position)||"—"}${x.type?` · ${frInjuryType(x.type)}`:""}</small>
           </div>
-          <span class="injury-status status-${(x.status||"").toLowerCase().replace(/\s+/g,"-")}">${x.status||"—"}</span>
+          <span class="injury-status status-${(x.status||"").toLowerCase().replace(/\s+/g,"-")}">${frInjuryStatus(x.status)}</span>
           <div class="injury-meta">
-            ${x.returnDate?`<span>Retour estimé : ${x.returnDate}</span>`:""}
+            <span>Retour estimé : ${x.returnDate?formatReturnDate(x.returnDate):"non communiqué"}</span>
             ${x.comment?`<p>${x.comment}</p>`:""}
           </div>
         </div>`).join("")}</div></div>`;
