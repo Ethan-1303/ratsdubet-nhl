@@ -1116,3 +1116,54 @@ header.topbar .topbar-right .nav-premium.active{
 /* Espacements globaux cartes */
 .container .card{margin-bottom:14px}
 #view-analyse .card{margin-bottom:16px}
+
+/* Score card corrigé */
+.score-main{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center}
+.score-block,.xg-block{width:100%}
+.score-label{display:block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:4px}
+.score-probable{font-size:clamp(36px,6vw,52px);font-weight:800;letter-spacing:-.03em;color:#fff;line-height:1}
+.xg-line{font-size:clamp(20px,3.5vw,28px);font-weight:700;color:#9ec9b0}
+.xg-line b{color:#3a556b;margin:0 6px;font-weight:600}
+.score-hero .scoreline{display:none} /* legacy */
+
+/* Schedule cards 1-clic */
+.sched-card{
+  background:linear-gradient(165deg,rgba(10,28,44,.98),rgba(4,12,22,.99));
+  border:1px solid rgba(255,255,255,.07);border-radius:16px;
+  padding:14px 16px;margin-bottom:10px;cursor:pointer;
+  transition:border-color .15s, transform .15s;
+}
+.sched-card:hover{border-color:rgba(0,230,118,.3);transform:translateY(-1px)}
+.sched-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.sched-time{font-weight:800;color:#fff;font-size:14px}
+.sched-card-teams{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:12px;flex-wrap:wrap}
+.sched-team{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:16px}
+.sched-team b{color:var(--green);min-width:1.2em}
+.sched-at{color:var(--muted);font-weight:700}
+.sched-card .analyze-small{width:100%;min-height:44px}
+.team-logo-md{width:32px;height:32px}
+
+/* Trial urgent H-6 */
+.trial-banner.trial-urgent{
+  background:rgba(255,168,0,.12);border:1px solid rgba(255,168,0,.4);color:#fff4e0;
+}
+
+/* Kombo copy */
+.kombo-copy{width:100%;margin-top:10px;min-height:40px}
+
+/* Accordion mobile */
+@media(max-width:900px){
+  .accordion-block:not(.acc-open) > :not(.section-title){display:none !important}
+  .accordion-block .section-title.acc-toggle{
+    cursor:pointer;user-select:none;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .accordion-block .section-title.acc-toggle::after{
+    content:"▼";font-size:11px;color:var(--muted);transition:transform .2s;
+  }
+  .accordion-block.acc-open .section-title.acc-toggle::after{transform:rotate(180deg)}
+  .accordion-block.acc-open > :not(.section-title){display:block !important}
+  .accordion-block.acc-open .goalie-grid,
+  .accordion-block.acc-open .form-grid,
+  .accordion-block.acc-open .players-grid{display:grid !important}
+}
