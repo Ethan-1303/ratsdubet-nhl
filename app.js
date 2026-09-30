@@ -1000,6 +1000,23 @@ function refreshPlanUI(){
     if(badge){badge.innerHTML=`<strong>FREE</strong><span>Essai 48h à l’inscription</span>`;badge.classList.remove("prem")}
     if(chip)chip.textContent="Compte";
   }
+
+  // Hero : pas de doublon ni "Créer un compte" si déjà connecté
+  const logged = !!A?.isLoggedIn?.();
+  const heroAnalyze = $("heroAnalyzeBtn");
+  const heroAccount = $("heroAccountBtn");
+  if(heroAnalyze) heroAnalyze.classList.toggle("hidden", true); // toujours : le picker dessous suffit
+  if(heroAccount){
+    heroAccount.classList.toggle("hidden", logged);
+    heroAccount.textContent = logged ? "" : "Créer un compte";
+  }
+  // Masquer toute la rangée CTA si plus rien à montrer
+  const row = document.querySelector(".hero-cta-row");
+  if(row) row.classList.toggle("hidden", logged || true); // always hide analyze; hide row if logged
+  if(row){
+    const anyVisible = [...row.querySelectorAll("button")].some(b=>!b.classList.contains("hidden"));
+    row.classList.toggle("hidden", !anyVisible);
+  }
 }
 
 
@@ -2364,35 +2381,7 @@ function setup(){
   document.getElementById("navPremium")?.addEventListener("click", ()=>setTimeout(syncAnalyzeSticky,0));
   syncAnalyzeSticky();
   setupMobileNav();
-
-  // Bottom app nav
-  document.querySelectorAll(".ban-item").forEach(btn=>{
-    btn.addEventListener("click",()=>{
-      const v=btn.dataset.view;
-      const target=document.querySelector(`.nav-btn[data-view="${v}"]`) || document.getElementById(v==="premium"?"navPremium":"");
-      if(target) target.click();
-      else {
-        document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
-        document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
-        $("view-"+v)?.classList.add("active");
-        try{ applySeoForView(v); }catch(_){}
-        if(v==="matchs") schedule(0);
-        if(v==="kombos") loadKombos();
-        if(v==="forum"){ window.RDB_FORUM?.setup?.(); window.RDB_FORUM?.refresh?.(); }
-      }
-      document.querySelectorAll(".ban-item").forEach(b=>b.classList.toggle("active", b.dataset.view===v));
-    });
-  });
-  const _syncBan=()=>{
-    const active=document.querySelector(".nav-btn.active")?.dataset?.view
-      || document.querySelector(".view.active")?.id?.replace(/^view-/,"")
-      || "analyse";
-    document.querySelectorAll(".ban-item").forEach(b=>b.classList.toggle("active", b.dataset.view===active));
-  };
-  window.addEventListener("rdb:auth", _syncBan);
-  document.querySelectorAll(".nav-btn").forEach(b=>b.addEventListener("click",()=>setTimeout(_syncBan,30)));
-
-  try{ checkKombosNotif(); }catch(_){}
+try{ checkKombosNotif(); }catch(_){}
   
 
 /* ═══ Kombos du jour — proba modèle + cotes bookmakers ═══ */
