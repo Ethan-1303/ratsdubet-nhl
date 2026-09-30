@@ -199,6 +199,93 @@ async function getForm(team){
   }
   return [];
 }
+
+/* Temps de trajet approximatif (villes arenas NHL) */
+const TEAM_CITY = {
+ANA:[33.81,-117.88],BOS:[42.37,-71.06],BUF:[42.88,-78.87],CAR:[35.80,-78.72],CBJ:[39.97,-83.01],
+CGY:[51.04,-114.05],CHI:[41.88,-87.67],COL:[39.75,-105.01],DAL:[32.79,-96.81],DET:[42.34,-83.06],
+EDM:[53.55,-113.50],FLA:[26.16,-80.33],LAK:[34.04,-118.27],MIN:[44.94,-93.10],MTL:[45.50,-73.57],
+NJD:[40.73,-74.15],NSH:[36.16,-86.78],NYI:[40.72,-73.73],NYR:[40.75,-73.99],OTT:[45.30,-75.93],
+PHI:[39.90,-75.17],PIT:[40.44,-80.00],SJS:[37.33,-121.90],SEA:[47.62,-122.35],STL:[38.63,-90.20],
+TBL:[27.94,-82.45],TOR:[43.64,-79.38],UTA:[40.77,-111.90],VAN:[49.28,-123.11],VGK:[36.10,-115.18],
+WPG:[49.89,-97.14],WSH:[38.90,-77.02]
+};
+function haversineKm(a,b){
+  if(!a||!b) return null;
+  const R=6371, toR=x=>x*Math.PI/180;
+  const dLat=toR(b[0]-a[0]), dLon=toR(b[1]-a[1]);
+  const lat1=toR(a[0]), lat2=toR(b[0]);
+  const h=Math.sin(dLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function travelHoursBetween(fromTeam, toTeam){
+  const km=haversineKm(TEAM_CITY[fromTeam], TEAM_CITY[toTeam]);
+  if(km==null) return null;
+  if(km<80) return 0.5;
+  return Math.round((km/800 + 1.5)*10)/10;
+}
+async function getTravelContext(team, venueTeam){
+  try{
+    let games=[];
+    for(const season of [CURRENT, BASE]){
+      const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/${season}`);
+      games=(j.games||[]).filter(g=>g.gameType===2&&g.startTimeUTC).sort((a,b)=>new Date(a.startTimeUTC)-new Date(b.startTimeUTC));
+      if(games.length>=2) break;
+    }
+    const now=Date.now();
+    let nextIdx=games.findIndex(g=>new Date(g.startTimeUTC)>=now-6*3600000);
+    if(nextIdx<0) nextIdx=games.length-1;
+    const prev=nextIdx>0?games[nextIdx-1]:null;
+    let fromAbbrev=team;
+    if(prev){
+      const isHome = (prev.homeTeam?.abbrev||"")===team;
+      fromAbbrev = isHome ? team : (prev.homeTeam?.abbrev||team);
+    }
+    const hours=travelHoursBetween(fromAbbrev, venueTeam);
+    return {
+      from: fromAbbrev, to: venueTeam, hours,
+      road: team!==venueTeam,
+      longHaul: hours!=null && hours>=4.5,
+      label: hours==null ? "—" : (hours<=1 ? "Local / court" : `~${hours} h de trajet`)
+    };
+  }catch(e){
+    return {from:team,to:venueTeam,hours:null,road:team!==venueTeam,longHaul:false,label:"—"};
+  }
+}
+async function getH2H(home, away, limit=5){
+  const out=[];
+  try{
+    for(const season of [CURRENT, BASE]){
+      const j=await api(`api-web.nhle.com/v1/club-schedule-season/${home}/${season}`);
+      const games=(j.games||[]).filter(g=>{
+        if(g.gameType!==2||!g.startTimeUTC) return false;
+        const h=g.homeTeam?.abbrev, a=g.awayTeam?.abbrev;
+        const pair=(h===home&&a===away)||(h===away&&a===home);
+        return pair && new Date(g.startTimeUTC)<new Date();
+      });
+      games.sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
+      for(const g of games){
+        if(out.length>=limit) break;
+        try{
+          const x=await api(`api-web.nhle.com/v1/gamecenter/${g.id}/landing`);
+          const ht=x.homeTeam||{}, at=x.awayTeam||{};
+          const hs=n(ht.score), as_=n(at.score);
+          if(!Number.isFinite(hs)||!Number.isFinite(as_)) continue;
+          out.push({
+            date: g.startTimeUTC,
+            home: ht.abbrev||g.homeTeam?.abbrev,
+            away: at.abbrev||g.awayTeam?.abbrev,
+            hs, as: as_,
+            winner: hs>as_?(ht.abbrev||g.homeTeam?.abbrev):(as_>hs?(at.abbrev||g.awayTeam?.abbrev):"TIE")
+          });
+        }catch(_){}
+      }
+      if(out.length>=limit) break;
+    }
+  }catch(e){ console.warn("h2h", e); }
+  return out.slice(0,limit);
+}
+
 async function getB2B(team){
   try{
     const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/${CURRENT}`);
@@ -510,28 +597,36 @@ function setLoadMsg(msg){
 }
 async function analyze(home,away){
   if(home===away)throw new Error("Sélectionne deux équipes différentes.");
-  setLoadMsg("Équipes, forme et gardiens…");
-  // Une seule passe équipes → ligue dérivée (évite double fetch)
-  const [teams,fh,fa,bh,ba,gf,rh,ra]=await Promise.all([
+  setLoadMsg("Équipes, forme, trajet et gardiens…");
+  const [teams,fh,fa,bh,ba,gf,rh,ra,trH,trA]=await Promise.all([
     getTeams(),getForm(home),getForm(away),getB2B(home),getB2B(away),getGoalieFactors(),
-    getRoster(home),getRoster(away)
+    getRoster(home),getRoster(away),
+    getTravelContext(home, home),
+    getTravelContext(away, home) // away se déplace vers le domicile
   ]);
   const l=leagueFrom(teams);
   const h=teams[home],a=teams[away];
   if(!h||!a||!l.valid)throw new Error("Données équipes insuffisantes (saison 2025-26).");
-  const x=expectedFrom(h,a,l,fh,fa,bh,ba,gf),m=markets(x.home,x.away);
-  setLoadMsg("Player props et projections…");
-  const [players,gh,ga]=await Promise.all([
+  const x=expectedFrom(h,a,l,fh,fa,bh,ba,gf);
+  // Ajustement léger trajet long pour l'extérieur
+  if(trA.longHaul){ x.away*=0.97; x.home*=1.01; x.total=x.home+x.away; }
+  if(trH.longHaul && trH.road){ x.home*=0.98; }
+  const m=markets(x.home,x.away);
+  setLoadMsg("H2H et player props…");
+  const [players,gh,ga,h2h]=await Promise.all([
     buildPlayers(home,away,x.home,x.away,x.shotsHome,x.shotsAway),
     projectGoalie(rh.goalies,home),
-    projectGoalie(ra.goalies,away)
+    projectGoalie(ra.goalies,away),
+    getH2H(home,away,5)
   ]);
   let c=50;if(h&&a)c+=20;if(fh.length>=5)c+=5;if(fa.length>=5)c+=5;if(players.dataCount>=12)c+=8;else if(players.dataCount>=8)c+=5;
   if(Number.isFinite(h.sat)&&Number.isFinite(a.sat))c+=6;if(Number.isFinite(h.pp)&&Number.isFinite(a.pk))c+=4;
-  if(bh.b2b||ba.b2b)c-=4;c=Math.round(clamp(c,0,95));
+  if(bh.b2b||ba.b2b)c-=4;
+  if(trA.longHaul)c-=2;
+  c=Math.round(clamp(c,0,95));
   const status=c<60||players.dataCount<6?"NO BET":"SURVEILLER";
   const gameId=window.__RDB_GAME_ID||null; window.__RDB_GAME_ID=null;
-  return {home,away,h,a,l,fh,fa,bh,ba,gf,x,m,players,gh,ga,c,status,best:projectedScore(x.home,x.away),gameId};
+  return {home,away,h,a,l,fh,fa,bh,ba,gf,x,m,players,gh,ga,c,status,best:projectedScore(x.home,x.away),gameId,travel:{home:trH,away:trA},h2h};
 }
 let CURRENT_ANALYSIS=null, CURRENT_PROP="pg", LAST_HISTORY_KEY="";
 
@@ -770,9 +865,33 @@ function renderAnalysis(d){
     {t:"Spécialités",x:`PP ${d.home} ${pct(d.h.pp)} vs PK ${d.away} ${pct(d.a.pk)} • PP ${d.away} ${pct(d.a.pp)} vs PK ${d.home} ${pct(d.h.pk)}.`},
     {t:"Forme",x:`5 derniers matchs : ${d.home} ${d.fh.length}/5, ${d.away} ${d.fa.length}/5.`},
     {t:"Fatigue",x:`B2B : ${d.home} ${d.bh.b2b?"OUI":"non"}${d.bh.restDays?` (${d.bh.restDays.toFixed(1)} j)`:``} • ${d.away} ${d.ba.b2b?"OUI":"non"}${d.ba.restDays?` (${d.ba.restDays.toFixed(1)} j)`:``}.`},
+    {t:"Trajet",x:`${d.home} : ${d.travel?.home?.label||"—"} · ${d.away} : ${d.travel?.away?.label||"—"}${d.travel?.away?.longHaul?" ⚠️ long haul extérieur":""}.`},
     {t:"Statut",x:`${d.status} — confiance modèle ${pct(d.c/100)}.`}
   ];
-  $("modelNotes").innerHTML=notes.map((x,i)=>`<div class="note ${i===5&&d.status==="NO BET"?"warn":"good"}"><b>${x.t} :</b> ${x.x}</div>`).join("");
+  $("modelNotes").innerHTML=notes.map((x,i)=>`<div class="note ${(x.t==="Statut"&&d.status==="NO BET")?"warn":"good"}"><b>${x.t} :</b> ${x.x}</div>`).join("");
+  // H2H block
+  const h2hEl=$("h2hBox");
+  if(h2hEl){
+    const list=d.h2h||[];
+    if(!list.length){
+      h2hEl.innerHTML=`<div class="section-title" style="border:0;padding:0 0 8px"><span>⚔️</span> Confrontations directes</div><p class="muted">Pas de H2H récent disponible.</p>`;
+    }else{
+      let hw=0,aw=0;
+      for(const g of list){
+        if(g.winner===d.home) hw++; else if(g.winner===d.away) aw++;
+      }
+      h2hEl.innerHTML=`<div class="section-title" style="border:0;padding:0 0 8px"><span>⚔️</span> Derniers H2H <small class="muted">${d.home} ${hw}–${aw} ${d.away}</small></div>
+        <div class="h2h-list">${list.map(g=>{
+          const dt=g.date?new Date(g.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"";
+          const homeWin=g.winner===g.home;
+          return `<div class="h2h-row">
+            <span class="h2h-date">${dt}</span>
+            <span class="${g.winner===d.home?"h2h-win":""}">${g.away} ${g.as}–${g.hs} ${g.home}</span>
+            <span class="h2h-badge">${g.winner==="TIE"?"N":"V "+g.winner}</span>
+          </div>`;
+        }).join("")}</div>`;
+    }
+  }
   $("goalies").innerHTML=[["home",d.home,d.gh],["away",d.away,d.ga]].map(x=>`<div class="goalie"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span style="color:#8ea4b8">• ${x[2].name}</span></h3><div class="stat-row"><span>SV%</span><b>${pct(x[2].sv)}</b></div><div class="stat-row"><span>GAA</span><b>${fmt(x[2].gaa)}</b></div><div class="stat-row"><span>Contexte</span><b>${x[2].conf}</b></div></div>`).join("");
   $("form").innerHTML=[["home",d.home,d.fh,d.bh],["away",d.away,d.fa,d.ba]].map(x=>{
     const wins=x[2].filter(g=>g.win).length,gf=avg(x[2].map(g=>g.gf)),ga=avg(x[2].map(g=>g.ga));
@@ -785,7 +904,8 @@ function renderAnalysis(d){
       <div class="form-dots-row"><span class="form-dots-label">5 derniers</span><div class="form-dots">${dots}</div><span class="form-dots-score">${wins}V-${x[2].length-wins}D</span></div>
       <div class="form-chips">${detail}</div>
       <div class="stat-row"><span>Buts (moy.)</span><b>${fmt(gf)} pour · ${fmt(ga)} contre</b></div>
-      <div class="stat-row"><span>B2B</span><b>${x[3].b2b?"OUI ⚠️":"NON"}</b></div></div>`;
+      <div class="stat-row"><span>B2B</span><b>${x[3].b2b?"OUI ⚠️":"NON"}</b></div>
+      <div class="stat-row"><span>Trajet</span><b>${(x[0]==="home"?d.travel?.home?.label:d.travel?.away?.label)||"—"}</b></div></div>`;
   }).join("");
   renderAdvanced(d);
   renderPlayers(CURRENT_PROP);renderAllProps();renderAudit();
@@ -1188,7 +1308,15 @@ function setupAuthUI(){
       closeAuth(); refreshPlanUI();
       if(CURRENT_ANALYSIS) renderAnalysis(CURRENT_ANALYSIS);
     }catch(ex){
-      if(err){err.textContent=ex.message||String(ex);err.classList.remove("hidden")}
+      if(ex.code==="CONFIRM_EMAIL" || ex.message==="CONFIRM_EMAIL"){
+        if(err){
+          err.classList.remove("hidden");
+          err.style.color="#00e676";
+          err.innerHTML=`<b>Vérifie ta boîte mail</b><br>Un email de confirmation a été envoyé à <b>${ex.email||email}</b>.<br>Clique le lien (regarde aussi les spams), puis reconnecte-toi pour débloquer l’essai 48 h et le forum.`;
+        }
+        return;
+      }
+      if(err){err.style.color=""; err.textContent=ex.message||String(ex);err.classList.remove("hidden")}
     }
   });
   $("authLogout")?.addEventListener("click",()=>{A.logout();refreshPlanUI();closeAuth()});
@@ -1563,6 +1691,22 @@ function renderInjuries(){
   el.innerHTML=head+html;
 }
 
+function setupMobileNav(){
+  const btn=$("navMenuBtn"), nav=document.querySelector(".main-nav");
+  if(!btn||!nav) return;
+  btn.onclick=()=>{
+    const open=nav.classList.toggle("nav-open");
+    btn.setAttribute("aria-expanded", open?"true":"false");
+    document.body.classList.toggle("nav-drawer-open", open);
+  };
+  nav.querySelectorAll(".nav-btn").forEach(b=>{
+    b.addEventListener("click",()=>{
+      nav.classList.remove("nav-open");
+      document.body.classList.remove("nav-drawer-open");
+      btn.setAttribute("aria-expanded","false");
+    });
+  });
+}
 function syncAnalyzeSticky(){
   const active = document.querySelector(".nav-btn.active");
   const view = active?.dataset?.view || "analyse";
@@ -1576,6 +1720,7 @@ function setup(){
   // Premium button also in topbar-right
   document.getElementById("navPremium")?.addEventListener("click", ()=>setTimeout(syncAnalyzeSticky,0));
   syncAnalyzeSticky();
+  setupMobileNav();
   try{ checkKombosNotif(); }catch(_){}
   
 
