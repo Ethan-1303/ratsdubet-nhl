@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css?v=20260930a">
+  <link rel="stylesheet" href="/styles.css?v=20260930b">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -470,6 +470,22 @@
     <span id="lastUpdate">—</span>
   </footer>
 
+  <!-- Modal email confirmé -->
+  <div id="emailConfirmModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="emailConfirm"></div>
+    <div class="modal-card card email-confirm-card">
+      <button type="button" class="modal-x" data-close="emailConfirm">×</button>
+      <div class="email-confirm-icon">✅</div>
+      <h3>Email confirmé</h3>
+      <p id="emailConfirmText">Ton adresse est validée. Bienvenue dans la meute !</p>
+      <ul class="email-confirm-list">
+        <li>Essai <b>Premium 48 h</b> activé</li>
+        <li>Forum, analyses et kombos débloqués</li>
+      </ul>
+      <button type="button" class="primary-btn" id="emailConfirmOk">C’est parti →</button>
+    </div>
+  </div>
+
   <!-- MODAL AUTH / MON COMPTE -->
   <div id="authModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-backdrop" data-close="auth"></div>
@@ -553,10 +569,10 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20260930a"></script>
-  <script src="/auth.js?v=20260930a"></script>
-  <script src="/forum.js?v=20260930a"></script>
-  <script src="/app.js?v=20260930a"></script>
+  <script src="/config.js?v=20260930b"></script>
+  <script src="/auth.js?v=20260930b"></script>
+  <script src="/forum.js?v=20260930b"></script>
+  <script src="/app.js?v=20260930b"></script>
 
   <script>
   (function(){
