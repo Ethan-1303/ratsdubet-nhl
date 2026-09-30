@@ -588,7 +588,11 @@ function markets(xh,xa){
   let h60=0,a60=0,t60=0;
   for(let h=0;h<=10;h++)for(let a=0;a<=10;a++){const p=poisson(xh,h)*poisson(xa,a);if(h>a)h60+=p;else if(a>h)a60+=p;else t60+=p}
   const total=xh+xa;
-  return {home:h60+t60/2,away:a60+t60/2,home60:h60,away60:a60,tie60:t60,o45:over(total,4.5),o55:over(total,5.5),u55:1-over(total,5.5),o65:over(total,6.5),u65:1-over(total,6.5),btts:(1-Math.exp(-xh))*(1-Math.exp(-xa))};
+  // BTTS : Poisson indépendant surestime → facteur de corrélation + plafond réaliste
+  let bttsRaw=(1-Math.exp(-xh))*(1-Math.exp(-xa));
+  const btts=clamp(bttsRaw*0.86, 0.18, 0.72);
+  return {home:h60+t60/2,away:a60+t60/2,home60:h60,away60:a60,tie60:t60,o45:over(total,4.5),o55:over(total,5.5),u55:1-over(total,5.5),o65:over(total,6.5),u65:1-over(total,6.5),btts};
+
 }
 function projectedScore(xh,xa){
   const a=[];for(let h=0;h<=8;h++)for(let x=0;x<=8;x++)a.push([h,x,poisson(xh,h)*poisson(xa,x)]);
@@ -716,20 +720,41 @@ function buildSummary(d){
 }
 
 function marketValueFlags(m){
-  // VALUE uniquement si proba modèle >= 65 %
-  const T = 0.65;
+  // VALUE = proba intéressante ET cote juste encore jouable (pas 1.05–1.25)
+  // Trop court = favori écrasant → pas de tag VALUE (un parieur ne "value" pas du 1.09)
+  const MIN_P = 0.52;
+  const MAX_P = 0.70;       // au-delà, cote juste < ~1.43
+  const MIN_FAIR = 1.40;    // en dessous = trop court pour parler de value
+  const MAX_FAIR = 3.20;    // au-delà = long shot fragile
+  function ok(p){
+    if(!Number.isFinite(p) || p<=0) return false;
+    const fair = 1/p;
+    if(fair < MIN_FAIR || fair > MAX_FAIR) return false;
+    if(p < MIN_P || p > MAX_P) return false;
+    return true;
+  }
+  function isShort(p){
+    return Number.isFinite(p) && p > 0 && (1/p) < MIN_FAIR && p >= 0.60;
+  }
   return {
-    "Victoire domicile OT": m.home >= T,
-    "Victoire extérieur OT": m.away >= T,
-    "Domicile 60 min": m.home60 >= T,
-    "Extérieur 60 min": m.away60 >= T,
-    "Nul 60 min": m.tie60 >= T,
-    "Over 4.5": m.o45 >= T,
-    "Over 5.5": m.o55 >= T,
-    "Under 5.5": m.u55 >= T,
-    "Over 6.5": m.o65 >= T,
-    "Under 6.5": m.u65 >= T,
-    "BTTS": m.btts >= T
+    "Victoire domicile OT": ok(m.home),
+    "Victoire extérieur OT": ok(m.away),
+    "Domicile 60 min": ok(m.home60),
+    "Extérieur 60 min": ok(m.away60),
+    "Nul 60 min": ok(m.tie60),
+    "Over 4.5": ok(m.o45),
+    "Over 5.5": ok(m.o55),
+    "Under 5.5": ok(m.u55),
+    "Over 6.5": ok(m.o65),
+    "Under 6.5": ok(m.u65),
+    "BTTS": ok(m.btts),
+    _short: {
+      "Victoire domicile OT": isShort(m.home),
+      "Victoire extérieur OT": isShort(m.away),
+      "Over 4.5": isShort(m.o45),
+      "Over 5.5": isShort(m.o55),
+      "BTTS": isShort(m.btts)
+    }
   };
 }
 
@@ -916,7 +941,7 @@ function renderDecisionBoard(d){
   else if(favP>=0.60) verdict=`Piste : ${fav} en 1X2 / OT (${pct(favP)})`;
   else if(leanTotal.startsWith("Over") && leanP>=0.58) verdict=`Piste : ${leanTotal} (${pct(leanP)})`;
   else if(leanTotal.startsWith("Under") && leanP>=0.58) verdict=`Piste : ${leanTotal} (${pct(leanP)})`;
-  else if(d.m.btts>=0.60) verdict=`Piste : BTTS oui (${pct(d.m.btts)})`;
+  else if(d.m.btts>=0.55 && d.m.btts<=0.70 && (1/d.m.btts)>=1.40) verdict=`Piste : BTTS oui (${pct(d.m.btts)} · juste ${fair(d.m.btts)})`;
 
   const streak=g=>{
     let n=0,w=null;
@@ -971,11 +996,12 @@ function renderDecisionBoard(d){
   ];
   const flags=marketValueFlags(d.m)||{};
   const valueMk=mk.filter(x=>flags[x[0]]).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const shortMk=mk.filter(x=>flags._short?.[x[0]]).sort((a,b)=>b[1]-a[1]).slice(0,2);
   if(vals){
     if(!valueMk.length){
-      vals.innerHTML=`<div class="decision-novalue muted">Pas de VALUE claire (≥ seuil) sur ce match — privilégie le statut <b>${d.status}</b>.</div>`;
+      vals.innerHTML=`<div class="decision-novalue muted">Pas de VALUE jouable (cote juste ≥ 1.40 et proba 52–70 %).${shortMk.length?` Favoris trop courts : ${shortMk.map(x=>x[0]+" "+fair(x[1])).join(", ")}.` :""} Statut <b>${d.status}</b>.</div>`;
     }else{
-      vals.innerHTML=`<div class="decision-values-label">VALUE détectées</div>`+
+      vals.innerHTML=`<div class="decision-values-label">VALUE jouables</div>`+
         valueMk.map(x=>`<span class="decision-chip value"><b>${x[0]}</b> ${pct(x[1])} · juste ${fair(x[1])}</span>`).join("");
     }
   }
@@ -1056,13 +1082,22 @@ function renderAnalysis(d){
   ensureInjuryCache().then(()=>renderMatchInjuries(d.home,d.away)).catch(()=>{});
   const mk=[["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],["Domicile 60 min",d.m.home60],["Extérieur 60 min",d.m.away60],["Nul 60 min",d.m.tie60],["Over 4.5",d.m.o45],["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["Over 6.5",d.m.o65],["Under 6.5",d.m.u65],["BTTS",d.m.btts]];
   const valFlags=marketValueFlags(d.m);
+  const shortFlags = valFlags._short || {};
   $("markets").innerHTML=mk.map(x=>{
     const isVal=!!valFlags[x[0]];
-    const fairOdds = x[1]>0.01 ? (1/x[1]) : 0;
-    // edge vs cote "juste" pure modèle (référence) : affiche cote juste comme book implicite
-    const edgeTxt = isVal ? `Edge modèle · cote juste ${fair(x[1])}` : `Cote juste ${fair(x[1])}`;
-    return `<div class="market${isVal?" value":""}" title="${isVal?"Edge modèle ≥ seuil VALUE":""}">
-      <div class="label">${x[0]}${isVal?` <span class="value-tag">VALUE</span>`:""}</div>
+    const isShort=!!shortFlags[x[0]];
+    let tag="", cls="", edgeTxt=`Cote juste ${fair(x[1])}`;
+    if(isVal){
+      tag=` <span class="value-tag">VALUE</span>`;
+      cls=" value";
+      edgeTxt=`Zone jouable · cote juste ${fair(x[1])} (≥ 1.40)`;
+    } else if(isShort){
+      tag=` <span class="short-tag">TROP COURT</span>`;
+      cls=" short";
+      edgeTxt=`Favori trop court (${fair(x[1])}) — pas une value bankroll`;
+    }
+    return `<div class="market${cls}" title="${isVal?"Value : proba + cote juste jouable":(isShort?"Cote juste trop basse pour value":"")}">
+      <div class="label">${x[0]}${tag}</div>
       <div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div>
       <span class="edge-tag">${edgeTxt}</span>
     </div>`;
