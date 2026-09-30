@@ -9,7 +9,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css?v=20260930m">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="BETZONE">
+  <link rel="stylesheet" href="/styles.css?v=20260930n">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -36,6 +39,9 @@
 
   <link rel="icon" href="/logo.png" type="image/png">
   <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="BETZONE">
+  <link rel="apple-touch-icon" href="/logo.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="BETZONE by Ratsdubet">
   <meta property="og:title" content="BETZONE — Analyse NHL, props & kombos">
@@ -46,6 +52,9 @@
   <meta name="twitter:title" content="BETZONE — Analyse NHL">
   <meta name="twitter:description" content="Projections, props, kombos & forum. Essai Premium 48h.">
   <meta name="twitter:image" content="https://betzone-rdb.com/logo.png">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebApplication","name":"BETZONE","applicationCategory":"SportsApplication","operatingSystem":"Web","url":"https://betzone-rdb.com/","description":"Outil d'analyse NHL pour parieurs : projections, VALUE, props, kombos et forum.","offers":{"@type":"Offer","price":"20","priceCurrency":"EUR"}}
+  </script>
 </head>
 <body>
   <div class="bg-glow glow-a"></div>
@@ -75,6 +84,7 @@
       <button class="nav-btn" data-view="historique">Histo</button>
       <button class="nav-btn" data-view="kombos">Kombos</button>
       <button class="nav-btn" data-view="forum">Forum</button>
+      <button class="nav-btn nav-admin hidden" data-view="admin" id="navAdmin">Admin</button>
     </nav>
 
     <div class="topbar-right">
@@ -274,9 +284,9 @@
 
     
     <!-- ACTU NHL -->
-    <section id="view-actu" class="view">
+    <section id="view-actu" class="view" data-seo-title="Actualité NHL — BETZONE" data-seo-desc="Dernières actualités NHL pour préparer vos tickets : blessures, transferts, résultats.">
       <div class="page-title">
-        <div><div class="eyebrow">NHL</div><h2>Actualité</h2></div>
+        <div><div class="eyebrow">NHL · SEO</div><h2>Actualité NHL</h2></div>
         <button id="refreshNews" class="ghost-btn">↻ Actualiser</button>
       </div>
       <div class="card">
@@ -331,7 +341,7 @@
 
     
     <!-- CLASSEMENT EQUIPES -->
-    <section id="view-classement" class="view">
+    <section id="view-classement" class="view" data-seo-title="Classement NHL 2026-27 — BETZONE" data-seo-desc="Classement NHL par conférence et division, mis à jour automatiquement.">
       <div class="page-title"><div><div class="eyebrow">NHL</div><h2>Classement des équipes</h2></div><button id="refreshStandings" class="ghost-btn">↻ Actualiser</button></div>
       <div class="card"><p class="muted">Classement officiel NHL. En pré-saison, affiche la fin 2025-26 ; bascule automatiquement sur 2026-27 dès les premiers matchs de saison régulière.</p><div id="standingsTable" class="team-table"></div></div>
     </section>
@@ -482,6 +492,26 @@
   </div>
 </main>
 
+  
+    <section id="view-admin" class="view">
+      <div class="page-title">
+        <div><div class="eyebrow">CHEF DE MEUTE</div><h2>Dashboard admin</h2></div>
+        <button type="button" class="ghost-btn" id="adminRefresh">↻ Actualiser</button>
+      </div>
+      <div class="admin-kpis" id="adminKpis">
+        <div class="empty-inline">Chargement…</div>
+      </div>
+      <div class="card">
+        <div class="section-title"><span>👥</span> Derniers inscrits</div>
+        <div id="adminUsers"><div class="empty-inline">—</div></div>
+      </div>
+      <div class="card">
+        <div class="section-title"><span>💬</span> Derniers posts forum</div>
+        <div id="adminPosts"><div class="empty-inline">—</div></div>
+      </div>
+      <p class="muted">Visible uniquement pour le Chef de meute (email admin Supabase).</p>
+    </section>
+
   <footer>
     <span>BETZONE by Ratsdubet</span>
     <a href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">Telegram</a>
@@ -492,6 +522,21 @@
     <span>Source : NHL.com · ESPN</span>
     <span id="lastUpdate">—</span>
   </footer>
+
+  <!-- Onboarding 3 étapes -->
+  <div id="onboardModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="onboard"></div>
+    <div class="modal-card card onboard-card">
+      <div class="onboard-steps" id="onboardSteps">
+        <i class="on"></i><i></i><i></i>
+      </div>
+      <div id="onboardBody"></div>
+      <div class="onboard-actions">
+        <button type="button" class="ghost-btn" id="onboardSkip">Passer</button>
+        <button type="button" class="primary-btn" id="onboardNext">Continuer →</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal email confirmé -->
   <div id="emailConfirmModal" class="modal hidden" role="dialog" aria-modal="true">
@@ -592,10 +637,10 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20260930m"></script>
-  <script src="/auth.js?v=20260930m"></script>
-  <script src="/forum.js?v=20260930m"></script>
-  <script src="/app.js?v=20260930m"></script>
+  <script src="/config.js?v=20260930n"></script>
+  <script src="/auth.js?v=20260930n"></script>
+  <script src="/forum.js?v=20260930n"></script>
+  <script src="/app.js?v=20260930n"></script>
 
   <script>
   (function(){
