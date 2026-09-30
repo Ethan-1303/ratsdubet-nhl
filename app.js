@@ -719,44 +719,94 @@ function buildSummary(d){
   return `${d.home} vs ${d.away} : ${edge.join(" · ")}. Score le plus probable ${d.best[0]}–${d.best[1]} (xG ${fmt(d.x.home)}–${fmt(d.x.away)}).`;
 }
 
-function marketValueFlags(m){
-  // VALUE = proba intéressante ET cote juste encore jouable (pas 1.05–1.25)
-  // Trop court = favori écrasant → pas de tag VALUE (un parieur ne "value" pas du 1.09)
-  const MIN_P = 0.52;
-  const MAX_P = 0.70;       // au-delà, cote juste < ~1.43
-  const MIN_FAIR = 1.40;    // en dessous = trop court pour parler de value
-  const MAX_FAIR = 3.20;    // au-delà = long shot fragile
-  function ok(p){
-    if(!Number.isFinite(p) || p<=0) return false;
-    const fair = 1/p;
-    if(fair < MIN_FAIR || fair > MAX_FAIR) return false;
-    if(p < MIN_P || p > MAX_P) return false;
-    return true;
-  }
+function marketValueFlags(m, meta){
+  // VALUE "parieur" : cote juste jouable + proba dans une zone actionnable + 1 seul côté par famille
+  // meta: { confidence, status } optionnel
+  const conf = meta?.confidence ?? 70;
+  const status = meta?.status || "SURVEILLER";
+  const allow = status !== "NO BET" && conf >= 58;
+
+  const MIN_FAIR = 1.42;  // ~70.4% max
+  const MAX_FAIR = 2.80;  // ~35.7% min — au-delà = long shot fragile sans cote book
+  const MIN_P = 0.38;
+  const MAX_P = 0.70;
+
+  function fairOf(p){ return p>0.01 ? 1/p : 99; }
   function isShort(p){
-    return Number.isFinite(p) && p > 0 && (1/p) < MIN_FAIR && p >= 0.60;
+    return Number.isFinite(p) && p >= 0.62 && fairOf(p) < MIN_FAIR;
   }
+  // Score qualité 0–100 : privilégie ~1.55–2.10 (sweet spot bankroll)
+  function quality(p){
+    if(!Number.isFinite(p)||p<=0) return 0;
+    const f = fairOf(p);
+    if(f < MIN_FAIR || f > MAX_FAIR) return 0;
+    if(p < MIN_P || p > MAX_P) return 0;
+    // pic autour de cote 1.70–1.90
+    const ideal = 1.78;
+    const dist = Math.abs(f - ideal);
+    let q = 100 - dist * 45;
+    // bonus si proba nette sans être écrasante
+    if(p >= 0.55 && p <= 0.65) q += 8;
+    return Math.max(0, Math.round(q));
+  }
+
+  const candidates = [
+    ["Victoire domicile OT", m.home, "side"],
+    ["Victoire extérieur OT", m.away, "side"],
+    ["Domicile 60 min", m.home60, "reg"],
+    ["Extérieur 60 min", m.away60, "reg"],
+    ["Nul 60 min", m.tie60, "reg"],
+    ["Over 5.5", m.o55, "tot55"],
+    ["Under 5.5", m.u55, "tot55"],
+    ["Over 6.5", m.o65, "tot65"],
+    ["Under 6.5", m.u65, "tot65"],
+    ["Over 4.5", m.o45, "tot45"],
+    ["BTTS", m.btts, "btts"],
+  ];
+
+  const scored = candidates.map(([name,p,fam])=>{
+    const q = allow ? quality(p) : 0;
+    return { name, p, fam, q, fair: fairOf(p), short: isShort(p) };
+  }).filter(x=>x.q > 0 || x.short);
+
+  // Une seule VALUE par famille (meilleur score)
+  const bestByFam = {};
+  for(const x of scored){
+    if(x.q <= 0) continue;
+    if(!bestByFam[x.fam] || x.q > bestByFam[x.fam].q) bestByFam[x.fam] = x;
+  }
+  // Si Over 4.5 et Over 5.5 tous deux value, garder le plus "jouable" (meilleur q) — souvent 5.5
+  if(bestByFam.tot45 && bestByFam.tot55){
+    if(bestByFam.tot45.q <= bestByFam.tot55.q) delete bestByFam.tot45;
+    else delete bestByFam.tot55;
+  }
+
+  const flags = {};
+  const qualities = {};
+  const ranked = Object.values(bestByFam).sort((a,b)=>b.q-a.q);
+  for(const x of ranked){
+    flags[x.name] = true;
+    qualities[x.name] = x.q;
+  }
+  // shorts (info, pas value)
+  const shortMap = {};
+  for(const x of scored){
+    if(x.short) shortMap[x.name] = true;
+  }
+  // Ne jamais VALUE un marché déjà short
+  for(const k of Object.keys(flags)){
+    if(shortMap[k]){ delete flags[k]; delete qualities[k]; }
+  }
+
   return {
-    "Victoire domicile OT": ok(m.home),
-    "Victoire extérieur OT": ok(m.away),
-    "Domicile 60 min": ok(m.home60),
-    "Extérieur 60 min": ok(m.away60),
-    "Nul 60 min": ok(m.tie60),
-    "Over 4.5": ok(m.o45),
-    "Over 5.5": ok(m.o55),
-    "Under 5.5": ok(m.u55),
-    "Over 6.5": ok(m.o65),
-    "Under 6.5": ok(m.u65),
-    "BTTS": ok(m.btts),
-    _short: {
-      "Victoire domicile OT": isShort(m.home),
-      "Victoire extérieur OT": isShort(m.away),
-      "Over 4.5": isShort(m.o45),
-      "Over 5.5": isShort(m.o55),
-      "BTTS": isShort(m.btts)
-    }
+    ...flags,
+    _short: shortMap,
+    _quality: qualities,
+    _ranked: ranked.filter(x=>flags[x.name]),
+    _allow: allow
   };
 }
+
 
 function shareTextFrom(d){
   const sum = buildSummary(d);
@@ -994,15 +1044,21 @@ function renderDecisionBoard(d){
     ["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],
     ["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["BTTS",d.m.btts],["Over 6.5",d.m.o65]
   ];
-  const flags=marketValueFlags(d.m)||{};
-  const valueMk=mk.filter(x=>flags[x[0]]).sort((a,b)=>b[1]-a[1]).slice(0,3);
-  const shortMk=mk.filter(x=>flags._short?.[x[0]]).sort((a,b)=>b[1]-a[1]).slice(0,2);
+  const flags=marketValueFlags(d.m,{confidence:d.c,status:d.status})||{};
+  const ranked = flags._ranked || mk.filter(x=>flags[x[0]]).map(x=>({name:x[0],p:x[1],q:flags._quality?.[x[0]]||0,fair:x[1]>0?1/x[1]:0}));
+  const valueMk = ranked.slice(0,3);
+  const shortMk = mk.filter(x=>flags._short?.[x[0]]).sort((a,b)=>b[1]-a[1]).slice(0,2);
   if(vals){
-    if(!valueMk.length){
-      vals.innerHTML=`<div class="decision-novalue muted">Pas de VALUE jouable (cote juste ≥ 1.40 et proba 52–70 %).${shortMk.length?` Favoris trop courts : ${shortMk.map(x=>x[0]+" "+fair(x[1])).join(", ")}.` :""} Statut <b>${d.status}</b>.</div>`;
+    if(!flags._allow){
+      vals.innerHTML=`<div class="decision-novalue muted">VALUE désactivées (confiance ${d.c}% ou statut ${d.status}). Attends un meilleur spot.</div>`;
+    } else if(!valueMk.length){
+      vals.innerHTML=`<div class="decision-novalue muted">Pas de VALUE jouable (cote juste 1,42–2,80 · 1 marché / famille).${shortMk.length?` Trop courts : ${shortMk.map(x=>x[0]+" @"+fair(x[1])).join(", ")}.` :""}</div>`;
     }else{
-      vals.innerHTML=`<div class="decision-values-label">VALUE jouables</div>`+
-        valueMk.map(x=>`<span class="decision-chip value"><b>${x[0]}</b> ${pct(x[1])} · juste ${fair(x[1])}</span>`).join("");
+      vals.innerHTML=`<div class="decision-values-label">VALUE classées</div>`+
+        valueMk.map(x=>{
+          const stars = x.q>=85?"★★★":x.q>=70?"★★":"★";
+          return `<span class="decision-chip value" title="Qualité ${x.q}/100"><b>${x.name}</b> ${pct(x.p)} · ${fair(x.p)} <em>${stars}</em></span>`;
+        }).join("");
     }
   }
   if(note){
@@ -1081,22 +1137,25 @@ function renderAnalysis(d){
   // Blessures des 2 équipes sur la dashboard analyse
   ensureInjuryCache().then(()=>renderMatchInjuries(d.home,d.away)).catch(()=>{});
   const mk=[["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],["Domicile 60 min",d.m.home60],["Extérieur 60 min",d.m.away60],["Nul 60 min",d.m.tie60],["Over 4.5",d.m.o45],["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["Over 6.5",d.m.o65],["Under 6.5",d.m.u65],["BTTS",d.m.btts]];
-  const valFlags=marketValueFlags(d.m);
+  const valFlags=marketValueFlags(d.m,{confidence:d.c,status:d.status});
   const shortFlags = valFlags._short || {};
+  const qMap = valFlags._quality || {};
   $("markets").innerHTML=mk.map(x=>{
     const isVal=!!valFlags[x[0]];
     const isShort=!!shortFlags[x[0]];
+    const q = qMap[x[0]]||0;
     let tag="", cls="", edgeTxt=`Cote juste ${fair(x[1])}`;
     if(isVal){
-      tag=` <span class="value-tag">VALUE</span>`;
+      const stars = q>=85?"★★★":q>=70?"★★":"★";
+      tag=` <span class="value-tag">VALUE ${stars}</span>`;
       cls=" value";
-      edgeTxt=`Zone jouable · cote juste ${fair(x[1])} (≥ 1.40)`;
+      edgeTxt=`Qualité ${q}/100 · zone 1,42–2,80 · ${fair(x[1])}`;
     } else if(isShort){
       tag=` <span class="short-tag">TROP COURT</span>`;
       cls=" short";
-      edgeTxt=`Favori trop court (${fair(x[1])}) — pas une value bankroll`;
+      edgeTxt=`Cote juste ${fair(x[1])} — inutilisable en value bankroll`;
     }
-    return `<div class="market${cls}" title="${isVal?"Value : proba + cote juste jouable":(isShort?"Cote juste trop basse pour value":"")}">
+    return `<div class="market${cls}" title="${isVal?`Value qualité ${q}`:(isShort?"Trop court":"")}">
       <div class="label">${x[0]}${tag}</div>
       <div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div>
       <span class="edge-tag">${edgeTxt}</span>
@@ -1121,6 +1180,7 @@ function renderAnalysis(d){
     </div>`;
   }
   const notes=[
+    {t:"VALUE",x:`Tag VALUE = cote juste entre 1,42 et 2,80, proba 38–70 %, un seul marché par famille (ex. pas Over et Under). ★ = qualité. Trop court = favori inutilisable (ex. 1,09).`},
     {t:"Projection",x:`${d.home} ${fmt(d.x.home)} xG contre ${d.away} ${fmt(d.x.away)} xG. Total modèle : ${fmt(d.x.total)} buts.`},
     {t:"Possession",x:`SAT% ${d.home} ${pct(d.h.sat)} vs ${d.away} ${pct(d.a.sat)} • USAT% ${pct(d.h.usat)} / ${pct(d.a.usat)}. Impact Corsi intégré aux xG.`},
     {t:"Spécialités",x:`PP ${d.home} ${pct(d.h.pp)} vs PK ${d.away} ${pct(d.a.pk)} • PP ${d.away} ${pct(d.a.pp)} vs PK ${d.home} ${pct(d.h.pk)}.`},
