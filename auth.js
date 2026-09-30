@@ -124,6 +124,24 @@
           save(KEY_PREMIUM, { at: Date.now(), expires: trialExp, source: "trial48h" });
         }
 
+
+        // Chef de meute = Premium à vie + admin
+        const email = (data?.email || u.email || "").toLowerCase();
+        if (this.isChefEmail(email) || data?.is_admin) {
+          this.grantPremium("admin", true);
+          premium = true;
+          try {
+            await sb.from("profiles").upsert({
+              id: u.id,
+              email: u.email,
+              premium: true,
+              trial_expires: null,
+              is_admin: true,
+              level: 5
+            });
+          } catch (_) {}
+        }
+
         if (data?.posts_count != null) {
           this.user_posts = data.posts_count;
           save("rdb_posts_count_v1", data.posts_count);
@@ -201,21 +219,28 @@
       window.dispatchEvent(new CustomEvent("rdb:auth"));
     },
 
+    isChefEmail(email) {
+      const chefs = (CFG().CHEF_EMAILS || []).map((e) => String(e).toLowerCase());
+      return !!(email && chefs.includes(String(email).toLowerCase()));
+    },
     isPremium() {
+      // Admin / Chef = Premium à vie toujours
+      if (this.isAdmin() || this.isChefEmail(this.user?.email)) {
+        this.premium = true;
+        return true;
+      }
       const meta = load(KEY_PREMIUM, null);
       if (meta && meta.source === "trial48h") {
         if (meta.expires && Date.now() <= meta.expires) {
           this.premium = true;
           return true;
         }
-        // essai expiré
         this.premium = false;
         if (this.user) this.user.premium = false;
         this._trialEnded = true;
         return false;
       }
-      // Premium à vie (stripe / demo / supabase)
-      if (meta && (meta.source === "stripe" || meta.source === "demo" || meta.source === "supabase" || meta.source === "local" || !meta.expires)) {
+      if (meta && (meta.source === "stripe" || meta.source === "demo" || meta.source === "supabase" || meta.source === "admin" || meta.source === "local" || !meta.expires)) {
         if (this.premium || this.user?.premium || meta.at) return true;
       }
       return !!(this.premium || this.user?.premium);
@@ -321,6 +346,25 @@
       const redirectTo = (CFG().SITE_URL || window.location.origin || "https://betzone-rdb.com").replace(/\/$/, "") + "/";
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) throw new Error(error.message || "Impossible d'envoyer l'email.");
+      return true;
+    },
+
+    async updateName(newName) {
+      newName = String(newName || "").trim();
+      if (newName.length < 2) throw new Error("Pseudo : 2 caractères minimum.");
+      if (newName.length > 24) throw new Error("Pseudo : 24 caractères max.");
+      const sb = await initSupabase();
+      if (sb && this.user?.id) {
+        const { error } = await sb.from("profiles").update({ name: newName }).eq("id", this.user.id);
+        if (error) throw new Error(error.message || "Impossible de mettre à jour le pseudo.");
+        // optional: auth metadata
+        try { await sb.auth.updateUser({ data: { name: newName } }); } catch (_) {}
+      }
+      if (this.user) {
+        this.user.name = newName;
+        save(KEY_USER, this.user);
+      }
+      window.dispatchEvent(new CustomEvent("rdb:auth"));
       return true;
     },
 
