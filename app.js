@@ -878,6 +878,24 @@ function refreshPlanUI(){
 }
 
 
+async function renderMiniHitRate(){
+  const note=$("decisionNote"); if(!note) return;
+  try{
+    const {stats}=await resolveHistoryResults();
+    if(!stats) return;
+    const parts=[];
+    if(stats.fav?.n>=3) parts.push(`Favori OT ${pct(stats.fav.pct)} (${stats.fav.hit}/${stats.fav.n})`);
+    if(stats.o55?.n>=3) parts.push(`O/U 5.5 ${pct(stats.o55.pct)} (${stats.o55.hit}/${stats.o55.n})`);
+    if(parts.length){
+      const extra=document.createElement("div");
+      extra.className="mini-hit muted";
+      extra.innerHTML=`Hit rate local (tes analyses) : ${parts.join(" · ")}`;
+      // append once
+      if(!note.parentElement.querySelector(".mini-hit")) note.parentElement.appendChild(extra);
+      else note.parentElement.querySelector(".mini-hit").innerHTML=extra.innerHTML;
+    }
+  }catch(_){}
+}
 function renderDecisionBoard(d){
   const board=$("decisionBoard"), grid=$("decisionGrid"), vals=$("decisionValues"), st=$("decisionStatus"), note=$("decisionNote");
   if(!board||!grid) return;
@@ -891,6 +909,28 @@ function renderDecisionBoard(d){
   const conf = d.c>=75?"Élevée":d.c>=60?"Correcte":"Limitée";
   const statusCls = d.status==="NO BET"?"no":"ok";
   if(st){ st.textContent=d.status; st.className="decision-status "+statusCls; }
+
+  // Verdict 1 ligne pour parieurs
+  let verdict="Match ouvert — surveiller les VALUE";
+  if(d.status==="NO BET") verdict="Passer — confiance ou données insuffisantes";
+  else if(favP>=0.60) verdict=`Piste : ${fav} en 1X2 / OT (${pct(favP)})`;
+  else if(leanTotal.startsWith("Over") && leanP>=0.58) verdict=`Piste : ${leanTotal} (${pct(leanP)})`;
+  else if(leanTotal.startsWith("Under") && leanP>=0.58) verdict=`Piste : ${leanTotal} (${pct(leanP)})`;
+  else if(d.m.btts>=0.60) verdict=`Piste : BTTS oui (${pct(d.m.btts)})`;
+
+  const streak=g=>{
+    let n=0,w=null;
+    for(const x of g||[]){ if(w===null)w=x.win; if(x.win===w)n++; else break; }
+    return {n,w};
+  };
+  const sh=streak(d.fh), sa=streak(d.fa);
+
+  const verdEl=$("decisionVerdict");
+  if(verdEl){
+    verdEl.innerHTML=`<span class="verdict-pill ${d.status==="NO BET"?"warn":""}">${verdict}</span>
+      ${sh.n>=2?`<span class="verdict-pill ${sh.w?"hot":"cold"}">${d.home} : ${sh.n}${sh.w?"V":"D"} d’affilée</span>`:""}
+      ${sa.n>=2?`<span class="verdict-pill ${sa.w?"hot":"cold"}">${d.away} : ${sa.n}${sa.w?"V":"D"} d’affilée</span>`:""}`;
+  }
 
   grid.innerHTML=`
     <div class="decision-item primary">
@@ -941,9 +981,39 @@ function renderDecisionBoard(d){
   }
   if(note){
     note.textContent = d.status==="NO BET"
-      ? "Modèle prudent : données ou confiance insuffisantes. Évite de forcer un pari."
-      : "Utilise les VALUE comme piste, pas comme certitude. Croise avec compositions et blessures.";
+      ? "Modèle prudent : données ou confiance insuffisantes. Évite de forcer un pari. Outil informatif, pas un conseil de jeu."
+      : "VALUE = pistes modèle, pas des certitudes. Croise avec compositions, blessures et cotes book. 18+ · jeu responsable.";
   }
+}
+
+
+
+function renderCompare(d){
+  const el=$("compareTable"); if(!el) return;
+  const fh=d.fh||[], fa=d.fa||[];
+  const homeWins=fh.filter(g=>g.win).length, awayWins=fa.filter(g=>g.win).length;
+  const homeHome=fh.filter(g=>g.home), homeAway=fh.filter(g=>g.home===false);
+  const awayHome=fa.filter(g=>g.home), awayAway=fa.filter(g=>g.home===false);
+  const hwH=homeHome.filter(g=>g.win).length, haH=homeAway.filter(g=>g.win).length;
+  const awH=awayHome.filter(g=>g.win).length, aaH=awayAway.filter(g=>g.win).length;
+  const rows=[
+    ["Bilan 5 derniers", `${homeWins}V-${fh.length-homeWins}D`, `${awayWins}V-${fa.length-awayWins}D`],
+    ["À domicile (échantillon)", homeHome.length?`${hwH}V-${homeHome.length-hwH}D`:"—", awayHome.length?`${awH}V-${awayHome.length-awH}D`:"—"],
+    ["À l’extérieur", homeAway.length?`${haH}V-${homeAway.length-haH}D`:"—", awayAway.length?`${aaH}V-${awayAway.length-aaH}D`:"—"],
+    ["xG projetés", fmt(d.x.home), fmt(d.x.away)],
+    ["Proba OT", pct(d.m.home), pct(d.m.away)],
+    ["SAT% (Corsi)", pct(d.h.sat), pct(d.a.sat)],
+    ["PP%", pct(d.h.pp), pct(d.a.pp)],
+    ["PK%", pct(d.h.pk), pct(d.a.pk)],
+    ["B2B", d.bh.b2b?"⚠️ Oui":"Non", d.ba.b2b?"⚠️ Oui":"Non"],
+    ["Trajet", d.travel?.home?.label||"—", d.travel?.away?.label||"—"],
+    ["Gardien", d.gh?.name||"—", d.ga?.name||"—"],
+  ];
+  el.innerHTML=`<div class="compare-table">
+    <div class="compare-head"><span>Indicateur</span><b>${logoHTML(d.home,"team-logo-sm")} ${d.home}</b><b>${logoHTML(d.away,"team-logo-sm")} ${d.away}</b></div>
+    ${rows.map(r=>`<div class="compare-row"><span>${r[0]}</span><b>${r[1]}</b><b>${r[2]}</b></div>`).join("")}
+  </div>
+  <p class="muted compare-foot">Mis à jour ${new Date().toLocaleString("fr-FR")} · données NHL + modèle BETZONE</p>`;
 }
 
 function renderAnalysis(d){
@@ -961,6 +1031,8 @@ function renderAnalysis(d){
     :[["TOTAL BUTS",fmt(d.x.total)],["SCORE",`${d.best[0]}–${d.best[1]}`],["CONFIANCE",pct(d.c/100)],["STATUT",d.status],["🔒 PREMIUM","requis"],["PRIX","20 € à vie"]];
   $("kpis").innerHTML=k.map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join("");
   try{ renderDecisionBoard(d); }catch(_){}
+  try{ renderCompare(d); }catch(_){}
+  try{ renderMiniHitRate(); }catch(_){}
   applyPaywall(full);
   // Blessures des 2 équipes sur la dashboard analyse
   ensureInjuryCache().then(()=>renderMatchInjuries(d.home,d.away)).catch(()=>{});
@@ -968,9 +1040,13 @@ function renderAnalysis(d){
   const valFlags=marketValueFlags(d.m);
   $("markets").innerHTML=mk.map(x=>{
     const isVal=!!valFlags[x[0]];
-    return `<div class="market${isVal?" value":""}" title="${isVal?"Edge modèle détecté":""}">
+    const fairOdds = x[1]>0.01 ? (1/x[1]) : 0;
+    // edge vs cote "juste" pure modèle (référence) : affiche cote juste comme book implicite
+    const edgeTxt = isVal ? `Edge modèle · cote juste ${fair(x[1])}` : `Cote juste ${fair(x[1])}`;
+    return `<div class="market${isVal?" value":""}" title="${isVal?"Edge modèle ≥ seuil VALUE":""}">
       <div class="label">${x[0]}${isVal?` <span class="value-tag">VALUE</span>`:""}</div>
       <div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div>
+      <span class="edge-tag">${edgeTxt}</span>
     </div>`;
   }).join("");
   const sumEl=$("analysisSummary");
@@ -1057,7 +1133,7 @@ function renderAnalysis(d){
       : "";
     return `<div class="form-team card-inner">
       <div class="form-team-head">
-        <h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span class="form-record">${wins}V – ${losses}D</span></h3>
+        <h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span class="form-record">${wins}V – ${losses}D</span>${(()=>{let n=0,w=null;for(const g of games){if(w===null)w=g.win;if(g.win===w)n++;else break;}return n>=2?`<span class="form-streak ${w?"hot":"cold"}">${n}${w?"V":"D"} série</span>`:"";})()}</h3>
         <div class="form-dots" title="Plus récent à droite">${ordered.map(g=>`<i class="form-dot ${g.win?"win":"loss"}"></i>`).join("")}</div>
       </div>
       <div class="form-pills">${streakHtml}</div>
@@ -1268,13 +1344,34 @@ async function loadNews(){
   }
 }
 
+
+function applyAnalysisDeepLink(){
+  try{
+    const p=new URLSearchParams(location.search);
+    const home=(p.get("home")||p.get("h")||"").toUpperCase();
+    const away=(p.get("away")||p.get("a")||"").toUpperCase();
+    if(home && away && TEAMS[home] && TEAMS[away] && home!==away){
+      $("homeTeam").value=home; $("awayTeam").value=away; updateTeamMeta();
+      setTimeout(()=>runAnalysis(), 400);
+    }
+  }catch(_){}
+}
+function setAnalysisDeepLink(home, away){
+  try{
+    const url=new URL(location.href);
+    url.searchParams.set("home", home);
+    url.searchParams.set("away", away);
+    history.replaceState({}, "", url.pathname + "?" + url.searchParams.toString());
+  }catch(_){}
+}
+
 async function runAnalysis(){
   const home=$("homeTeam").value,away=$("awayTeam").value,btn=$("analyzeBtn");
   if(btn){btn.disabled=true;btn.style.opacity=".6"}
   $("loading").classList.remove("hidden");$("analysis").classList.add("hidden");$("emptyState").classList.add("hidden");
   setLoadMsg("Connexion NHL…");
   try{
-    renderAnalysis(await analyze(home,away));
+    renderAnalysis(await analyze(home,away)); setAnalysisDeepLink(home,away);
     $("lastUpdate").textContent="Dernière analyse : "+new Date().toLocaleTimeString("fr-FR");
   }catch(e){
     $("emptyState").classList.remove("hidden");
