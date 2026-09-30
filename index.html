@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>BETZONE by Ratsdubet — NHL Analyzer</title>
+  <title>BETZONE — Outil d’analyse NHL pour parieurs</title>
   <meta name="description" content="BETZONE by Ratsdubet — analyses NHL : xG, marchés, stats avancées, player props. Accès complet à vie.">
   <meta name="theme-color" content="#02070d">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css?v=20260930d">
+  <link rel="stylesheet" href="/styles.css?v=20260930e">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -168,6 +168,15 @@
           </div>
         </section>
 
+        <section class="card decision-board" id="decisionBoard">
+          <div class="decision-head">
+            <span class="decision-eyebrow">Décision rapide</span>
+            <span class="decision-status" id="decisionStatus">—</span>
+          </div>
+          <div class="decision-grid" id="decisionGrid"></div>
+          <div class="decision-values" id="decisionValues"></div>
+          <p class="decision-note muted" id="decisionNote"></p>
+        </section>
 
         <section class="summary-bar card" id="summaryBar">
           <div class="summary-main">
@@ -577,10 +586,10 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20260930d"></script>
-  <script src="/auth.js?v=20260930d"></script>
-  <script src="/forum.js?v=20260930d"></script>
-  <script src="/app.js?v=20260930d"></script>
+  <script src="/config.js?v=20260930e"></script>
+  <script src="/auth.js?v=20260930e"></script>
+  <script src="/forum.js?v=20260930e"></script>
+  <script src="/app.js?v=20260930e"></script>
 
   <script>
   (function(){
