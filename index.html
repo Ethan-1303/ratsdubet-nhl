@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css?v=20260930c">
+  <link rel="stylesheet" href="/styles.css?v=20260930d">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -34,6 +34,18 @@
     #view-forum .forum-form select,#view-forum .forum-form input,#view-forum .forum-form textarea{width:100%;box-sizing:border-box}
   </style>
 
+  <link rel="icon" href="/logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BETZONE by Ratsdubet">
+  <meta property="og:title" content="BETZONE — Analyse NHL, props & kombos">
+  <meta property="og:description" content="Projections match, player props, kombos du jour et forum meute. Essai Premium 48h.">
+  <meta property="og:url" content="https://betzone-rdb.com/">
+  <meta property="og:image" content="https://betzone-rdb.com/logo.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="BETZONE — Analyse NHL">
+  <meta name="twitter:description" content="Projections, props, kombos & forum. Essai Premium 48h.">
+  <meta name="twitter:image" content="https://betzone-rdb.com/logo.png">
 </head>
 <body>
   <div class="bg-glow glow-a"></div>
@@ -139,8 +151,14 @@
             <small>DOMICILE</small>
           </div>
           <div class="score-main">
-            <div class="scoreline"><span id="xgHome">0.00</span><b>–</b><span id="xgAway">0.00</span></div>
-            <div class="score-sub">xG • <span id="scoreProb">—</span> score le plus probable</div>
+            <div class="score-block">
+              <span class="score-label">Score le plus probable</span>
+              <div class="score-probable" id="scoreProb">—</div>
+            </div>
+            <div class="xg-block">
+              <span class="score-label">xG projetés</span>
+              <div class="xg-line"><span id="xgHome">0.00</span><b>–</b><span id="xgAway">0.00</span></div>
+            </div>
             <div class="confidence"><span>Confiance</span><b id="confidence">—</b><div><i id="confidenceBar"></i></div></div>
           </div>
           <div class="score-side away">
@@ -200,25 +218,25 @@
             </section>
           </div>
 
-          <section class="card" id="h2hBox">
+          <section class="card accordion-block" id="h2hBox">
             <div class="empty-inline">H2H après analyse…</div>
           </section>
 
-          <section class="card match-injuries-box" id="matchInjuriesBox">
+          <section class="card match-injuries-box accordion-block" id="matchInjuriesBox">
             <div class="empty-inline">Lance une analyse pour voir les blessures du match.</div>
           </section>
 
-          <section class="card">
+          <section class="card accordion-block">
             <div class="section-title"><span>📋</span> Compositions</div>
             <div id="lineupsBox"><div class="empty-inline">Lance une analyse pour voir les compositions.</div></div>
           </section>
 
-          <section class="card">
+          <section class="card accordion-block">
             <div class="section-title"><span>📈</span> Stats avancées (saison 2025-26)</div>
             <div id="advancedStats" class="advanced-wrap"><div class="empty-inline">Analyse requise</div></div>
           </section>
 
-          <section class="card">
+          <section class="card accordion-block">
             <div class="section-title"><span>🎯</span> Player Props — Top 3 du match</div>
             <div class="tabs" id="propTabs">
               <button class="tab active" data-prop="pg">Buts</button>
@@ -229,7 +247,7 @@
             <div id="playerTables" class="players-grid"></div>
           </section>
 
-          <section class="card audit">
+          <section class="card audit accordion-block">
             <div class="section-title"><span>🔎</span> Audit des données utilisées</div>
             <div id="audit"></div>
           </section>
@@ -559,10 +577,10 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20260930c"></script>
-  <script src="/auth.js?v=20260930c"></script>
-  <script src="/forum.js?v=20260930c"></script>
-  <script src="/app.js?v=20260930c"></script>
+  <script src="/config.js?v=20260930d"></script>
+  <script src="/auth.js?v=20260930d"></script>
+  <script src="/forum.js?v=20260930d"></script>
+  <script src="/app.js?v=20260930d"></script>
 
   <script>
   (function(){
