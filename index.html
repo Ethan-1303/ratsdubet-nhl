@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/logo.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="BETZONE">
-  <link rel="stylesheet" href="/styles.css?v=20260930o">
+  <link rel="stylesheet" href="/styles.css?v=20260930p">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -84,8 +84,7 @@
       <button class="nav-btn" data-view="historique">Histo</button>
       <button class="nav-btn" data-view="kombos">Kombos</button>
       <button class="nav-btn" data-view="forum">Forum</button>
-      <button class="nav-btn nav-admin" data-view="admin" id="navAdmin" style="display:none">Admin</button>
-    </nav>
+      </nav>
 
     <div class="topbar-right">
       <div class="status-pill" title="Statut API NHL"><i></i><span id="apiStatus">NHL</span></div>
@@ -97,6 +96,7 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.924L1.254 2.25H8.08l4.259 5.632L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/></svg>
         </a>
       </div>
+      <button type="button" class="nav-btn nav-admin" id="navAdmin" data-view="admin" title="Dashboard admin">Admin</button>
       <button type="button" class="nav-btn nav-premium" id="navPremium" data-view="premium">Premium</button>
       <button type="button" class="auth-chip" id="authChip">Compte</button>
     </div>
@@ -585,6 +585,7 @@
         </div>
         <p class="account-hint muted" id="accNext">Continue à poster pour monter de niveau.</p>
         <div class="account-actions">
+          <button type="button" class="primary-btn hidden" id="accAdminBtn">Dashboard admin</button>
           <button type="button" class="primary-btn" id="accPremiumBtn">Passer Premium</button>
           <button type="button" class="ghost-btn full" id="accChangePassBtn">Changer le mot de passe</button>
           <button type="button" class="ghost-btn full" id="authLogout">Se déconnecter</button>
@@ -643,10 +644,10 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20260930o"></script>
-  <script src="/auth.js?v=20260930o"></script>
-  <script src="/forum.js?v=20260930o"></script>
-  <script src="/app.js?v=20260930o"></script>
+  <script src="/config.js?v=20260930p"></script>
+  <script src="/auth.js?v=20260930p"></script>
+  <script src="/forum.js?v=20260930p"></script>
+  <script src="/app.js?v=20260930p"></script>
 
   <script>
   (function(){
