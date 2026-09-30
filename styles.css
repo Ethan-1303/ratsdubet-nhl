@@ -1482,3 +1482,11 @@ header.topbar{
 }
 .acc-name-edit .ghost-btn{padding:6px 10px;min-height:auto}
 .nav-admin{border-color:rgba(255,200,50,.45)!important;color:#ffd84d!important;font-weight:800}
+
+.nav-admin{
+  display:inline-flex !important;align-items:center;
+  background:rgba(255,200,50,.12)!important;
+  border:1px solid rgba(255,200,50,.45)!important;
+  color:#ffd84d!important;font-weight:800!important;
+}
+.nav-admin.hidden{display:none!important}
