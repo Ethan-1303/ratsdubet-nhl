@@ -1474,3 +1474,11 @@ header.topbar{
 .book-line em{font-style:normal;font-weight:700}
 .book-line.book-edge em{color:#00e676}
 .book-line.book-noedge em{color:#ff8a94}
+
+.acc-name-edit{display:flex;gap:6px;align-items:center;flex:1;justify-content:flex-end}
+.acc-name-edit input{
+  width:min(160px,40vw);padding:6px 10px;border-radius:8px;
+  background:#020a12;border:1px solid #1a3a52;color:#fff;font-size:13px;font-weight:700;text-align:right
+}
+.acc-name-edit .ghost-btn{padding:6px 10px;min-height:auto}
+.nav-admin{border-color:rgba(255,200,50,.45)!important;color:#ffd84d!important;font-weight:800}
