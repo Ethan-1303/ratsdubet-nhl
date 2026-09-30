@@ -64,8 +64,16 @@
           await this._fromSupabaseUser(data.session.user);
         }
         sb.auth.onAuthStateChange(async (event, session) => {
-          if (session?.user) await this._fromSupabaseUser(session.user);
-          else if (event === "SIGNED_OUT") {
+          if (session?.user) {
+            await this._fromSupabaseUser(session.user);
+            if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+              // possible confirmation email
+              const meta = session.user.email_confirmed_at || session.user.confirmed_at;
+              if (meta && !sessionStorage.getItem("rdb_email_ok_shown")) {
+                // ne pas double-afficher si redirect déjà géré
+              }
+            }
+          } else if (event === "SIGNED_OUT") {
             this.user = null;
             localStorage.removeItem(KEY_USER);
           }
@@ -74,14 +82,8 @@
       }
       // Après clic lien validation email / reset MDP
       try {
-        const hash = window.location.hash || "";
-        if (hash.includes("access_token") || hash.includes("type=signup") || hash.includes("type=recovery") || hash.includes("type=email")) {
-          const { data: sess } = await sb.auth.getSession();
-          if (sess?.session?.user) await this._fromSupabaseUser(sess.session.user);
-          // nettoyage URL
-          try { history.replaceState({}, "", location.pathname + location.search); } catch {}
-        }
-      } catch (e) { console.warn("auth hash", e); }
+        if (sb) await this._handleAuthRedirect(sb);
+      } catch (e) { console.warn("auth redirect", e); }
       this.checkUnlockParam();
       // Réactive essai 48h si encore valide
       try {
@@ -440,6 +442,41 @@
         if (confirm("Impossible de joindre /stripe-checkout.\nSimuler Premium (démo) ?")) {
           this.grantPremium("demo");
         }
+      }
+    },
+
+
+    async _handleAuthRedirect(sb) {
+      const hash = window.location.hash || "";
+      const search = window.location.search || "";
+      const full = (hash + "&" + search).toLowerCase();
+      const isRecovery = full.includes("type=recovery");
+      const isSignup = full.includes("type=signup") || full.includes("type=email") || full.includes("type=magiclink");
+      const hasToken = full.includes("access_token") || full.includes("refresh_token") || search.includes("code=");
+
+      if (search.includes("code=")) {
+        try {
+          const { data, error } = await sb.auth.exchangeCodeForSession(window.location.href);
+          if (error) console.warn("exchangeCode", error);
+          else if (data?.session?.user) await this._fromSupabaseUser(data.session.user);
+        } catch (e) { console.warn(e); }
+      } else if (hasToken || isSignup || isRecovery) {
+        await new Promise((r) => setTimeout(r, 200));
+        const { data: sess } = await sb.auth.getSession();
+        if (sess?.session?.user) await this._fromSupabaseUser(sess.session.user);
+      }
+
+      if (isRecovery) {
+        window.dispatchEvent(new CustomEvent("rdb:password-recovery"));
+      } else if (isSignup || (hasToken && this.user && !isRecovery)) {
+        try { this.grantTrial48h(true); } catch (_) {}
+        window.dispatchEvent(new CustomEvent("rdb:email-confirmed", {
+          detail: { email: this.user?.email || "", name: this.user?.name || "" }
+        }));
+      }
+
+      if (hasToken || isSignup || isRecovery || search.includes("code=")) {
+        try { history.replaceState({}, "", location.pathname); } catch {}
       }
     },
 
