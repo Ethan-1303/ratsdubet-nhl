@@ -959,6 +959,7 @@ function renderAnalysis(d){
   renderAdvanced(d);
   renderPlayers(CURRENT_PROP);renderAllProps();renderAudit();
   renderMatchLineups(d.home,d.away,d.gameId||null);
+  try{ setupAnalysisAccordion(); }catch(_){}
 }
 function renderAdvanced(d){
   const el=$("advancedStats"); if(!el)return;
@@ -1799,6 +1800,18 @@ function renderInjuries(){
   el.innerHTML=head+html;
 }
 
+function setupAnalysisAccordion(){
+  // Mobile : sections détail repliables
+  document.querySelectorAll(".accordion-block .section-title").forEach(title=>{
+    if(title.dataset.accWired) return;
+    title.dataset.accWired="1";
+    title.classList.add("acc-toggle");
+    title.addEventListener("click",()=>{
+      if(window.innerWidth>900) return;
+      title.parentElement.classList.toggle("acc-open");
+    });
+  });
+}
 function setupMobileNav(){
   const btn=$("navMenuBtn"), nav=document.querySelector(".main-nav");
   if(!btn||!nav) return;
@@ -2019,10 +2032,22 @@ function renderKombosPayload(el, dayKey, payload, oddsNote){
     }).join("");
     const mode=pick.legs.length===1?"Simple":`Combiné ${pick.legs.length} sélections`;
     const allBook=pick.legs.every(l=>l.isBook);
+    const copyTxt = [
+      `🏒 BETZONE · ${title}`,
+      dayKey,
+      `Cote ~${fmtOdds(pick.odds)} (${mode})`,
+      "",
+      ...pick.legs.map(l=>`• ${l.name}${l.match?" · "+l.match:""} @ ${fmtOdds(l.bookOdds)}`),
+      "",
+      "Suggestions BETZONE — pas un conseil de pari.",
+      "https://betzone-rdb.com"
+    ].join("\n");
+    const enc = encodeURIComponent(copyTxt);
     return `<div class="kombo-card ${color}">
       <div class="kombo-head"><h3>${title}</h3><span>${subtitle}</span></div>
-      <div class="kombo-odds">Cote combinée ${allBook?"bookmakers":"indicative"} <b>~${fmtOdds(pick.odds)}</b> <em>${mode}</em></div>
+      <div class="kombo-odds">Cote combinée ${allBook?"bookmakers":"indicative"} <b class="kombo-odds-big">~${fmtOdds(pick.odds)}</b> <em>${mode}</em></div>
       <ul class="kombo-legs">${legs}</ul>
+      <button type="button" class="ghost-btn kombo-copy" data-copy="${enc}">⧉ Copier pour Telegram</button>
       <p class="kombo-disc">Sélections = meilleures probas modèle BETZONE · cotes = bookmakers quand disponibles. Suggestions uniquement, pas un conseil de pari.</p>
     </div>`;
   }
@@ -2033,6 +2058,18 @@ function renderKombosPayload(el, dayKey, payload, oddsNote){
       ${card("🔴 Mortal Kombo","Meilleurs buteurs · cote book ~10", "k-mortal", mortal)}
     </div>`;
   el.innerHTML=html;
+  el.querySelectorAll(".kombo-copy").forEach(btn=>{
+    btn.onclick=async()=>{
+      const t=decodeURIComponent(btn.getAttribute("data-copy")||"");
+      try{
+        await navigator.clipboard.writeText(t);
+        btn.textContent="✓ Copié";
+        setTimeout(()=>btn.textContent="⧉ Copier pour Telegram",1600);
+      }catch(_){
+        btn.textContent="Échec copie";
+      }
+    };
+  });
 }
 
 async function loadKombos(force){
