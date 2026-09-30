@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/logo.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="BETZONE">
-  <link rel="stylesheet" href="/styles.css?v=20260930n">
+  <link rel="stylesheet" href="/styles.css?v=20260930o">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -84,7 +84,7 @@
       <button class="nav-btn" data-view="historique">Histo</button>
       <button class="nav-btn" data-view="kombos">Kombos</button>
       <button class="nav-btn" data-view="forum">Forum</button>
-      <button class="nav-btn nav-admin hidden" data-view="admin" id="navAdmin">Admin</button>
+      <button class="nav-btn nav-admin" data-view="admin" id="navAdmin" style="display:none">Admin</button>
     </nav>
 
     <div class="topbar-right">
@@ -570,7 +570,13 @@
           </div>
         </div>
         <div class="account-rows">
-          <div class="account-row"><span>Pseudo</span><b id="accName">—</b></div>
+          <div class="account-row account-row-edit">
+            <span>Pseudo</span>
+            <div class="acc-name-edit">
+              <input type="text" id="accNameInput" maxlength="24" placeholder="Ton pseudo" />
+              <button type="button" class="ghost-btn" id="accSaveName">OK</button>
+            </div>
+          </div>
           <div class="account-row"><span>Email</span><b id="accEmail">—</b></div>
           <div class="account-row"><span>Niveau</span><b id="accLevel">—</b></div>
           <div class="account-row"><span>Plan</span><b id="accPlan">—</b></div>
@@ -637,10 +643,10 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20260930n"></script>
-  <script src="/auth.js?v=20260930n"></script>
-  <script src="/forum.js?v=20260930n"></script>
-  <script src="/app.js?v=20260930n"></script>
+  <script src="/config.js?v=20260930o"></script>
+  <script src="/auth.js?v=20260930o"></script>
+  <script src="/forum.js?v=20260930o"></script>
+  <script src="/app.js?v=20260930o"></script>
 
   <script>
   (function(){
