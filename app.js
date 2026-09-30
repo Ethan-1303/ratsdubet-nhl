@@ -1716,11 +1716,12 @@ function fillAccountPanel(){
   const trialEnded=A.hasTrialEnded?.()||false;
   let plan="Free · 1 analyse / jour";
   if(A.isPremium() && trialMs>0) plan=`Essai Premium · ${Math.ceil(trialMs/3600000)}h restantes`;
+  else if(A.isAdmin?.()) plan="Premium admin (Chef de meute)";
   else if(A.isPremium()) plan="Premium à vie";
   else if(trialEnded) plan="Free · essai terminé";
   $("accEmoji")&&($("accEmoji").textContent=L.emoji||"🐀");
   $("accLevelName")&&($("accLevelName").textContent=L.name||"");
-  $("accName")&&($("accName").textContent=A.user?.name||"—");
+  $("accNameInput")&&($("accNameInput").value=A.user?.name||"");
   $("accEmail")&&($("accEmail").textContent=A.user?.email||"—");
   $("accLevel")&&($("accLevel").textContent=`${L.emoji||""} ${L.name||""} (niv. ${L.id ?? A.getLevel?.() ?? 0})`);
   $("accPlan")&&($("accPlan").textContent=plan);
@@ -1738,7 +1739,7 @@ function fillAccountPanel(){
   $("accNext")&&($("accNext").textContent=next[Math.min(lv,5)]||next[0]);
   const premBtn=$("accPremiumBtn");
   if(premBtn){
-    if(A.isPremium() && trialMs<=0){ premBtn.classList.add("hidden"); }
+    if(A.isAdmin?.() || (A.isPremium() && trialMs<=0)){ premBtn.classList.add("hidden"); }
     else { premBtn.classList.remove("hidden"); premBtn.textContent = trialMs>0 ? "Garder Premium à vie" : "Passer Premium 20 €"; }
   }
 }
@@ -1770,6 +1771,17 @@ function setupAuthUI(){
   A.checkUnlockParam?.();
   refreshPlanUI();
   $("authChip")?.addEventListener("click",()=>openAuth(A.isLoggedIn()?"account":"register"));
+  $("accSaveName")?.addEventListener("click", async ()=>{
+    const err=$("authError");
+    try{
+      await A.updateName?.($("accNameInput")?.value);
+      fillAccountPanel();
+      refreshPlanUI();
+      if(err){ err.style.color="#00e676"; err.textContent="Pseudo mis à jour."; err.classList.remove("hidden"); }
+    }catch(ex){
+      if(err){ err.style.color=""; err.textContent=ex.message||String(ex); err.classList.remove("hidden"); }
+    }
+  });
   $("accPremiumBtn")?.addEventListener("click",()=>{closeAuth();A.openCheckout?.();});
   $("forgotPasswordBtn")?.addEventListener("click",()=>{
     const em=$("authEmail")?.value||"";
@@ -2522,8 +2534,9 @@ async function loadAdminDashboard(){
 function refreshAdminNav(){
   const b=$("navAdmin");
   if(!b) return;
-  if(window.RDB_AUTH?.isAdmin?.()) b.classList.remove("hidden");
-  else b.classList.add("hidden");
+  const ok = !!(window.RDB_AUTH?.isAdmin?.());
+  b.style.display = ok ? "" : "none";
+  b.classList.toggle("hidden", !ok);
 }
 
 
