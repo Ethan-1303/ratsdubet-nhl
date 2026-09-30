@@ -1167,3 +1167,126 @@ header.topbar .topbar-right .nav-premium.active{
   .accordion-block.acc-open .form-grid,
   .accordion-block.acc-open .players-grid{display:grid !important}
 }
+
+/* ========== BETZONE PRO — outil parieur ========== */
+:root{
+  --bg:#03080f;
+  --surface:#07111c;
+  --surface2:#0a1824;
+  --line:rgba(255,255,255,.07);
+  --text:#eef4f8;
+  --muted:#8aa0b4;
+  --green:#00e676;
+  --green-dim:rgba(0,230,118,.12);
+}
+body{
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(0,230,118,.05), transparent 50%),
+    radial-gradient(900px 500px at 100% 0%, rgba(24,120,255,.04), transparent 45%),
+    var(--bg) !important;
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+}
+.container{max-width:1120px}
+
+/* Decision board */
+.decision-board{
+  background:linear-gradient(165deg,rgba(0,230,118,.07),rgba(6,16,28,.98)) !important;
+  border:1px solid rgba(0,230,118,.22) !important;
+  box-shadow:0 16px 40px rgba(0,0,0,.3) !important;
+  padding:18px !important;
+  margin-bottom:16px;
+}
+.decision-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.decision-eyebrow{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:800;color:var(--green)}
+.decision-status{font-size:12px;font-weight:800;padding:5px 12px;border-radius:999px;border:1px solid var(--line)}
+.decision-status.ok{background:var(--green-dim);color:var(--green);border-color:rgba(0,230,118,.35)}
+.decision-status.no{background:rgba(255,200,50,.1);color:#ffd84d;border-color:rgba(255,200,50,.3)}
+.decision-grid{
+  display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px;
+}
+.decision-item{
+  background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:12px;
+  padding:12px 10px;text-align:center;display:flex;flex-direction:column;gap:4px;
+}
+.decision-item.primary{border-color:rgba(0,230,118,.3);background:rgba(0,230,118,.08)}
+.decision-item span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.decision-item b{font-size:16px;font-weight:800;color:#fff;line-height:1.2}
+.decision-item em{font-size:11px;color:#9ec9b0;font-style:normal}
+.decision-values{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.decision-values-label{font-size:11px;font-weight:800;color:var(--green);margin-right:4px}
+.decision-chip{
+  font-size:12px;padding:6px 10px;border-radius:999px;
+  background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.3);color:#e8fff2;
+}
+.decision-chip b{margin-right:4px}
+.decision-novalue{font-size:12px;width:100%}
+.decision-note{font-size:12px;margin:0;line-height:1.4}
+@media(max-width:900px){
+  .decision-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:480px){
+  .decision-grid{grid-template-columns:1fr 1fr}
+}
+
+/* Match picker pro */
+.match-picker{
+  background:linear-gradient(165deg,rgba(10,28,44,.98),rgba(4,12,22,.99)) !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+  padding:20px !important;
+}
+.match-picker label{font-size:10px;letter-spacing:1px;text-transform:uppercase;font-weight:800;color:var(--muted)}
+.match-picker select{
+  background:#050d16 !important;border:1px solid #1a3a52 !important;
+  border-radius:12px !important;font-weight:700 !important;color:#fff !important;
+}
+.versus{font-weight:900;color:var(--green);opacity:.7;letter-spacing:1px}
+
+/* Markets value emphasis */
+.market.value{
+  border-color:rgba(0,230,118,.4) !important;
+  background:rgba(0,230,118,.08) !important;
+  box-shadow:0 0 0 1px rgba(0,230,118,.12);
+}
+.value-tag{
+  background:var(--green) !important;color:#04120a !important;
+  font-size:9px !important;font-weight:900 !important;padding:2px 6px !important;
+  border-radius:4px !important;letter-spacing:.5px;
+}
+
+/* Page titles */
+.page-title h2{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.page-title .eyebrow{color:var(--green);font-weight:800;letter-spacing:1.2px}
+
+/* Loading pro */
+.loading.card{display:flex;align-items:center;gap:16px;padding:22px !important}
+.spinner{
+  width:28px;height:28px;border:3px solid #1a3a52;border-top-color:var(--green);
+  border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Footer pro */
+footer{
+  margin-top:40px;padding:24px 4vw !important;
+  display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:center;
+  font-size:11px !important;color:var(--muted) !important;
+  border-top:1px solid var(--line) !important;
+}
+footer a{color:#9eb2c4;text-decoration:none}
+footer a:hover{color:var(--green)}
+
+/* Sticky summary on desktop when analyzing */
+@media(min-width:901px){
+  #analysis .summary-bar{
+    position:sticky;top:68px;z-index:20;
+    backdrop-filter:blur(12px);
+  }
+}
+
+/* Topbar glass */
+header.topbar{
+  background:rgba(3,8,15,.85) !important;
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
