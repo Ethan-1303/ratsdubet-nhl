@@ -1380,3 +1380,36 @@ header.topbar{
 @media(max-width:600px){
   .compare-head,.compare-row{grid-template-columns:1fr 1fr 1fr;font-size:11px;padding:8px}
 }
+
+/* Graphiques performance */
+.perf-charts{display:grid;gap:18px}
+.hit-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.hit-card{display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.07)}
+.hit-card.hit-good{border-color:rgba(0,230,118,.3)}
+.hit-card.hit-mid{border-color:rgba(255,216,77,.3)}
+.hit-card.hit-bad{border-color:rgba(255,82,99,.3)}
+.hit-card-body{display:flex;flex-direction:column;gap:4px}
+.hit-card-body small{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.hit-card-body span{font-size:12px;color:#c5d4e0}
+.perf-bars-wrap{padding:12px;border-radius:14px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.06)}
+.perf-bars{display:flex;align-items:flex-end;justify-content:center;gap:28px;height:140px;padding-top:10px}
+.perf-bar-col{display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;width:56px}
+.perf-bar-track{flex:1;width:28px;background:rgba(255,255,255,.06);border-radius:8px;display:flex;align-items:flex-end;overflow:hidden}
+.perf-bar-fill{width:100%;border-radius:8px 8px 0 0;min-height:4px;transition:height .4s ease}
+.perf-bar-col span{font-weight:800;font-size:13px}
+.perf-bar-col small{font-size:10px;color:var(--muted);text-align:center}
+
+/* xG chart analyse */
+.xg-chart{display:grid;gap:10px;padding:8px 0 4px}
+.xg-chart-row{display:grid;grid-template-columns:52px 1fr 48px;align-items:center;gap:10px;font-size:13px}
+.xg-chart-track{height:14px;background:rgba(255,255,255,.06);border-radius:8px;overflow:hidden}
+.xg-chart-track i{display:block;height:100%;background:linear-gradient(90deg,#00c853,#00e676);border-radius:8px}
+.xg-chart-row.away .xg-chart-track i{background:linear-gradient(90deg,#2979ff,#7ec8ff)}
+.xg-chart-row b{text-align:right;font-weight:800}
+.form-mini-chart{display:grid;gap:8px}
+.form-mini-chart > div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.2)}
+.form-mini-chart span{font-weight:800;min-width:40px}
+@media(max-width:700px){
+  .hit-grid{grid-template-columns:1fr}
+  .perf-bars{gap:16px}
+}
