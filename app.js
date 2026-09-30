@@ -1738,6 +1738,7 @@ function fillAccountPanel(){
   const lv=A.getLevel?.()??0;
   $("accNext")&&($("accNext").textContent=next[Math.min(lv,5)]||next[0]);
   const premBtn=$("accPremiumBtn");
+  $("accAdminBtn")?.classList.toggle("hidden", !(A.isAdmin?.()));
   if(premBtn){
     if(A.isAdmin?.() || (A.isPremium() && trialMs<=0)){ premBtn.classList.add("hidden"); }
     else { premBtn.classList.remove("hidden"); premBtn.textContent = trialMs>0 ? "Garder Premium à vie" : "Passer Premium 20 €"; }
@@ -1783,6 +1784,14 @@ function setupAuthUI(){
     }
   });
   $("accPremiumBtn")?.addEventListener("click",()=>{closeAuth();A.openCheckout?.();});
+  $("accAdminBtn")?.addEventListener("click",()=>{
+    closeAuth();
+    document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+    $("navAdmin")?.classList.add("active");
+    document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+    $("view-admin")?.classList.add("active");
+    try{ loadAdminDashboard(); }catch(_){}
+  });
   $("forgotPasswordBtn")?.addEventListener("click",()=>{
     const em=$("authEmail")?.value||"";
     openAuth("forgot");
@@ -1859,6 +1868,8 @@ function setupAuthUI(){
     if(window.RDB_AUTH?.isLoggedIn?.() && !localStorage.getItem(ONBOARD_KEY)) setTimeout(()=>showOnboarding(false), 800);
   });
   refreshAdminNav();
+  setTimeout(refreshAdminNav, 500);
+  setTimeout(refreshAdminNav, 2000);
   $("adminRefresh")&&($("adminRefresh").onclick=()=>loadAdminDashboard());
   window.addEventListener("rdb:email-confirmed",(ev)=>{
     setTimeout(()=>showOnboarding(true), 600);
@@ -2532,11 +2543,16 @@ async function loadAdminDashboard(){
   }
 }
 function refreshAdminNav(){
-  const b=$("navAdmin");
-  if(!b) return;
-  const ok = !!(window.RDB_AUTH?.isAdmin?.());
-  b.style.display = ok ? "" : "none";
-  b.classList.toggle("hidden", !ok);
+  const A = window.RDB_AUTH;
+  const ok = !!(A?.isAdmin?.() || A?.isChefEmail?.(A?.user?.email));
+  const b = $("navAdmin");
+  if(b){
+    b.style.display = ok ? "inline-flex" : "none";
+    b.classList.toggle("hidden", !ok);
+  }
+  const ab = $("accAdminBtn");
+  if(ab) ab.classList.toggle("hidden", !ok);
+  console.info("[admin]", ok, A?.user?.email, A?.user?.is_admin);
 }
 
 
