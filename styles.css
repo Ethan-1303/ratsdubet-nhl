@@ -1490,3 +1490,170 @@ header.topbar{
   color:#ffd84d!important;font-weight:800!important;
 }
 .nav-admin.hidden{display:none!important}
+
+/* ========== APP PARIS SPORTIFS ========== */
+body.app-shell{
+  background:#050a10 !important;
+  padding-bottom:0;
+}
+body.app-shell .container{max-width:1100px;padding-bottom:88px}
+
+/* Topbar app */
+body.app-shell .topbar{
+  height:56px !important;
+  background:rgba(5,10,16,.94) !important;
+  border-bottom:1px solid rgba(0,230,118,.12) !important;
+  box-shadow:0 4px 24px rgba(0,0,0,.35);
+}
+
+/* Match picker = coupon style */
+body.app-shell .match-picker{
+  border-radius:16px !important;
+  border:1px solid rgba(0,230,118,.18) !important;
+  background:linear-gradient(180deg,#0b1622,#070f18) !important;
+  box-shadow:0 8px 32px rgba(0,0,0,.35);
+}
+body.app-shell .match-picker .primary-btn,
+body.app-shell .primary-btn{
+  border-radius:12px !important;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  font-weight:900 !important;
+  box-shadow:0 4px 16px rgba(0,230,118,.25);
+}
+
+/* Hero plus compact type app */
+body.app-shell .hero h1{font-size:clamp(24px,5vw,34px);letter-spacing:-.03em}
+body.app-shell .hero{margin-bottom:14px}
+
+/* Marchés = boutons cotes (style bookmaker) */
+.market.odds-chip,
+body.app-shell .market{
+  border-radius:12px !important;
+  background:linear-gradient(180deg,#0c1a28,#08121c) !important;
+  border:1px solid #1c3a52 !important;
+  padding:12px 12px 10px !important;
+  cursor:default;
+  position:relative;
+  overflow:hidden;
+}
+body.app-shell .market:hover{
+  border-color:rgba(0,230,118,.35) !important;
+  background:linear-gradient(180deg,#0e2030,#0a1620) !important;
+}
+body.app-shell .market.value{
+  border-color:rgba(0,230,118,.5) !important;
+  box-shadow:inset 0 0 0 1px rgba(0,230,118,.15), 0 0 20px rgba(0,230,118,.08);
+}
+body.app-shell .market .odds-dec,
+body.app-shell .market b.odds-dec{
+  font-size:22px !important;
+  font-weight:900 !important;
+  color:#00e676 !important;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em;
+}
+body.app-shell .market .odds-prob,
+body.app-shell .market .fair{
+  font-size:11px;
+  color:#8aa0b4 !important;
+}
+body.app-shell .market .label{
+  font-size:11px !important;
+  font-weight:700;
+  color:#a8bdd0 !important;
+  text-transform:none;
+  margin-bottom:4px;
+}
+body.app-shell .value-tag{
+  background:#00e676 !important;
+  color:#02140a !important;
+  border-radius:4px;
+  font-size:9px !important;
+}
+
+/* Decision board = ticket résumé */
+body.app-shell .decision-board{
+  border-radius:16px !important;
+  border:1px solid rgba(0,230,118,.28) !important;
+  background:linear-gradient(145deg,rgba(0,40,24,.5),#071018 40%) !important;
+}
+body.app-shell .value-main{
+  border-radius:12px;
+  background:rgba(0,230,118,.1);
+}
+
+/* Schedule cards type match center */
+body.app-shell .sched-card{
+  border-radius:14px !important;
+  background:#0a1420 !important;
+  border:1px solid #1a3348 !important;
+}
+body.app-shell .sched-card .primary-btn,
+body.app-shell .sched-card .analyze-small{
+  background:linear-gradient(135deg,#00e676,#00c853) !important;
+  color:#02140a !important;
+  border:0 !important;
+  font-weight:900 !important;
+}
+
+/* Score hero denser */
+body.app-shell .score-hero{
+  background:linear-gradient(180deg,#0c1824,#070e16) !important;
+  border:1px solid #1a3a52 !important;
+  border-radius:16px !important;
+}
+
+/* Cards globales */
+body.app-shell .card{
+  border-radius:14px !important;
+  background:#0a1420 !important;
+  border-color:#152c40 !important;
+}
+
+/* Bottom nav app */
+.bottom-app-nav{
+  display:none;
+  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  height:64px;padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+  background:rgba(6,12,18,.96);
+  backdrop-filter:blur(16px);
+  border-top:1px solid rgba(0,230,118,.15);
+  box-shadow:0 -8px 32px rgba(0,0,0,.45);
+  grid-template-columns:repeat(5,1fr);
+  gap:2px;
+}
+.ban-item{
+  appearance:none;border:0;background:transparent;color:#7a93a8;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;font-size:10px;font-weight:700;cursor:pointer;border-radius:10px;
+  min-height:52px;padding:4px 2px;
+}
+.ban-item .ban-ico{font-size:18px;line-height:1}
+.ban-item.active{color:#00e676;background:rgba(0,230,118,.1)}
+@media(max-width:900px){
+  .bottom-app-nav{display:grid}
+  body.app-shell .container{padding-bottom:100px}
+  body.app-shell .analyze-sticky{bottom:72px !important}
+}
+@media(min-width:901px){
+  .bottom-app-nav{display:none !important}
+}
+
+/* Kombo cards more bet-slip */
+body.app-shell .kombo-card{
+  border-radius:14px !important;
+  background:#0a1420 !important;
+}
+body.app-shell .kombo-odds-big,
+body.app-shell .kombo-odds b{
+  color:#00e676 !important;
+  font-size:1.25em;
+}
+
+/* Auth chip app */
+body.app-shell #authChip{
+  border-radius:999px !important;
+  border:1px solid rgba(0,230,118,.3);
+  background:rgba(0,230,118,.08);
+}
