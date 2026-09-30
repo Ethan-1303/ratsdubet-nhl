@@ -154,6 +154,7 @@
           premium,
           trialExpires: trialExp || null,
           posts_count: data?.posts_count || load("rdb_posts_count_v1", 0),
+          is_admin: !!(data?.is_admin || this.isChefEmail(data?.email || u.email)),
           tickets_count: data?.tickets_count || load("rdb_tickets_count_v1", 0),
           level: data?.level,
           is_admin: !!data?.is_admin,
@@ -176,10 +177,16 @@
     getPostsCount() { return this.user?.posts_count || load("rdb_posts_count_v1", 0) || 0; },
     getTicketsCount() { return this.user?.tickets_count || load("rdb_tickets_count_v1", 0) || 0; },
     isAdmin() {
-      const chefs = (CFG().CHEF_EMAILS || []).map((e) => String(e).toLowerCase());
-      const email = (this.user?.email || "").toLowerCase();
-      if (email && chefs.includes(email)) return true;
-      return !!this.user?.is_admin;
+      try {
+        const chefs = (CFG().CHEF_EMAILS || []).map((e) => String(e).toLowerCase());
+        const email = (this.user?.email || "").toLowerCase();
+        if (email && chefs.includes(email)) return true;
+        if (this.user?.is_admin) return true;
+        if (this.getLevel?.() === 5 && email && chefs.includes(email)) return true;
+        // fallback localStorage flag
+        if (email && chefs.includes(email)) return true;
+      } catch (_) {}
+      return false;
     },
     getLevel() {
       return computeLevel({
