@@ -858,6 +858,75 @@ function refreshPlanUI(){
   }
 }
 
+
+function renderDecisionBoard(d){
+  const board=$("decisionBoard"), grid=$("decisionGrid"), vals=$("decisionValues"), st=$("decisionStatus"), note=$("decisionNote");
+  if(!board||!grid) return;
+  const fav = d.m.home>=d.m.away ? d.home : d.away;
+  const dog = fav===d.home ? d.away : d.home;
+  const favP = Math.max(d.m.home, d.m.away);
+  const total = d.x.total;
+  const o55 = d.m.o55;
+  const leanTotal = o55>=0.55 ? "Over 5.5" : (d.m.u55>=0.55 ? "Under 5.5" : "Total neutre");
+  const leanP = o55>=0.55 ? o55 : (d.m.u55>=0.55 ? d.m.u55 : Math.max(o55,d.m.u55));
+  const conf = d.c>=75?"Élevée":d.c>=60?"Correcte":"Limitée";
+  const statusCls = d.status==="NO BET"?"no":"ok";
+  if(st){ st.textContent=d.status; st.className="decision-status "+statusCls; }
+
+  grid.innerHTML=`
+    <div class="decision-item primary">
+      <span>Favori OT</span>
+      <b>${fav}</b>
+      <em>${pct(favP)}</em>
+    </div>
+    <div class="decision-item">
+      <span>Score modèle</span>
+      <b>${d.best[0]}–${d.best[1]}</b>
+      <em>xG ${fmt(d.x.home)}–${fmt(d.x.away)}</em>
+    </div>
+    <div class="decision-item">
+      <span>Total</span>
+      <b>${leanTotal}</b>
+      <em>${pct(leanP)} · proj. ${fmt(total)}</em>
+    </div>
+    <div class="decision-item">
+      <span>Confiance</span>
+      <b>${conf}</b>
+      <em>${d.c}%</em>
+    </div>
+    <div class="decision-item">
+      <span>BTTS</span>
+      <b>${pct(d.m.btts)}</b>
+      <em>les deux marquent</em>
+    </div>
+    <div class="decision-item">
+      <span>Trajet</span>
+      <b>${d.travel?.away?.longHaul?"Long haul ⚠️":"OK"}</b>
+      <em>${d.travel?.away?.label||"—"}</em>
+    </div>`;
+
+  // Top value markets
+  const mk=[
+    ["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],
+    ["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["BTTS",d.m.btts],["Over 6.5",d.m.o65]
+  ];
+  const flags=marketValueFlags(d.m)||{};
+  const valueMk=mk.filter(x=>flags[x[0]]).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  if(vals){
+    if(!valueMk.length){
+      vals.innerHTML=`<div class="decision-novalue muted">Pas de VALUE claire (≥ seuil) sur ce match — privilégie le statut <b>${d.status}</b>.</div>`;
+    }else{
+      vals.innerHTML=`<div class="decision-values-label">VALUE détectées</div>`+
+        valueMk.map(x=>`<span class="decision-chip value"><b>${x[0]}</b> ${pct(x[1])} · juste ${fair(x[1])}</span>`).join("");
+    }
+  }
+  if(note){
+    note.textContent = d.status==="NO BET"
+      ? "Modèle prudent : données ou confiance insuffisantes. Évite de forcer un pari."
+      : "Utilise les VALUE comme piste, pas comme certitude. Croise avec compositions et blessures.";
+  }
+}
+
 function renderAnalysis(d){
   CURRENT_ANALYSIS=d;
   const access=window.RDB_AUTH?.canAnalyzeFull?.()||{ok:true};
@@ -872,6 +941,7 @@ function renderAnalysis(d){
     ?[["TOTAL BUTS",fmt(d.x.total)],["TOTAL TIRS",fmt(d.x.shotsHome+d.x.shotsAway)],["HOME OT",pct(d.m.home)],["AWAY OT",pct(d.m.away)],["OVER 5.5",pct(d.m.o55)],["BTTS",pct(d.m.btts)]]
     :[["TOTAL BUTS",fmt(d.x.total)],["SCORE",`${d.best[0]}–${d.best[1]}`],["CONFIANCE",pct(d.c/100)],["STATUT",d.status],["🔒 PREMIUM","requis"],["PRIX","20 € à vie"]];
   $("kpis").innerHTML=k.map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join("");
+  try{ renderDecisionBoard(d); }catch(_){}
   applyPaywall(full);
   // Blessures des 2 équipes sur la dashboard analyse
   ensureInjuryCache().then(()=>renderMatchInjuries(d.home,d.away)).catch(()=>{});
@@ -1837,6 +1907,9 @@ function setup(){
   $("heroAnalyzeBtn")&&($("heroAnalyzeBtn").onclick=()=>$("analyzeBtn")?.scrollIntoView({behavior:"smooth",block:"center"}));
   $("heroAccountBtn")&&($("heroAccountBtn").onclick=()=>$("authChip")?.click());
   populateTeams();$("homeTeam").onchange=updateTeamMeta;$("awayTeam").onchange=updateTeamMeta;$("analyzeBtn").onclick=runAnalysis;
+  ["homeTeam","awayTeam"].forEach(id=>{
+    $(id)?.addEventListener("keydown",e=>{ if(e.key==="Enter") runAnalysis(); });
+  });
   $("analyzeBtnSticky")&&($("analyzeBtnSticky").onclick=()=>$("analyzeBtn")?.click());
   // Premium button also in topbar-right
   document.getElementById("navPremium")?.addEventListener("click", ()=>setTimeout(syncAnalyzeSticky,0));
