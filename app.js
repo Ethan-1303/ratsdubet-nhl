@@ -1213,9 +1213,9 @@ function renderAnalysis(d){
       cls=" short";
       edgeTxt=`Cote juste ${fair(x[1])} — inutilisable en value bankroll`;
     }
-    return `<div class="market${cls}" title="${isVal?`Value qualité ${q}`:(isShort?"Trop court":"")}">
+    return `<div class="market odds-chip${cls}" title="${isVal?`Value qualité ${q}`:(isShort?"Trop court":"")}">
       <div class="label">${x[0]}${tag}</div>
-      <div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div>
+      <div class="value"><b class="odds-dec">${fair(x[1])}</b><span class="odds-prob">${pct(x[1])}</span></div>
       <span class="edge-tag">${edgeTxt}</span>
     </div>`;
   }).join("");
@@ -1261,9 +1261,9 @@ function renderAnalysis(d){
             if(edgeOk && isVal) tag=` <span class="value-tag">VALUE BOOK</span>`;
             else if(edgeOk && !isVal) { tag=` <span class="value-tag">EDGE BOOK</span>`; cls+=" value"; }
           }
-          return `<div class="market${cls}">
+          return `<div class="market odds-chip${cls}">
             <div class="label">${x[0]}${tag}</div>
-            <div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div>
+            <div class="value"><b class="odds-dec">${bookPrice?Number(bookPrice).toFixed(2):fair(x[1])}</b><span class="odds-prob">${pct(x[1])}${bookPrice?" · juste "+fair(x[1]):""}</span></div>
             <span class="edge-tag">${edgeTxt}</span>
             ${bookHtml}
           </div>`;
@@ -2364,6 +2364,34 @@ function setup(){
   document.getElementById("navPremium")?.addEventListener("click", ()=>setTimeout(syncAnalyzeSticky,0));
   syncAnalyzeSticky();
   setupMobileNav();
+
+  // Bottom app nav
+  document.querySelectorAll(".ban-item").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const v=btn.dataset.view;
+      const target=document.querySelector(`.nav-btn[data-view="${v}"]`) || document.getElementById(v==="premium"?"navPremium":"");
+      if(target) target.click();
+      else {
+        document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+        document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+        $("view-"+v)?.classList.add("active");
+        try{ applySeoForView(v); }catch(_){}
+        if(v==="matchs") schedule(0);
+        if(v==="kombos") loadKombos();
+        if(v==="forum"){ window.RDB_FORUM?.setup?.(); window.RDB_FORUM?.refresh?.(); }
+      }
+      document.querySelectorAll(".ban-item").forEach(b=>b.classList.toggle("active", b.dataset.view===v));
+    });
+  });
+  const _syncBan=()=>{
+    const active=document.querySelector(".nav-btn.active")?.dataset?.view
+      || document.querySelector(".view.active")?.id?.replace(/^view-/,"")
+      || "analyse";
+    document.querySelectorAll(".ban-item").forEach(b=>b.classList.toggle("active", b.dataset.view===active));
+  };
+  window.addEventListener("rdb:auth", _syncBan);
+  document.querySelectorAll(".nav-btn").forEach(b=>b.addEventListener("click",()=>setTimeout(_syncBan,30)));
+
   try{ checkKombosNotif(); }catch(_){}
   
 
