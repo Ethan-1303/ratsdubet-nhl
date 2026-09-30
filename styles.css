@@ -957,3 +957,26 @@ header.topbar .topbar-right .nav-premium.active{
   .brand-text small{display:none}
   .status-pill,.social-links{display:none !important}
 }
+
+/* H2H cards */
+.h2h-scoreline{display:inline-flex;align-items:center;gap:8px;margin-left:10px;font-size:13px;color:#c5d4e0}
+.h2h-list{display:grid;gap:10px}
+.h2h-card{
+  display:grid;grid-template-columns:90px 1fr auto;align-items:center;gap:12px;
+  padding:12px 14px;border-radius:14px;
+  background:linear-gradient(160deg,rgba(12,30,46,.95),rgba(5,14,24,.98));
+  border:1px solid rgba(255,255,255,.06);
+}
+.h2h-match{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+.h2h-side{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:#9aa8b5}
+.h2h-side b{font-size:18px;color:#fff;min-width:1.2em;text-align:center}
+.h2h-side.winner{color:#fff}
+.h2h-side.winner b{color:#00e676}
+.h2h-vs{color:#3a556b;font-weight:700}
+.h2h-result{font-size:11px;font-weight:800;color:#7ec8ff;text-align:right}
+@media(max-width:580px){
+  .h2h-card{grid-template-columns:1fr;gap:8px}
+  .h2h-result{text-align:left}
+}
+.injury-return{display:block;margin-top:3px;font-size:11px;color:#9ec9b0}
+.match-injury-row{align-items:flex-start}
