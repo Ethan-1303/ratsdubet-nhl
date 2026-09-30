@@ -1371,6 +1371,20 @@ function setupAuthUI(){
   $("authLogout")?.addEventListener("click",()=>{A.logout();refreshPlanUI();closeAuth()});
   window.addEventListener("rdb:premium",()=>{refreshPlanUI();if(CURRENT_ANALYSIS)renderAnalysis(CURRENT_ANALYSIS)});
   window.addEventListener("rdb:auth",refreshPlanUI);
+  window.addEventListener("rdb:email-confirmed",(ev)=>{
+    try{ sessionStorage.setItem("rdb_email_ok_shown","1"); }catch(_){}
+    const m=$("emailConfirmModal");
+    const t=$("emailConfirmText");
+    const email=ev.detail?.email||"";
+    if(t) t.innerHTML = email
+      ? `L’adresse <b>${email}</b> est validée. Bienvenue dans la meute !`
+      : `Ton adresse est validée. Bienvenue dans la meute !`;
+    m?.classList.remove("hidden");
+    refreshPlanUI();
+  });
+  window.addEventListener("rdb:password-recovery",()=>{ openAuth("newpass"); });
+  document.querySelectorAll("[data-close=emailConfirm]").forEach(el=>el.addEventListener("click",()=>$("emailConfirmModal")?.classList.add("hidden")));
+  $("emailConfirmOk")?.addEventListener("click",()=>$("emailConfirmModal")?.classList.add("hidden"));
 }
 
 async function getStandings(){
