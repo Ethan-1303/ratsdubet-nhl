@@ -991,3 +991,128 @@ header.topbar .topbar-right .nav-premium.active{
   padding:8px 12px;margin:6px 0;border-radius:10px;font-size:13px;
   background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.2);color:#e8fff2;
 }
+
+/* ========== VISUEL V2 — 4 axes ========== */
+
+/* 1) Accueil aéré + CTA unique */
+.hero-v2{
+  display:grid;grid-template-columns:1.5fr .55fr;gap:28px;align-items:center;
+  margin-bottom:28px;padding:8px 0 4px;
+}
+.hero-v2 .eyebrow{
+  font-size:11px;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--green);font-weight:800;margin-bottom:10px;
+}
+.hero-v2 h1{
+  font-size:clamp(26px,4vw,38px);line-height:1.15;margin:0 0 12px;
+  font-weight:800;letter-spacing:-.02em;color:#f2f7fb;
+}
+.hero-v2 h1 span{color:var(--green)}
+.hero-lead{
+  font-size:15px;line-height:1.55;color:#9eb2c4;max-width:36em;margin:0 0 20px;
+}
+.hero-cta-main{
+  min-height:48px;padding:0 22px;font-size:15px;font-weight:800;
+  box-shadow:0 8px 28px rgba(0,230,118,.22);
+}
+.hero-v2 .hero-cta-row{gap:12px;margin:0}
+.hero-v2 .hero-badge{
+  border-radius:16px;padding:16px 18px;
+  background:linear-gradient(160deg,#0c2436,#071820);
+  border:1px solid rgba(0,230,118,.2);
+}
+@media(max-width:900px){
+  .hero-v2{grid-template-columns:1fr;gap:16px;margin-bottom:20px}
+  .hero-v2 .hero-side{display:flex;gap:10px}
+}
+
+/* 2) Analyse score / xG / résumé en hero */
+.score-hero{
+  position:relative;overflow:hidden;
+  background:linear-gradient(165deg,rgba(10,28,44,.98),rgba(4,12,22,.99));
+  border:1px solid rgba(0,230,118,.12) !important;
+  box-shadow:0 16px 48px rgba(0,0,0,.35) !important;
+  padding:22px 20px !important;
+}
+.score-hero .team-code{font-size:clamp(28px,5vw,42px);font-weight:800;letter-spacing:-.03em}
+.score-hero .scoreline,#scoreProb{
+  font-size:clamp(32px,6vw,48px) !important;font-weight:800;letter-spacing:-.03em;
+  color:#fff;
+}
+.summary-bar.card, #summaryBar{
+  border-radius:16px !important;
+  background:linear-gradient(160deg,rgba(0,230,118,.06),rgba(8,20,32,.95));
+  border:1px solid rgba(0,230,118,.18) !important;
+  padding:16px 18px !important;
+  margin-bottom:16px;
+}
+.summary-rich .summary-text{font-size:15px;line-height:1.5;color:#e8f0f6}
+.summary-kpis > div{
+  border-radius:12px !important;
+  background:rgba(0,0,0,.25) !important;
+  border:1px solid rgba(255,255,255,.05) !important;
+}
+.kpis .kpi, #kpis .kpi{
+  border-radius:14px;
+  background:linear-gradient(160deg,#0c2436,#081820);
+  border:1px solid #15334c;
+  padding:14px 12px;
+  text-align:center;
+}
+.kpis .kpi b, #kpis .kpi b{font-size:18px;font-weight:800}
+
+/* 3) Mobile — menu + cartes */
+@media(max-width:900px){
+  header.topbar .main-nav{
+    transition:opacity .2s ease, transform .22s ease;
+    opacity:0;transform:translateY(-8px);
+    pointer-events:none;
+  }
+  header.topbar .main-nav.nav-open{
+    opacity:1;transform:translateY(0);
+    pointer-events:auto;
+  }
+  .card,.match-picker,.kombo-card,.forum-card,.score-card{
+    border-radius:18px !important;
+    padding:16px !important;
+  }
+  .container{width:min(100%,94vw);padding-top:18px}
+  .match-picker{gap:12px}
+  .primary-btn{min-height:48px;border-radius:14px}
+}
+
+/* 4) Forum + Kombos = même style carte analyse */
+.kombo-card,.forum-card{
+  background:linear-gradient(165deg,rgba(10,28,44,.98),rgba(4,12,22,.99)) !important;
+  border:1px solid rgba(255,255,255,.07) !important;
+  border-radius:16px !important;
+  box-shadow:0 12px 36px rgba(0,0,0,.28) !important;
+  padding:18px 16px !important;
+  transition:border-color .15s ease, transform .15s ease;
+}
+.kombo-card:hover,.forum-card:hover{
+  border-color:rgba(0,230,118,.22) !important;
+  transform:translateY(-1px);
+}
+.kombo-card.k-safe{border-color:rgba(0,230,118,.35) !important}
+.kombo-card.k-kombo{border-color:rgba(126,200,255,.35) !important}
+.kombo-card.k-mortal{border-color:rgba(255,82,99,.35) !important}
+.forum-card.t-win{box-shadow:inset 3px 0 0 #00e676, 0 12px 36px rgba(0,0,0,.28) !important}
+.forum-card.t-loss{box-shadow:inset 3px 0 0 #ff5252, 0 12px 36px rgba(0,0,0,.28) !important}
+.forum-card.t-ticket{box-shadow:inset 3px 0 0 #7ec8ff, 0 12px 36px rgba(0,0,0,.28) !important}
+.forum-card.t-disc{box-shadow:inset 3px 0 0 #b39ddb, 0 12px 36px rgba(0,0,0,.28) !important}
+.forum-pin{border-color:rgba(0,230,118,.4) !important}
+
+.kombo-head h3{font-size:16px;font-weight:800;margin:0}
+.kombo-odds-big{font-size:28px;font-weight:800;letter-spacing:-.02em;color:var(--green)}
+
+/* Nav active plus marqué */
+.nav-btn.active{
+  background:rgba(0,230,118,.12) !important;
+  color:#fff !important;
+  box-shadow:inset 0 -2px 0 var(--green);
+}
+
+/* Espacements globaux cartes */
+.container .card{margin-bottom:14px}
+#view-analyse .card{margin-bottom:16px}
