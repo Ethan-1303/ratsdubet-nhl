@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css?v=20260930f">
+  <link rel="stylesheet" href="/styles.css?v=20260930h">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -173,9 +173,15 @@
             <span class="decision-eyebrow">Décision rapide</span>
             <span class="decision-status" id="decisionStatus">—</span>
           </div>
+          <div class="verdict-line" id="decisionVerdict"></div>
           <div class="decision-grid" id="decisionGrid"></div>
           <div class="decision-values" id="decisionValues"></div>
           <p class="decision-note muted" id="decisionNote"></p>
+        </section>
+
+        <section class="card" id="compareBox">
+          <div class="section-title"><span>⚖️</span> Face à face</div>
+          <div id="compareTable" class="compare-wrap"><div class="empty-inline">Analyse requise</div></div>
         </section>
 
         <section class="summary-bar card" id="summaryBar">
@@ -586,10 +592,10 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20260930f"></script>
-  <script src="/auth.js?v=20260930f"></script>
-  <script src="/forum.js?v=20260930f"></script>
-  <script src="/app.js?v=20260930f"></script>
+  <script src="/config.js?v=20260930h"></script>
+  <script src="/auth.js?v=20260930h"></script>
+  <script src="/forum.js?v=20260930h"></script>
+  <script src="/app.js?v=20260930h"></script>
 
   <script>
   (function(){
