@@ -1009,7 +1009,25 @@ function renderCompare(d){
     ["Trajet", d.travel?.home?.label||"—", d.travel?.away?.label||"—"],
     ["Gardien", d.gh?.name||"—", d.ga?.name||"—"],
   ];
-  el.innerHTML=`<div class="compare-table">
+  const xgMax=Math.max(d.x.home,d.x.away,1)*1.15;
+  const xgChart=`<div class="xg-chart">
+    <div class="xg-chart-row"><span>${d.home}</span><div class="xg-chart-track"><i style="width:${Math.round(d.x.home/xgMax*100)}%"></i></div><b>${fmt(d.x.home)}</b></div>
+    <div class="xg-chart-row away"><span>${d.away}</span><div class="xg-chart-track"><i style="width:${Math.round(d.x.away/xgMax*100)}%"></i></div><b>${fmt(d.x.away)}</b></div>
+  </div>`;
+  const formChart=(()=>{
+    function dots(games){
+      const o=[...games].reverse();
+      return o.map(g=>`<i class="form-dot ${g.win?"win":"loss"}" title="${g.win?"V":"D"} ${g.gf}-${g.ga}"></i>`).join("")||"—";
+    }
+    return `<div class="form-mini-chart">
+      <div><span>${d.home}</span><div class="form-dots">${dots(d.fh)}</div></div>
+      <div><span>${d.away}</span><div class="form-dots">${dots(d.fa)}</div></div>
+    </div>`;
+  })();
+  el.innerHTML=`${xgChart}
+  <div class="section-title" style="border:0;padding:12px 0 8px;font-size:13px"><span>📈</span> Forme récente</div>
+  ${formChart}
+  <div class="compare-table" style="margin-top:14px">
     <div class="compare-head"><span>Indicateur</span><b>${logoHTML(d.home,"team-logo-sm")} ${d.home}</b><b>${logoHTML(d.away,"team-logo-sm")} ${d.away}</b></div>
     ${rows.map(r=>`<div class="compare-row"><span>${r[0]}</span><b>${r[1]}</b><b>${r[2]}</b></div>`).join("")}
   </div>
@@ -1250,23 +1268,60 @@ async function resolveHistoryResults(){
   return {items,stats};
 }
 
+function svgRing(pct, color){
+  const p = Math.max(0, Math.min(1, pct||0));
+  const r=36, c=2*Math.PI*r, dash=c*p;
+  return `<svg class="perf-ring" viewBox="0 0 90 90" width="90" height="90">
+    <circle cx="45" cy="45" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8"/>
+    <circle cx="45" cy="45" r="${r}" fill="none" stroke="${color}" stroke-width="8"
+      stroke-linecap="round" stroke-dasharray="${dash} ${c-dash}"
+      transform="rotate(-90 45 45)"/>
+    <text x="45" y="50" text-anchor="middle" fill="#fff" font-size="16" font-weight="800">${pct!=null?Math.round(p*100)+"%":"—"}</text>
+  </svg>`;
+}
+function svgBars(items){
+  // items: [{label, pct, color}]
+  const max=1;
+  return `<div class="perf-bars">${items.map(it=>{
+    const h=Math.round((it.pct||0)*100);
+    return `<div class="perf-bar-col" title="${it.label}: ${h}%">
+      <div class="perf-bar-track"><div class="perf-bar-fill" style="height:${h}%;background:${it.color}"></div></div>
+      <span>${h}%</span>
+      <small>${it.label}</small>
+    </div>`;
+  }).join("")}</div>`;
+}
 function renderHitRate(stats){
   const el=$("hitRateBox"); if(!el)return;
-  if(!stats || (!stats.fav.n && !stats.o55.n)){
-    el.innerHTML=`<div class="empty-inline">Pas encore assez de matchs joués pour calculer le hit rate.<br><small>Analyse des matchs, puis reviens après les résultats.</small></div>`;
+  if(!stats || (!stats.fav.n && !stats.o55.n && !stats.btts.n)){
+    el.innerHTML=`<div class="empty-inline">Pas encore assez de matchs joués pour calculer le hit rate.<br><small>Analyse des matchs, puis reviens après les résultats (onglet Histo).</small></div>`;
     return;
   }
+  function color(p){ return p==null?"#556":p>=0.7?"#00e676":p>=0.5?"#ffd84d":"#ff5263"; }
   function card(label,s,hint){
-    const pctTxt=s.pct!=null?`${(s.pct*100).toFixed(0)}%`:"—";
     const cls=s.pct==null?"":s.pct>=0.70?"hit-good":s.pct>=0.50?"hit-mid":"hit-bad";
-    return `<div class="hit-card ${cls}"><small>${label}</small><b>${pctTxt}</b><span>${s.hit||0}/${s.n||0} · ${hint}</span></div>`;
+    return `<div class="hit-card ${cls}">
+      ${svgRing(s.pct, color(s.pct))}
+      <div class="hit-card-body"><small>${label}</small><span>${s.hit||0}/${s.n||0} · ${hint}</span></div>
+    </div>`;
   }
-  el.innerHTML=`<div class="hit-grid">
-    ${card("Favori OT",stats.fav,"côté favori modèle")}
-    ${card("Total 5.5",stats.o55,"over/under selon modèle")}
-    ${card("BTTS",stats.btts,"les deux équipes marquent")}
+  const bars=svgBars([
+    {label:"Favori", pct:stats.fav.pct, color:color(stats.fav.pct)},
+    {label:"O/U 5.5", pct:stats.o55.pct, color:color(stats.o55.pct)},
+    {label:"BTTS", pct:stats.btts.pct, color:color(stats.btts.pct)},
+  ]);
+  el.innerHTML=`<div class="perf-charts">
+    <div class="hit-grid">
+      ${card("Favori OT",stats.fav,"côté favori modèle")}
+      ${card("Total 5.5",stats.o55,"over/under selon modèle")}
+      ${card("BTTS",stats.btts,"les deux équipes marquent")}
+    </div>
+    <div class="perf-bars-wrap">
+      <div class="section-title" style="border:0;padding:0 0 10px"><span>📊</span> Comparaison hit rate</div>
+      ${bars}
+    </div>
   </div>
-  <p class="muted" style="margin-top:10px">Basé sur tes analyses locales dont le match est terminé. Plus tu analyses, plus la preuve est solide — argument Premium.</p>`;
+  <p class="muted" style="margin-top:12px">Basé sur <b>tes</b> analyses locales dont le match est terminé. Preuve sociale pour le Premium — pas un ROI bookmaker.</p>`;
 }
 
 async function renderHistory(){
