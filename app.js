@@ -1219,6 +1219,59 @@ function renderAnalysis(d){
       <span class="edge-tag">${edgeTxt}</span>
     </div>`;
   }).join("");
+
+  // Cotes book en live sur marchés (async, non bloquant)
+  (async()=>{
+    try{
+      const book = await getBookOddsForMatch(d.home, d.away);
+      d.bookOdds = book;
+      if(book && $("markets")){
+        // re-render markets with book
+        const mk=[["Victoire domicile OT",d.m.home,"h2hHome"],["Victoire extérieur OT",d.m.away,"h2hAway"],["Domicile 60 min",d.m.home60,null],["Extérieur 60 min",d.m.away60,null],["Nul 60 min",d.m.tie60,null],["Over 4.5",d.m.o45,null],["Over 5.5",d.m.o55,"over55"],["Under 5.5",d.m.u55,"under55"],["Over 6.5",d.m.o65,null],["Under 6.5",d.m.u65,null],["BTTS",d.m.btts,null]];
+        const valFlags=marketValueFlags(d.m,{confidence:d.c,status:d.status});
+        const shortFlags=valFlags._short||{};
+        const qMap=valFlags._quality||{};
+        $("markets").innerHTML=mk.map(x=>{
+          const isVal=!!valFlags[x[0]];
+          const isShort=!!shortFlags[x[0]];
+          const q=qMap[x[0]]||0;
+          const bookPrice = x[2] && book ? book[x[2]] : null;
+          const ed = bookPrice ? edgeVsBook(x[1], bookPrice) : null;
+          let tag="", cls="", edgeTxt=`Cote juste ${fair(x[1])}`;
+          if(isVal){
+            const stars=q>=88?"★★★":q>=75?"★★":"★";
+            tag=` <span class="value-tag">VALUE ${stars}</span>`;
+            cls=" value";
+            edgeTxt=`Qualité ${q}/100 · juste ${fair(x[1])}`;
+          } else if(isShort){
+            tag=` <span class="short-tag">TROP COURT</span>`;
+            cls=" short";
+            edgeTxt=`Cote juste ${fair(x[1])} — trop court`;
+          }
+          let bookHtml="";
+          if(bookPrice){
+            const edgeOk = ed && ed.edge >= 0.03;
+            const edgeBad = ed && ed.edge < -0.02;
+            bookHtml=`<div class="book-line ${edgeOk?"book-edge":""}${edgeBad?" book-noedge":""}">
+              <span>Book ${book.book||""}</span>
+              <b>${Number(bookPrice).toFixed(2)}</b>
+              ${ed?`<em>edge ${ed.edgePct>=0?"+":""}${ed.edgePct.toFixed(1)} pts</em>`:""}
+            </div>`;
+            // VALUE réelle vs book : edge >= 3 pts
+            if(edgeOk && isVal) tag=` <span class="value-tag">VALUE BOOK</span>`;
+            else if(edgeOk && !isVal) { tag=` <span class="value-tag">EDGE BOOK</span>`; cls+=" value"; }
+          }
+          return `<div class="market${cls}">
+            <div class="label">${x[0]}${tag}</div>
+            <div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div>
+            <span class="edge-tag">${edgeTxt}</span>
+            ${bookHtml}
+          </div>`;
+        }).join("");
+      }
+    }catch(_){}
+  })();
+
   const sumEl=$("analysisSummary");
   if(sumEl){
     const fav = d.m.home >= d.m.away ? d.home : d.away;
@@ -1790,8 +1843,13 @@ function setupAuthUI(){
   });
   $("authLogout")?.addEventListener("click",()=>{A.logout();refreshPlanUI();closeAuth()});
   window.addEventListener("rdb:premium",()=>{refreshPlanUI();if(CURRENT_ANALYSIS)renderAnalysis(CURRENT_ANALYSIS)});
-  window.addEventListener("rdb:auth",refreshPlanUI);
+  window.addEventListener("rdb:auth",()=>{refreshPlanUI();refreshAdminNav();
+    if(window.RDB_AUTH?.isLoggedIn?.() && !localStorage.getItem(ONBOARD_KEY)) setTimeout(()=>showOnboarding(false), 800);
+  });
+  refreshAdminNav();
+  $("adminRefresh")&&($("adminRefresh").onclick=()=>loadAdminDashboard());
   window.addEventListener("rdb:email-confirmed",(ev)=>{
+    setTimeout(()=>showOnboarding(true), 600);
     try{ sessionStorage.setItem("rdb_email_ok_shown","1"); }catch(_){}
     const m=$("emailConfirmModal");
     const t=$("emailConfirmText");
@@ -2231,6 +2289,25 @@ function setupAnalysisAccordion(){
     });
   });
 }
+function applySeoForView(view){
+  const el = $("view-"+view);
+  const title = el?.dataset?.seoTitle || {
+    analyse:"BETZONE — Analyse NHL",
+    matchs:"Matchs NHL — BETZONE",
+    classement:"Classement NHL — BETZONE",
+    actu:"Actualité NHL — BETZONE",
+    kombos:"Kombos du jour — BETZONE",
+    forum:"Forum meute — BETZONE",
+    premium:"Premium — BETZONE",
+    admin:"Admin — BETZONE"
+  }[view] || "BETZONE — NHL";
+  const desc = el?.dataset?.seoDesc || document.querySelector('meta[name="description"]')?.content;
+  document.title = title;
+  const md = document.querySelector('meta[name="description"]');
+  if(md && desc) md.setAttribute("content", desc);
+  const ogt = document.querySelector('meta[property="og:title"]');
+  if(ogt) ogt.setAttribute("content", title);
+}
 function setupMobileNav(){
   const btn=$("navMenuBtn"), nav=document.querySelector(".main-nav");
   if(!btn||!nav) return;
@@ -2342,6 +2419,143 @@ function bestTeamMarketOdds(bookmakers, marketKey, outcomeName){
     }
   }
   return best?{odds:best,book}:null;
+}
+
+
+/** Cotes book (h2h / totals) pour un match — cache session */
+let BOOK_CACHE = {};
+async function getBookOddsForMatch(home, away){
+  const key = home+"@"+away;
+  if(BOOK_CACHE[key] && Date.now()-BOOK_CACHE[key].at < 10*60*1000) return BOOK_CACHE[key].data;
+  try{
+    const pack = await fetchOddsEvents();
+    const ev = matchEvent(pack.events||[], home, away);
+    if(!ev){ BOOK_CACHE[key]={at:Date.now(),data:null}; return null; }
+    // Agrège meilleures cotes décimales
+    const out = { h2hHome:null, h2hAway:null, over55:null, under55:null, book:null };
+    for(const bk of (ev.bookmakers||[])){
+      for(const mkt of (bk.markets||[])){
+        if(mkt.key==="h2h"){
+          for(const o of mkt.outcomes||[]){
+            const n=normPlayer(o.name||"");
+            const hn=normPlayer(TEAMS[home]?.[0]||home);
+            const an=normPlayer(TEAMS[away]?.[0]||away);
+            if(n.includes(hn.split(" ").pop()) || hn.includes(n.split(" ").pop())){
+              if(!out.h2hHome || o.price>out.h2hHome){ out.h2hHome=o.price; out.book=bk.title; }
+            }
+            if(n.includes(an.split(" ").pop()) || an.includes(n.split(" ").pop())){
+              if(!out.h2hAway || o.price>out.h2hAway){ out.h2hAway=o.price; out.book=bk.title; }
+            }
+          }
+        }
+        if(mkt.key==="totals"){
+          for(const o of mkt.outcomes||[]){
+            const pt=Number(o.point);
+            if(Math.abs(pt-5.5)>0.01) continue;
+            if(String(o.name).toLowerCase().startsWith("over")){
+              if(!out.over55 || o.price>out.over55){ out.over55=o.price; out.book=bk.title; }
+            }
+            if(String(o.name).toLowerCase().startsWith("under")){
+              if(!out.under55 || o.price>out.under55){ out.under55=o.price; out.book=bk.title; }
+            }
+          }
+        }
+      }
+    }
+    BOOK_CACHE[key]={at:Date.now(),data:out};
+    return out;
+  }catch(_){ return null; }
+}
+function edgeVsBook(modelP, bookOdds){
+  if(!modelP || !bookOdds || bookOdds<1.01) return null;
+  const implied = 1/bookOdds;
+  const edge = modelP - implied; // positif = value vs book
+  return { implied, edge, edgePct: edge*100 };
+}
+
+
+async function loadAdminDashboard(){
+  const kpis=$("adminKpis"), usersEl=$("adminUsers"), postsEl=$("adminPosts");
+  if(!kpis) return;
+  const A=window.RDB_AUTH;
+  if(!A?.isAdmin?.()){
+    kpis.innerHTML=`<div class="empty-inline">Réservé au Chef de meute.</div>`;
+    return;
+  }
+  kpis.innerHTML=skeleton(3);
+  try{
+    const sb = await (async()=>{
+      try{ return await window.RDB_AUTH && (await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm").then(()=>null)); }catch(_){ return null; }
+    })();
+    // Use supabase from auth module via global if available
+    const client = window.__RDB_SB || null;
+    let profiles=[], posts=[];
+    // Access via RDB_AUTH internal - fetch with anon
+    const { SUPABASE_URL, SUPABASE_ANON_KEY } = (window.RDB_CONFIG||{});
+    if(SUPABASE_URL && SUPABASE_ANON_KEY){
+      const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+      const s = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data:p } = await s.from("profiles").select("id,email,name,premium,created_at,posts_count,level,is_admin").order("created_at",{ascending:false}).limit(50);
+      profiles = p||[];
+      const { data:po } = await s.from("forum_posts").select("id,title,author_name,created_at,type").order("created_at",{ascending:false}).limit(20);
+      posts = po||[];
+    }
+    const nUsers = profiles.length;
+    const nPrem = profiles.filter(x=>x.premium).length;
+    const nPosts = posts.length;
+    kpis.innerHTML=`
+      <div class="admin-kpi"><small>Inscrits (échantillon)</small><b>${nUsers}</b></div>
+      <div class="admin-kpi"><small>Premium</small><b>${nPrem}</b></div>
+      <div class="admin-kpi"><small>Posts récents</small><b>${nPosts}</b></div>`;
+    usersEl.innerHTML = profiles.length
+      ? `<table class="props-table"><thead><tr><th>Pseudo</th><th>Email</th><th>Plan</th><th>Posts</th></tr></thead><tbody>
+        ${profiles.slice(0,30).map(u=>`<tr><td>${u.name||"—"}</td><td>${u.email||""}</td><td>${u.premium?"Premium":"Free"}${u.is_admin?" · Admin":""}</td><td>${u.posts_count||0}</td></tr>`).join("")}
+        </tbody></table>`
+      : `<div class="empty-inline">Aucun profil (RLS ou table vide). Vérifie les policies SELECT sur profiles pour l’admin.</div>`;
+    postsEl.innerHTML = posts.length
+      ? `<div class="admin-posts">${posts.map(p=>`<div class="admin-post"><b>${p.title||"Sans titre"}</b><span>${p.author_name||"?"} · ${p.type||""} · ${p.created_at?new Date(p.created_at).toLocaleString("fr-FR"):""}</span></div>`).join("")}</div>`
+      : `<div class="empty-inline">Aucun post</div>`;
+  }catch(e){
+    kpis.innerHTML=`<div class="empty-inline">Erreur admin : ${e.message||e}</div>`;
+  }
+}
+function refreshAdminNav(){
+  const b=$("navAdmin");
+  if(!b) return;
+  if(window.RDB_AUTH?.isAdmin?.()) b.classList.remove("hidden");
+  else b.classList.add("hidden");
+}
+
+
+const ONBOARD_KEY="rdb_onboard_v1";
+const ONBOARD_STEPS=[
+  {t:"Bienvenue dans la meute",x:"Essai Premium 48 h : analyses, props, kombos et forum. Valide ton email si ce n’est pas fait.",cta:"Voir l’analyse"},
+  {t:"Lis un match en 30 s",x:"Choisis 2 équipes → Analyser. Regarde Décision rapide + VALUE (cotes book si dispo). Ignore les « trop courts ».",cta:"Compris"},
+  {t:"Kombos & Forum",x:"Chaque jour : 3 suggestions Kombos. Sur le Forum, partage tes tickets. Premium à vie = 20 €.",cta:"C’est parti"}
+];
+function showOnboarding(force){
+  if(!force && localStorage.getItem(ONBOARD_KEY)) return;
+  const m=$("onboardModal"); if(!m) return;
+  let step=0;
+  const body=$("onboardBody"), steps=$("onboardSteps"), next=$("onboardNext");
+  function paint(){
+    const s=ONBOARD_STEPS[step];
+    body.innerHTML=`<h3>${s.t}</h3><p>${s.x}</p>`;
+    steps.querySelectorAll("i").forEach((el,i)=>el.classList.toggle("on",i<=step));
+    next.textContent = step>=ONBOARD_STEPS.length-1 ? "Terminer" : s.cta+" →";
+  }
+  paint();
+  m.classList.remove("hidden");
+  next.onclick=()=>{
+    if(step>=ONBOARD_STEPS.length-1){
+      localStorage.setItem(ONBOARD_KEY,"1");
+      m.classList.add("hidden");
+      return;
+    }
+    step++; paint();
+  };
+  $("onboardSkip")&&($("onboardSkip").onclick=()=>{ localStorage.setItem(ONBOARD_KEY,"1"); m.classList.add("hidden"); });
+  document.querySelectorAll("[data-close=onboard]").forEach(el=>el.onclick=()=>{ localStorage.setItem(ONBOARD_KEY,"1"); m.classList.add("hidden"); });
 }
 
 async function fetchOddsEvents(){
@@ -2678,7 +2892,8 @@ async function loadKombos(force){
 
 
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));const v=$(`view-${b.dataset.view}`); if(v)v.classList.add("active");
-    syncAnalyzeSticky();if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points");if(b.dataset.view==="blessures")loadInjuries();if(b.dataset.view==="historique")renderHistory();if(b.dataset.view==="forum"){window.RDB_FORUM?.setup?.();window.RDB_FORUM?.refresh?.()}if(b.dataset.view==="kombos")loadKombos()});
+    syncAnalyzeSticky();try{ applySeoForView(b.dataset.view); }catch(_){}
+    if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points");if(b.dataset.view==="blessures")loadInjuries();if(b.dataset.view==="historique")renderHistory();if(b.dataset.view==="forum"){window.RDB_FORUM?.setup?.();window.RDB_FORUM?.refresh?.()}if(b.dataset.view==="kombos")loadKombos();if(b.dataset.view==="admin")loadAdminDashboard()});
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderPlayers(b.dataset.prop)});
   document.querySelectorAll(".day-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".day-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");schedule(Number(b.dataset.days))});
   $("applyPromoHint")&&($("applyPromoHint").onclick=()=>alert("Code parrainage BETZONE\n\n• Le filleul saisit le code (ex. MEUTE5) avant de payer.\n• Réduction : −5 € (15 € au lieu de 20 €).\n• Les codes se créent dans Stripe → Produits → Coupons / Codes promo.\n• Tu peux aussi saisir le code directement sur la page de paiement Stripe."));$("shareAnalysisBtn")&&($("shareAnalysisBtn").onclick=()=>shareAnalysis());$("copyAnalysisBtn")&&($("copyAnalysisBtn").onclick=()=>copyAnalysis());$("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshInjuries")&&($("refreshInjuries").onclick=()=>loadInjuries(true));document.querySelectorAll(".injury-filter").forEach(b=>b.onclick=()=>{document.querySelectorAll(".injury-filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");INJURY_FILTER=b.dataset.filter;renderInjuries()});$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
