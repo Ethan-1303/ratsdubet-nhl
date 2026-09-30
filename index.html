@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css?v=20260929s">
+  <link rel="stylesheet" href="/styles.css?v=20260929t">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -48,7 +48,10 @@
       </span>
     </a>
 
-    <nav class="main-nav" aria-label="Navigation principale">
+    <button type="button" class="nav-menu-btn" id="navMenuBtn" aria-label="Menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
       <button class="nav-btn active" data-view="analyse">Analyse</button>
       <button class="nav-btn" data-view="matchs">Matchs</button>
       <button class="nav-btn" data-view="classement">Classement</button>
@@ -206,6 +209,10 @@
               <div id="form" class="form-grid"></div>
             </section>
           </div>
+
+          <section class="card" id="h2hBox">
+            <div class="empty-inline">H2H après analyse…</div>
+          </section>
 
           <section class="card match-injuries-box" id="matchInjuriesBox">
             <div class="empty-inline">Lance une analyse pour voir les blessures du match.</div>
@@ -513,7 +520,7 @@
           <p id="authError" class="auth-error hidden"></p>
           <button type="submit" class="primary-btn" id="authSubmit">Se connecter</button>
         </form>
-        <p class="auth-hint">Essai Premium 48 h offert à la création de compte.</p>
+        <p class="auth-hint"><b>Important :</b> après inscription, <b>valide ton email</b> (lien Supabase dans ta boîte + spams). Sans validation, la connexion et l’essai 48 h restent bloqués.</p>
       </div>
 
       <!-- Mot de passe oublié -->
@@ -546,10 +553,10 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20260929s"></script>
-  <script src="/auth.js?v=20260929s"></script>
-  <script src="/forum.js?v=20260929s"></script>
-  <script src="/app.js?v=20260929s"></script>
+  <script src="/config.js?v=20260929t"></script>
+  <script src="/auth.js?v=20260929t"></script>
+  <script src="/forum.js?v=20260929t"></script>
+  <script src="/app.js?v=20260929t"></script>
 
   <script>
   (function(){
