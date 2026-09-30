@@ -1413,3 +1413,10 @@ header.topbar{
   .hit-grid{grid-template-columns:1fr}
   .perf-bars{gap:16px}
 }
+
+.market.short{border-color:rgba(255,168,0,.35)!important;background:rgba(255,168,0,.06)!important}
+.short-tag{
+  background:rgba(255,168,0,.9)!important;color:#1a1200!important;
+  font-size:9px!important;font-weight:900!important;padding:2px 6px!important;
+  border-radius:4px!important;letter-spacing:.4px;margin-left:4px
+}
