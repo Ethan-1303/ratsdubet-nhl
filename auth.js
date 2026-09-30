@@ -72,6 +72,16 @@
           window.dispatchEvent(new CustomEvent("rdb:auth"));
         });
       }
+      // Après clic lien validation email / reset MDP
+      try {
+        const hash = window.location.hash || "";
+        if (hash.includes("access_token") || hash.includes("type=signup") || hash.includes("type=recovery") || hash.includes("type=email")) {
+          const { data: sess } = await sb.auth.getSession();
+          if (sess?.session?.user) await this._fromSupabaseUser(sess.session.user);
+          // nettoyage URL
+          try { history.replaceState({}, "", location.pathname + location.search); } catch {}
+        }
+      } catch (e) { console.warn("auth hash", e); }
       this.checkUnlockParam();
       // Réactive essai 48h si encore valide
       try {
@@ -327,8 +337,23 @@
       const sb = await initSupabase();
       if (sb) {
         const { data, error } = await sb.auth.signInWithPassword({ email, password });
-        if (error) throw new Error(error.message);
+        if (error) {
+          const msg = (error.message || "").toLowerCase();
+          if (msg.includes("email not confirmed") || msg.includes("not confirmed"))
+            throw new Error("Email non validé. Ouvre le lien reçu par mail (et les spams), puis reconnecte-toi.");
+          if (msg.includes("invalid login") || msg.includes("invalid credentials"))
+            throw new Error("Email ou mot de passe incorrect. Vérifie aussi que tu as bien validé ton email.");
+          throw new Error(error.message);
+        }
         if (data.user) await this._fromSupabaseUser(data.user);
+        // session après validation email
+        try {
+          await sb.from("profiles").upsert({
+            id: data.user.id,
+            email: data.user.email,
+            name: this.user?.name || data.user.email?.split("@")[0],
+          });
+        } catch {}
         return this.user;
       }
       const users = load("rdb_users_db_v1", {});
