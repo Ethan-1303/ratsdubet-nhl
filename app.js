@@ -183,21 +183,40 @@ function leagueFrom(t){
 }
 async function league(){return leagueFrom(await getTeams());}
 async function getForm(team){
+  // Fusionne saison courante + 2025-26 pour toujours viser 5 matchs (début de saison)
+  const seen=new Set();
+  const candidates=[];
   for(const season of [CURRENT,BASE]){
     try{
       const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/${season}`);
       let games=(j.games||[]).filter(g=>g.gameType===2&&g.startTimeUTC&&new Date(g.startTimeUTC)<new Date());
-      games.sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
-      const out=[];
-      for(const g of games.slice(0,5)){
-        const x=await api(`api-web.nhle.com/v1/gamecenter/${g.id}/landing`);
-        const h=x.homeTeam||{},a=x.awayTeam||{},home=h.abbrev===team,t=home?h:a,o=home?a:h;
-        out.push({win:n(t.score)>n(o.score),gf:n(t.score),ga:n(o.score),shots:n(t.sog),shotsAgainst:n(o.sog),date:g.startTimeUTC});
+      for(const g of games){
+        if(seen.has(g.id)) continue;
+        seen.add(g.id);
+        candidates.push(g);
       }
-      if(out.length)return out;
     }catch(e){}
   }
-  return [];
+  candidates.sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
+  const out=[];
+  for(const g of candidates.slice(0,5)){
+    try{
+      const x=await api(`api-web.nhle.com/v1/gamecenter/${g.id}/landing`);
+      const h=x.homeTeam||{},a=x.awayTeam||{};
+      const home=(h.abbrev||g.homeTeam?.abbrev)===team;
+      const t=home?h:a, o=home?a:h;
+      const opp=(o.abbrev||(home?g.awayTeam?.abbrev:g.homeTeam?.abbrev)||"?").toUpperCase();
+      const gf=n(t.score), ga=n(o.score);
+      out.push({
+        win:gf>ga, gf, ga,
+        shots:n(t.sog), shotsAgainst:n(o.sog),
+        date:g.startTimeUTC,
+        opp, home,
+        label: home ? `vs ${opp}` : `@ ${opp}`
+      });
+    }catch(_){}
+  }
+  return out;
 }
 
 /* Temps de trajet approximatif (villes arenas NHL) */
@@ -1012,19 +1031,44 @@ function renderAnalysis(d){
     }
   }
   $("goalies").innerHTML=[["home",d.home,d.gh],["away",d.away,d.ga]].map(x=>`<div class="goalie"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span style="color:#8ea4b8">• ${x[2].name}</span></h3><div class="stat-row"><span>SV%</span><b>${pct(x[2].sv)}</b></div><div class="stat-row"><span>GAA</span><b>${fmt(x[2].gaa)}</b></div><div class="stat-row"><span>Contexte</span><b>${x[2].conf}</b></div></div>`).join("");
-  $("form").innerHTML=[["home",d.home,d.fh,d.bh],["away",d.away,d.fa,d.ba]].map(x=>{
-    const wins=x[2].filter(g=>g.win).length,gf=avg(x[2].map(g=>g.gf)),ga=avg(x[2].map(g=>g.ga));
-    // ronds : plus ancien à gauche → plus récent à droite
-    const ordered=[...x[2]].reverse();
-    const dots=ordered.map(g=>`<span class="form-dot ${g.win?"win":"loss"}" title="${g.win?"Victoire":"Défaite"} ${g.gf}-${g.ga}"></span>`).join("")
-      || `<span class="muted">Pas de matchs récents</span>`;
-    const detail=ordered.map(g=>`<span class="form-chip ${g.win?"win":"loss"}">${g.win?"V":"D"} ${g.gf}-${g.ga}</span>`).join("")||"";
-    return `<div class="form-team"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]}</h3>
-      <div class="form-dots-row"><span class="form-dots-label">5 derniers</span><div class="form-dots">${dots}</div><span class="form-dots-score">${wins}V-${x[2].length-wins}D</span></div>
-      <div class="form-chips">${detail}</div>
-      <div class="stat-row"><span>Buts (moy.)</span><b>${fmt(gf)} pour · ${fmt(ga)} contre</b></div>
-      <div class="stat-row"><span>B2B</span><b>${x[3].b2b?"OUI ⚠️":"NON"}</b></div>
-      <div class="stat-row"><span>Trajet</span><b>${(x[0]==="home"?d.travel?.home?.label:d.travel?.away?.label)||"—"}</b></div></div>`;
+  $("form").innerHTML=[["home",d.home,d.fh,d.bh,d.travel?.home],["away",d.away,d.fa,d.ba,d.travel?.away]].map(x=>{
+    const games=x[2]||[];
+    const wins=games.filter(g=>g.win).length;
+    const losses=games.length-wins;
+    const gf=games.length?avg(games.map(g=>g.gf)):0;
+    const ga=games.length?avg(games.map(g=>g.ga)):0;
+    // plus récent à droite
+    const ordered=[...games].reverse();
+    const streakHtml = ordered.length
+      ? ordered.map(g=>{
+          const dt=g.date?new Date(g.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short"}):"";
+          const tip=`${g.win?"Victoire":"Défaite"} ${g.gf}-${g.ga} ${g.label||""} (${dt})`;
+          return `<span class="form-pill ${g.win?"win":"loss"}" title="${tip}">
+            <i class="form-pill-res">${g.win?"V":"D"}</i>
+            <span class="form-pill-score">${g.gf}-${g.ga}</span>
+            <span class="form-pill-opp">${g.label||""}</span>
+          </span>`;
+        }).join("")
+      : `<span class="muted">Pas encore de matchs recensés</span>`;
+    const tr=x[4]||{};
+    const restTxt = x[3]?.restDays!=null ? `${x[3].restDays.toFixed(1)} j depuis le dernier match` : "—";
+    const sampleNote = games.length<5
+      ? `<div class="form-note">Début de saison : ${games.length} match(s) (complété avec 2025-26 si besoin)</div>`
+      : "";
+    return `<div class="form-team card-inner">
+      <div class="form-team-head">
+        <h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span class="form-record">${wins}V – ${losses}D</span></h3>
+        <div class="form-dots" title="Plus récent à droite">${ordered.map(g=>`<i class="form-dot ${g.win?"win":"loss"}"></i>`).join("")}</div>
+      </div>
+      <div class="form-pills">${streakHtml}</div>
+      ${sampleNote}
+      <div class="form-stats">
+        <div class="form-stat"><span>Buts / match</span><b><em class="ok">${fmt(gf)}</em> pour · <em class="bad">${fmt(ga)}</em> contre</b></div>
+        <div class="form-stat"><span>Repos</span><b>${x[3]?.b2b?"⚠️ Back-to-back":"Repos OK"}</b></div>
+        <div class="form-stat"><span>Repos (j)</span><b>${restTxt}</b></div>
+        <div class="form-stat"><span>Trajet</span><b class="${tr.longHaul?"warn":""}">${tr.label||"—"}${tr.longHaul?" · long haul":""}</b></div>
+      </div>
+    </div>`;
   }).join("");
   renderAdvanced(d);
   renderPlayers(CURRENT_PROP);renderAllProps();renderAudit();
