@@ -1636,53 +1636,67 @@ body.app-shell #authChip{
 body.app-shell .container{padding-bottom:40px!important}
 
 
-/* ========== FIX MOBILE NAV + CLICS (v20261001) ========== */
+
+
+/* ========== MOBILE TOPBAR + MENU (v20261001b) ========== */
 @media (max-width: 900px) {
   header.topbar {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 200 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
     height: 56px !important;
     min-height: 56px !important;
     max-height: 56px !important;
+    padding: 0 10px !important;
     overflow: visible !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 300 !important;
   }
 
-  .nav-menu-btn {
-    display: flex !important;
-    z-index: 210;
-    position: relative;
+  header.topbar .brand {
+    order: 1 !important;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
   }
+  header.topbar .brand-text small { display: none !important; }
+  header.topbar .brand b { font-size: 14px !important; }
 
-  /* Menu = panneau fixe plein écran sous la topbar (pas dans le flux) */
+  /* Nav hors flux = overlay uniquement quand ouvert */
   header.topbar .main-nav,
   header.topbar #mainNav {
+    order: 99 !important;
     display: none !important;
     position: fixed !important;
     top: 56px !important;
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: calc(100dvh - 56px) !important;
     margin: 0 !important;
-    padding: 12px 14px 24px !important;
+    padding: 12px 14px 28px !important;
     flex-direction: column !important;
     flex-wrap: nowrap !important;
     align-items: stretch !important;
     gap: 6px !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
-    background: rgba(2, 7, 13, 0.98) !important;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 0 !important;
+    -webkit-overflow-scrolling: touch;
+    background: #050a10 !important;
+    border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    z-index: 205 !important;
+    z-index: 250 !important;
     opacity: 1 !important;
     transform: none !important;
     pointer-events: auto !important;
+    flex: none !important;
+    min-width: 0 !important;
   }
 
   header.topbar .main-nav.nav-open,
@@ -1690,47 +1704,65 @@ body.app-shell .container{padding-bottom:40px!important}
     display: flex !important;
   }
 
-  header.topbar .main-nav .nav-btn,
-  header.topbar #mainNav .nav-btn {
+  header.topbar .main-nav .nav-btn {
     width: 100% !important;
     min-height: 48px !important;
+    justify-content: flex-start !important;
     text-align: left !important;
     padding: 14px 16px !important;
     font-size: 15px !important;
     border-radius: 12px !important;
+    flex: none !important;
+  }
+
+  header.topbar .topbar-right {
+    order: 2 !important;
+    margin-left: auto !important;
+    flex: 0 0 auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+
+  header.topbar .status-pill,
+  header.topbar .social-links {
+    display: none !important;
+  }
+
+  .nav-menu-btn {
+    display: flex !important;
     flex-shrink: 0 !important;
+    width: 42px !important;
+    height: 42px !important;
+  }
+
+  /* Éviter le double logo / wrap bizarre */
+  header.topbar .nav-admin,
+  header.topbar .nav-premium {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+    min-height: 36px !important;
+  }
+  header.topbar .auth-chip {
+    max-width: 88px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 8px 10px !important;
+    font-size: 11px !important;
   }
 
   body.nav-drawer-open {
     overflow: hidden !important;
+    touch-action: none;
   }
 
-  /* Sticky analyser : n'intercepte PAS les clics hors bouton */
   .analyze-sticky {
     pointer-events: none !important;
-    z-index: 30 !important;
+    z-index: 40 !important;
   }
   .analyze-sticky .primary-btn {
     pointer-events: auto !important;
-  }
-
-  /* Assurer que le contenu reste cliquable */
-  main.container,
-  .container,
-  .view,
-  .match-picker,
-  .primary-btn,
-  .ghost-btn,
-  select,
-  .sched-card,
-  .market {
-    pointer-events: auto !important;
-  }
-}
-
-@media (min-width: 901px) {
-  .nav-menu-btn { display: none !important; }
-  header.topbar .main-nav.nav-open {
-    /* pas de mode drawer desktop */
   }
 }
