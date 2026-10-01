@@ -2349,19 +2349,32 @@ function applySeoForView(view){
   if(ogt) ogt.setAttribute("content", title);
 }
 function setupMobileNav(){
-  const btn=$("navMenuBtn"), nav=document.querySelector(".main-nav");
+  const btn=$("navMenuBtn"), nav=document.querySelector(".main-nav")||$("mainNav");
   if(!btn||!nav) return;
-  btn.onclick=()=>{
-    const open=nav.classList.toggle("nav-open");
-    btn.setAttribute("aria-expanded", open?"true":"false");
-    document.body.classList.toggle("nav-drawer-open", open);
+  function closeNav(){
+    nav.classList.remove("nav-open");
+    document.body.classList.remove("nav-drawer-open");
+    btn.setAttribute("aria-expanded","false");
+  }
+  function openNav(){
+    nav.classList.add("nav-open");
+    document.body.classList.add("nav-drawer-open");
+    btn.setAttribute("aria-expanded","true");
+  }
+  btn.onclick=(e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    if(nav.classList.contains("nav-open")) closeNav();
+    else openNav();
   };
   nav.querySelectorAll(".nav-btn").forEach(b=>{
-    b.addEventListener("click",()=>{
-      nav.classList.remove("nav-open");
-      document.body.classList.remove("nav-drawer-open");
-      btn.setAttribute("aria-expanded","false");
-    });
+    b.addEventListener("click",()=> closeNav());
+  });
+  // Fermer si clic hors menu
+  document.addEventListener("click",(e)=>{
+    if(!nav.classList.contains("nav-open")) return;
+    if(nav.contains(e.target) || btn.contains(e.target)) return;
+    closeNav();
   });
 }
 function syncAnalyzeSticky(){
