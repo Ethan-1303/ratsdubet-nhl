@@ -8,11 +8,11 @@
   <meta name="theme-color" content="#02070d">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="icon" href="/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="BETZONE">
-  <link rel="stylesheet" href="/styles.css?v=20261001b">
+  <link rel="stylesheet" href="/styles.css?v=20261001c">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -37,11 +37,11 @@
     #view-forum .forum-form select,#view-forum .forum-form input,#view-forum .forum-form textarea{width:100%;box-sizing:border-box}
   </style>
 
-  <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="icon" href="/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="BETZONE">
-  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="BETZONE by Ratsdubet">
   <meta property="og:title" content="BETZONE — Analyse NHL, props & kombos">
@@ -643,30 +643,26 @@
     </div>
   </div>
 
-  <script src="/config.js?v=20261001b"></script>
-  <script src="/auth.js?v=20261001b"></script>
-  <script src="/forum.js?v=20261001b"></script>
-  <script src="/app.js?v=20261001b"></script>
+  <script src="/config.js?v=20261001c" defer></script>
+  <script src="/auth.js?v=20261001c" defer></script>
+  <script src="/forum.js?v=20261001c" defer></script>
+  <script src="/app.js?v=20261001c" defer></script>
 
   <script>
   (function(){
-    function tryForum(){
-      if(window.RDB_FORUM){
-        try{ window.RDB_FORUM.setup(); }catch(e){ console.warn(e); }
-        try{ window.RDB_FORUM.refresh(); }catch(e){ console.warn(e); }
-        return true;
-      }
-      return false;
+    function forumVisible(){
+      var v=document.getElementById("view-forum");
+      return v && v.classList.contains("active");
     }
-    if(!tryForum()){
-      var n=0, t=setInterval(function(){
-        n++;
-        if(tryForum() || n>40) clearInterval(t);
-      }, 250);
+    function tryForum(){
+      if(!window.RDB_FORUM || !forumVisible()) return false;
+      try{ window.RDB_FORUM.setup(); }catch(e){ console.warn(e); }
+      try{ window.RDB_FORUM.refresh(); }catch(e){ console.warn(e); }
+      return true;
     }
     document.addEventListener("click", function(ev){
       var b=ev.target.closest && ev.target.closest(".nav-btn[data-view=forum]");
-      if(b) setTimeout(tryForum, 50);
+      if(b) setTimeout(tryForum, 60);
     });
   })();
   </script>
