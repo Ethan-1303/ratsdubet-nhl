@@ -821,7 +821,8 @@ header.topbar .topbar-right .nav-premium.active{
 }
 .analyze-sticky .primary-btn{width:100%;height:48px;pointer-events:auto}
 @media(max-width:760px){
-  body.show-analyze-sticky .analyze-sticky{display:block !important;pointer-events:auto}
+  body.show-analyze-sticky .analyze-sticky{display:block !important;pointer-events:none}
+  body.show-analyze-sticky .analyze-sticky .primary-btn{pointer-events:auto}
   body.show-analyze-sticky .match-picker .primary-btn{display:none !important}
   body.show-analyze-sticky .container{padding-bottom:88px}
   header.topbar .nav-btn{padding:5px 6px !important;font-size:10.5px !important}
@@ -1063,14 +1064,12 @@ header.topbar .topbar-right .nav-premium.active{
 
 /* 3) Mobile — menu + cartes */
 @media(max-width:900px){
+  /* neutralisé — fix mobile nav en fin de fichier */
   header.topbar .main-nav{
-    transition:opacity .2s ease, transform .22s ease;
-    opacity:0;transform:translateY(-8px);
-    pointer-events:none;
+    /* legacy */
   }
   header.topbar .main-nav.nav-open{
-    opacity:1;transform:translateY(0);
-    pointer-events:auto;
+    /* legacy */
   }
   .card,.match-picker,.kombo-card,.forum-card,.score-card{
     border-radius:18px !important;
@@ -1635,3 +1634,103 @@ body.app-shell #authChip{
 
 .bottom-app-nav{display:none!important}
 body.app-shell .container{padding-bottom:40px!important}
+
+
+/* ========== FIX MOBILE NAV + CLICS (v20261001) ========== */
+@media (max-width: 900px) {
+  header.topbar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 200 !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
+    overflow: visible !important;
+  }
+
+  .nav-menu-btn {
+    display: flex !important;
+    z-index: 210;
+    position: relative;
+  }
+
+  /* Menu = panneau fixe plein écran sous la topbar (pas dans le flux) */
+  header.topbar .main-nav,
+  header.topbar #mainNav {
+    display: none !important;
+    position: fixed !important;
+    top: 56px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 12px 14px 24px !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    background: rgba(2, 7, 13, 0.98) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    z-index: 205 !important;
+    opacity: 1 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+  }
+
+  header.topbar .main-nav.nav-open,
+  header.topbar #mainNav.nav-open {
+    display: flex !important;
+  }
+
+  header.topbar .main-nav .nav-btn,
+  header.topbar #mainNav .nav-btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    text-align: left !important;
+    padding: 14px 16px !important;
+    font-size: 15px !important;
+    border-radius: 12px !important;
+    flex-shrink: 0 !important;
+  }
+
+  body.nav-drawer-open {
+    overflow: hidden !important;
+  }
+
+  /* Sticky analyser : n'intercepte PAS les clics hors bouton */
+  .analyze-sticky {
+    pointer-events: none !important;
+    z-index: 30 !important;
+  }
+  .analyze-sticky .primary-btn {
+    pointer-events: auto !important;
+  }
+
+  /* Assurer que le contenu reste cliquable */
+  main.container,
+  .container,
+  .view,
+  .match-picker,
+  .primary-btn,
+  .ghost-btn,
+  select,
+  .sched-card,
+  .market {
+    pointer-events: auto !important;
+  }
+}
+
+@media (min-width: 901px) {
+  .nav-menu-btn { display: none !important; }
+  header.topbar .main-nav.nav-open {
+    /* pas de mode drawer desktop */
+  }
+}
