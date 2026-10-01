@@ -1,25 +1,26 @@
-
-const CACHE = 'betzone-v1';
-const ASSETS = ['/', '/index.html', '/styles.css', '/app.js', '/auth.js', '/forum.js', '/config.js', '/logo.png', '/manifest.webmanifest'];
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(()=>{})).then(()=>self.skipWaiting()));
-});
+const CACHE = 'betzone-v3';
+self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
+  e.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
 self.addEventListener('fetch', e => {
-  const u = new URL(e.request.url);
-  if (e.request.method !== 'GET') return;
-  // network first for API
-  if (u.pathname.startsWith('/odds') || u.pathname.startsWith('/api') || u.pathname.startsWith('/kombos') || u.hostname.includes('supabase')) {
-    e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
-    return;
-  }
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const u = new URL(req.url);
+  if (u.origin !== location.origin) return;
+  if (u.pathname.startsWith('/odds') || u.pathname.startsWith('/api') || u.pathname.startsWith('/kombos') || u.pathname.startsWith('/stripe')) return;
+  // Network first: un vieux cache ne doit plus figer la page.
   e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
-      const copy = res.clone();
-      if (res.ok && (u.origin === location.origin)) caches.open(CACHE).then(c => c.put(e.request, copy));
+    fetch(req).then(res => {
+      if (res.ok && (u.pathname.endsWith('.js') || u.pathname.endsWith('.css') || u.pathname.endsWith('.png') || u.pathname.endsWith('.webmanifest'))) {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copy)).catch(()=>{});
+      }
       return res;
-    }).catch(()=>caches.match('/')))
+    }).catch(() => caches.match(req).then(hit => hit || caches.match('/index.html')))
   );
 });
