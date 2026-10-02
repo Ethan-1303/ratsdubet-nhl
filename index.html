@@ -28,7 +28,7 @@
   <link rel="apple-touch-icon" href="/logo.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="BETZONE">
-  <link rel="stylesheet" href="/styles.css?v=20261002g">
+  <link rel="stylesheet" href="/styles.css?v=20261002i">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -729,7 +729,7 @@
     </div>
   </div>
 
-  <link rel="preload" href="/styles.css?v=20261002g" as="style">
+  <link rel="preload" href="/styles.css?v=20261002i" as="style">
   <link rel="preload" href="/app.js?v=20261002g" as="script">
 <script>
   (function(){
@@ -811,7 +811,7 @@
     loaded = true;
     ['/config.js','/auth.js','/forum.js','/app.js'].forEach(function(src){
       var s = document.createElement('script');
-      s.src = src + '?v=20261002g';
+      s.src = src + '?v=20261002i';
       s.async = false;
       document.body.appendChild(s);
     });
@@ -820,9 +820,16 @@
     loadApp();
   });
   // charge le moteur après l'affichage, sans bloquer les clics du menu
-  window.addEventListener('load', function(){ setTimeout(loadApp, 1200); });
+  /* pas de chargement auto : il figeait les clics */
 })();
 </script>
+
+
+<style id="click-fix-final">
+  .modal, #authModal, #onboardModal, .analyze-sticky, .bg-glow, .modal-backdrop { display:none !important; pointer-events:none !important; }
+  #mainNav { position:static !important; inset:auto !important; width:auto !important; height:auto !important; bottom:auto !important; z-index:3 !important; display:flex !important; pointer-events:auto !important; background:transparent !important; }
+  button, a, select, .nav-btn, .primary-btn { pointer-events:auto !important; position:relative; z-index:5; }
+</style>
 
 </body>
 </html>
