@@ -28,7 +28,7 @@
   <link rel="apple-touch-icon" href="/logo.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="BETZONE">
-  <link rel="stylesheet" href="/styles.css?v=20261002d">
+  <link rel="stylesheet" href="/styles.css?v=20261002e">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -729,12 +729,12 @@
     </div>
   </div>
 
-  <link rel="preload" href="/styles.css?v=20261002d" as="style">
-  <link rel="preload" href="/app.js?v=20261002d" as="script">
-  <script src="/config.js?v=20261002d" defer></script>
-  <script src="/auth.js?v=20261002d" defer></script>
-  <script src="/forum.js?v=20261002d" defer></script>
-  <script src="/app.js?v=20261002d" defer></script>
+  <link rel="preload" href="/styles.css?v=20261002e" as="style">
+  <link rel="preload" href="/app.js?v=20261002e" as="script">
+  <script src="/config.js?v=20261002e" defer></script>
+  <script src="/auth.js?v=20261002e" defer></script>
+  <script src="/forum.js?v=20261002e" defer></script>
+  <script src="/app.js?v=20261002e" defer></script>
 
   <script>
   (function(){
@@ -770,6 +770,28 @@
   function go(){ fill('homeTeam','EDM'); fill('awayTeam','CHI'); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', go);
   else go();
+})();
+</script>
+
+
+<script>
+(function(){
+  try {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs){
+        regs.forEach(function(r){ r.unregister(); });
+      });
+    }
+  } catch(e) {}
+  function show(view){
+    document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.view===view); });
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id==='view-'+view); });
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.nav-btn[data-view]');
+    if(!b) return;
+    show(b.dataset.view);
+  });
 })();
 </script>
 
