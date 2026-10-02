@@ -825,5 +825,42 @@
   button, a, select, .nav-btn, .primary-btn { pointer-events:auto !important; position:relative; z-index:5; }
 </style>
 
+
+<script>
+(function(){
+  function esc(s){return String(s||"").replace(/[&<>]/g,function(c){return {"&":"&","<":"<",">":">"}[c];});}
+  function fillSchedule(data){
+    var box=document.getElementById("schedule");
+    if(!box) return;
+    var games=[];
+    (data.gameWeek||[]).forEach(function(d){ (d.games||[]).forEach(function(g){ games.push(g); }); });
+    if(!games.length){ box.innerHTML='<p style="padding:12px;color:#8aa">Aucun match sur ce créneau.</p>'; return; }
+    box.innerHTML=games.slice(0,16).map(function(g){
+      var a=g.awayTeam||{}, ho=g.homeTeam||{};
+      var when=(g.startTimeUTC||"").replace("T"," ").slice(0,16);
+      return '<div style="display:flex;justify-content:space-between;gap:8px;padding:10px 4px;border-bottom:1px solid #1a3044"><b>'+esc(a.abbrev)+" @ "+esc(ho.abbrev)+'</b><span style="color:#8aa">'+esc(when)+'</span></div>';
+    }).join("");
+  }
+  function fillStandings(data){
+    var box=document.getElementById("standingsTable");
+    if(!box) return;
+    var rows=data.standings||[];
+    if(!rows.length){ box.innerHTML='<p style="padding:12px;color:#8aa">Classement indisponible.</p>'; return; }
+    box.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:#8aa"><th align="left">Équipe</th><th>V</th><th>D</th><th>PTS</th></tr>'+rows.slice(0,32).map(function(r){
+      var name=(r.teamName&&r.teamName.default)||r.teamAbbrev&&r.teamAbbrev.default||"";
+      return '<tr><td style="padding:6px 0">'+esc(name)+'</td><td align="center">'+(r.wins||0)+'</td><td align="center">'+(r.losses||0)+'</td><td align="center"><b>'+(r.points||0)+'</b></td></tr>';
+    }).join("")+'</table>';
+  }
+  function load(path){
+    return fetch("/api?path="+encodeURIComponent(path)).then(function(r){return r.json();});
+  }
+  load("api-web.nhle.com/v1/schedule/now").then(fillSchedule).catch(function(){
+    var box=document.getElementById("schedule");
+    if(box) box.innerHTML='<p style="padding:12px;color:#8aa">Matchs temporairement indisponibles.</p>';
+  });
+  load("api-web.nhle.com/v1/standings/now").then(fillStandings).catch(function(){});
+})();
+</script>
+
 </body>
 </html>
