@@ -1,3 +1,4 @@
+[SETUP-PREMIUM.md](https://github.com/user-attachments/files/32966379/SETUP-PREMIUM.md)
 # RATSDUBET NHL — Setup Complet (Supabase + Stripe + Actu)
 
 ## 1. Supabase Auth
