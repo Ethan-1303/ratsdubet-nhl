@@ -2349,30 +2349,50 @@ function applySeoForView(view){
   if(ogt) ogt.setAttribute("content", title);
 }
 function setupMobileNav(){
-  const btn=$("navMenuBtn"), nav=document.querySelector("#mainNav")||document.querySelector(".main-nav");
+  const btn=$("navMenuBtn"), nav=document.getElementById("mainNav")||document.querySelector(".main-nav");
   if(!btn||!nav) return;
   function closeNav(){
     nav.classList.remove("nav-open");
     document.body.classList.remove("nav-drawer-open");
     btn.setAttribute("aria-expanded","false");
-    nav.style.cssText="";
   }
   function openNav(){
+    // forcer style inline en secours si CSS conflict
     nav.classList.add("nav-open");
     document.body.classList.add("nav-drawer-open");
     btn.setAttribute("aria-expanded","true");
+    nav.style.display="flex";
+    nav.style.position="fixed";
+    nav.style.top="56px";
+    nav.style.left="0";
+    nav.style.right="0";
+    nav.style.bottom="0";
+    nav.style.zIndex="250";
+    nav.style.flexDirection="column";
+    nav.style.background="#050a10";
+    nav.style.overflowY="auto";
+    nav.style.width="100%";
+    nav.style.padding="12px 14px";
+  }
+  function clearInline(){
+    ["display","position","top","left","right","bottom","zIndex","flexDirection","background","overflowY","width","padding"].forEach(k=>{
+      nav.style[k]="";
+    });
   }
   btn.onclick=(e)=>{
     e.preventDefault();
     e.stopPropagation();
-    if(nav.classList.contains("nav-open")) closeNav();
+    if(nav.classList.contains("nav-open")){ closeNav(); clearInline(); }
     else openNav();
   };
-  nav.querySelectorAll(".nav-btn, a").forEach(b=>{
-    b.addEventListener("click",()=>closeNav());
+  nav.querySelectorAll(".nav-btn").forEach(b=>{
+    b.addEventListener("click",()=>{ closeNav(); clearInline(); });
   });
-  document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") closeNav(); });
-  window.addEventListener("resize",()=>{ if(window.innerWidth>900) closeNav(); }, {passive:true});
+  document.addEventListener("click",(e)=>{
+    if(!nav.classList.contains("nav-open")) return;
+    if(nav.contains(e.target)||btn.contains(e.target)) return;
+    closeNav(); clearInline();
+  });
 }
 function syncAnalyzeSticky(){
   const active = document.querySelector(".nav-btn.active");
@@ -2391,7 +2411,7 @@ function setup(){
   document.getElementById("navPremium")?.addEventListener("click", ()=>setTimeout(syncAnalyzeSticky,0));
   syncAnalyzeSticky();
   setupMobileNav();
-setTimeout(()=>{ try{ checkKombosNotif(); }catch(_){} }, 1200);
+try{ checkKombosNotif(); }catch(_){}
   
 
 /* ═══ Kombos du jour — proba modèle + cotes bookmakers ═══ */
@@ -2957,6 +2977,17 @@ document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySe
   renderHistory();
   setupAuthUI();
   $("apiStatus").textContent="NHL • prêt";
-  getTeams().then(t=>{$("apiStatus").textContent=`NHL • ${Object.keys(t).length} équipes`}).catch(()=>{});
+  // Chargement non bloquant (mobile)
+  setTimeout(()=>{
+    getTeams().then(t=>{$("apiStatus").textContent=`NHL • ${Object.keys(t).length} équipes`}).catch(()=>{});
+  }, 50);
 }
-document.addEventListener("DOMContentLoaded",setup);
+document.addEventListener("DOMContentLoaded",()=>{
+  try{ setup(); }catch(e){ console.error(e); document.body.insertAdjacentHTML("afterbegin",
+    '<div style="padding:16px;color:#fff;background:#300">Erreur chargement. Recharge la page.</div>'); }
+});
+// unregister vieux SW cassés une fois
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
+}
+
