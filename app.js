@@ -2988,10 +2988,12 @@ document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySe
       new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 8000))
     ]).then(t=>{$("apiStatus").textContent=`NHL • ${Object.keys(t).length} équipes`}).catch(()=>{$("apiStatus").textContent='NHL • hors ligne'});
   }, 400);
-document.addEventListener("DOMContentLoaded",()=>{
-  try{ setup(); }catch(e){ console.error(e); document.body.insertAdjacentHTML("afterbegin",
-    '<div style="padding:16px;color:#fff;background:#300">Erreur chargement. Recharge la page.</div>'); }
-});
+function boot(){
+  try{ setup(); }catch(e){ console.error(e); }
+}
+window.RDB_BOOT = boot;
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot);
+else boot();
 // unregister vieux SW cassés une fois
 if("serviceWorker" in navigator){
   navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
