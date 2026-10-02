@@ -29,8 +29,6 @@ const toiMinutes = (sec) => {
 };
 
 const $=id=>document.getElementById(id);
-function withTimeout(ms){ const c=new AbortController(); setTimeout(()=>c.abort(), ms); return c.signal; }
-
 function skeleton(n=3){
   return `<div class="skeleton-stack">${Array.from({length:n},()=>`<div class="skeleton-card"><div class="sk-line w40"></div><div class="sk-line"></div><div class="sk-line w70"></div></div>`).join("")}</div>`;
 }
@@ -1002,23 +1000,6 @@ function refreshPlanUI(){
     if(badge){badge.innerHTML=`<strong>FREE</strong><span>Essai 48h à l’inscription</span>`;badge.classList.remove("prem")}
     if(chip)chip.textContent="Compte";
   }
-
-  // Hero : pas de doublon ni "Créer un compte" si déjà connecté
-  const logged = !!A?.isLoggedIn?.();
-  const heroAnalyze = $("heroAnalyzeBtn");
-  const heroAccount = $("heroAccountBtn");
-  if(heroAnalyze) heroAnalyze.classList.toggle("hidden", true); // toujours : le picker dessous suffit
-  if(heroAccount){
-    heroAccount.classList.toggle("hidden", logged);
-    heroAccount.textContent = logged ? "" : "Créer un compte";
-  }
-  // Masquer toute la rangée CTA si plus rien à montrer
-  const row = document.querySelector(".hero-cta-row");
-  if(row) row.classList.toggle("hidden", logged || true); // always hide analyze; hide row if logged
-  if(row){
-    const anyVisible = [...row.querySelectorAll("button")].some(b=>!b.classList.contains("hidden"));
-    row.classList.toggle("hidden", !anyVisible);
-  }
 }
 
 
@@ -1232,9 +1213,9 @@ function renderAnalysis(d){
       cls=" short";
       edgeTxt=`Cote juste ${fair(x[1])} — inutilisable en value bankroll`;
     }
-    return `<div class="market odds-chip${cls}" title="${isVal?`Value qualité ${q}`:(isShort?"Trop court":"")}">
+    return `<div class="market${cls}" title="${isVal?`Value qualité ${q}`:(isShort?"Trop court":"")}">
       <div class="label">${x[0]}${tag}</div>
-      <div class="value"><b class="odds-dec">${fair(x[1])}</b><span class="odds-prob">${pct(x[1])}</span></div>
+      <div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div>
       <span class="edge-tag">${edgeTxt}</span>
     </div>`;
   }).join("");
@@ -1280,9 +1261,9 @@ function renderAnalysis(d){
             if(edgeOk && isVal) tag=` <span class="value-tag">VALUE BOOK</span>`;
             else if(edgeOk && !isVal) { tag=` <span class="value-tag">EDGE BOOK</span>`; cls+=" value"; }
           }
-          return `<div class="market odds-chip${cls}">
+          return `<div class="market${cls}">
             <div class="label">${x[0]}${tag}</div>
-            <div class="value"><b class="odds-dec">${bookPrice?Number(bookPrice).toFixed(2):fair(x[1])}</b><span class="odds-prob">${pct(x[1])}${bookPrice?" · juste "+fair(x[1]):""}</span></div>
+            <div class="value"><b>${pct(x[1])}</b><span class="fair">${fair(x[1])}</span></div>
             <span class="edge-tag">${edgeTxt}</span>
             ${bookHtml}
           </div>`;
@@ -2351,49 +2332,19 @@ function applySeoForView(view){
   if(ogt) ogt.setAttribute("content", title);
 }
 function setupMobileNav(){
-  const btn=$("navMenuBtn"), nav=document.getElementById("mainNav")||document.querySelector(".main-nav");
+  const btn=$("navMenuBtn"), nav=document.querySelector(".main-nav");
   if(!btn||!nav) return;
-  function closeNav(){
-    nav.classList.remove("nav-open");
-    document.body.classList.remove("nav-drawer-open");
-    btn.setAttribute("aria-expanded","false");
-  }
-  function openNav(){
-    // forcer style inline en secours si CSS conflict
-    nav.classList.add("nav-open");
-    document.body.classList.add("nav-drawer-open");
-    btn.setAttribute("aria-expanded","true");
-    nav.style.display="flex";
-    nav.style.position="fixed";
-    nav.style.top="56px";
-    nav.style.left="0";
-    nav.style.right="0";
-    nav.style.bottom="0";
-    nav.style.zIndex="250";
-    nav.style.flexDirection="column";
-    nav.style.background="#050a10";
-    nav.style.overflowY="auto";
-    nav.style.width="100%";
-    nav.style.padding="12px 14px";
-  }
-  function clearInline(){
-    ["display","position","top","left","right","bottom","zIndex","flexDirection","background","overflowY","width","padding"].forEach(k=>{
-      nav.style[k]="";
-    });
-  }
-  btn.onclick=(e)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    if(nav.classList.contains("nav-open")){ closeNav(); clearInline(); }
-    else openNav();
+  btn.onclick=()=>{
+    const open=nav.classList.toggle("nav-open");
+    btn.setAttribute("aria-expanded", open?"true":"false");
+    document.body.classList.toggle("nav-drawer-open", open);
   };
   nav.querySelectorAll(".nav-btn").forEach(b=>{
-    b.addEventListener("click",()=>{ closeNav(); clearInline(); });
-  });
-  document.addEventListener("click",(e)=>{
-    if(!nav.classList.contains("nav-open")) return;
-    if(nav.contains(e.target)||btn.contains(e.target)) return;
-    closeNav(); clearInline();
+    b.addEventListener("click",()=>{
+      nav.classList.remove("nav-open");
+      document.body.classList.remove("nav-drawer-open");
+      btn.setAttribute("aria-expanded","false");
+    });
   });
 }
 function syncAnalyzeSticky(){
@@ -2413,9 +2364,7 @@ function setup(){
   document.getElementById("navPremium")?.addEventListener("click", ()=>setTimeout(syncAnalyzeSticky,0));
   syncAnalyzeSticky();
   setupMobileNav();
-try{ checkKombosNotif(); }catch(_){}
-}
-
+  try{ checkKombosNotif(); }catch(_){}
   
 
 /* ═══ Kombos du jour — proba modèle + cotes bookmakers ═══ */
@@ -2981,21 +2930,6 @@ document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySe
   renderHistory();
   setupAuthUI();
   $("apiStatus").textContent="NHL • prêt";
-  // Chargement non bloquant (mobile)
-  setTimeout(()=>{
-    Promise.race([
-      getTeams(),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 8000))
-    ]).then(t=>{$("apiStatus").textContent=`NHL • ${Object.keys(t).length} équipes`}).catch(()=>{$("apiStatus").textContent='NHL • hors ligne'});
-  }, 400);
-function boot(){
-  try{ setup(); }catch(e){ console.error(e); }
+  getTeams().then(t=>{$("apiStatus").textContent=`NHL • ${Object.keys(t).length} équipes`}).catch(()=>{});
 }
-window.RDB_BOOT = boot;
-if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot);
-else boot();
-// unregister vieux SW cassés une fois
-if("serviceWorker" in navigator){
-  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
-}
-
+document.addEventListener("DOMContentLoaded",setup);
