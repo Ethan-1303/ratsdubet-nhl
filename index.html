@@ -89,17 +89,17 @@
       </span>
     </a>
     <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
-      <button class="nav-btn active" data-view="analyse">Analyse</button>
-      <button class="nav-btn" data-view="matchs">Matchs</button>
-      <button class="nav-btn" data-view="classement">Classement</button>
-      <button class="nav-btn" data-view="leaders">Leaders</button>
-      <button class="nav-btn" data-view="equipes">Équipes</button>
-      <button class="nav-btn" data-view="props">Props</button>
-      <button class="nav-btn" data-view="actu">Actu</button>
-      <button class="nav-btn" data-view="blessures">Blessures</button>
-      <button class="nav-btn" data-view="historique">Histo</button>
-      <button class="nav-btn" data-view="kombos">Kombos</button>
-      <button class="nav-btn" data-view="forum">Forum</button>
+      <button class="nav-btn active" data-view="analyse" onclick="window.BZ.show(\'analyse\');return false;">Analyse</button>
+      <button class="nav-btn" data-view="matchs" onclick="window.BZ.show(\'matchs\');return false;">Matchs</button>
+      <button class="nav-btn" data-view="classement" onclick="window.BZ.show(\'classement\');return false;">Classement</button>
+      <button class="nav-btn" data-view="leaders" onclick="window.BZ.show(\'leaders\');return false;">Leaders</button>
+      <button class="nav-btn" data-view="equipes" onclick="window.BZ.show(\'equipes\');return false;">Équipes</button>
+      <button class="nav-btn" data-view="props" onclick="window.BZ.show(\'props\');return false;">Props</button>
+      <button class="nav-btn" data-view="actu" onclick="window.BZ.show(\'actu\');return false;">Actu</button>
+      <button class="nav-btn" data-view="blessures" onclick="window.BZ.show(\'blessures\');return false;">Blessures</button>
+      <button class="nav-btn" data-view="historique" onclick="window.BZ.show(\'historique\');return false;">Histo</button>
+      <button class="nav-btn" data-view="kombos" onclick="window.BZ.show(\'kombos\');return false;">Kombos</button>
+      <button class="nav-btn" data-view="forum" onclick="window.BZ.show(\'forum\');return false;">Forum</button>
       </nav>
     <div class="topbar-right">
       <div class="status-pill" title="Statut API NHL"><i></i><span id="apiStatus">NHL</span></div>
@@ -820,7 +820,7 @@
     loadApp();
   });
   // charge le moteur après l'affichage, sans bloquer les clics du menu
-  /* pas de chargement auto : il figeait les clics */
+  
 })();
 </script>
 
