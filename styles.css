@@ -1768,82 +1768,50 @@ body.app-shell .container{padding-bottom:40px!important}
 }
 
 
-/* Nav hors header — mobile drawer */
-@media (max-width: 900px) {
-  #mainNav.main-nav {
-    display: none !important;
-    position: fixed !important;
-    top: 56px !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    z-index: 400 !important;
-    flex-direction: column !important;
-    padding: 12px 14px 32px !important;
-    background: #050a10 !important;
-    overflow-y: auto !important;
-    width: 100% !important;
-    margin: 0 !important;
-  }
-  #mainNav.main-nav.nav-open {
-    display: flex !important;
-  }
-  #mainNav .nav-btn {
-    width: 100% !important;
-    min-height: 48px !important;
-    text-align: left !important;
-    padding: 14px 16px !important;
-    font-size: 15px !important;
-  }
+/* Mobile perf + overlays — 20261001c */
+html{ -webkit-text-size-adjust:100%; }
+body{ overflow-x:hidden; }
+button, .nav-btn, .primary-btn, .ghost-btn, select{
+  touch-action:manipulation;
 }
-@media (min-width: 901px) {
-  #mainNav.main-nav {
-    display: flex !important;
-    position: static !important;
-    flex: 1 1 auto;
-    overflow-x: auto;
-  }
-  header.topbar {
-    display: flex;
-    align-items: center;
-  }
-  /* Re-insert nav visually in topbar flow: use order on siblings */
-  body > #mainNav {
-    /* on desktop nav is between brand and right - it's after header in DOM
-       so we need topbar to contain it OR flex the page header area */
-  }
-}
-
-@media (min-width: 901px) {
-  body > #mainNav.main-nav {
-    position: fixed !important;
-    top: 0 !important;
-    left: 160px !important;
-    right: 220px !important;
-    height: 56px !important;
-    bottom: auto !important;
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    background: transparent !important;
-    padding: 0 8px !important;
-    z-index: 301 !important;
-    gap: 2px !important;
-  }
-  body > #mainNav.main-nav .nav-btn {
-    width: auto !important;
-    min-height: 36px !important;
-    padding: 8px 10px !important;
-    font-size: 12px !important;
-  }
-}
-
-/* Anti-blocage clics */
-.modal.hidden,#onboardModal.hidden,#authModal.hidden{display:none!important;pointer-events:none!important}
+input, select, textarea{ font-size:16px; }
+.bg-glow{ display:none; }
 @media (max-width:900px){
-  #mainNav:not(.nav-open){display:none!important;pointer-events:none!important}
+  .topbar, .modal-backdrop, header.topbar{
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+  }
+  header.topbar .main-nav{
+    display:none !important;
+    pointer-events:none !important;
+  }
+  header.topbar .main-nav.nav-open,
+  header.topbar #mainNav.nav-open{
+    display:flex !important;
+    pointer-events:auto !important;
+    position:fixed !important;
+    top:56px !important;
+    left:0 !important;
+    right:0 !important;
+    bottom:0 !important;
+    height:auto !important;
+    max-height:calc(100dvh - 56px) !important;
+    overflow-y:auto !important;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:calc(24px + env(safe-area-inset-bottom)) !important;
+    z-index:250 !important;
+  }
+  body.nav-drawer-open{ overflow:hidden !important; }
+  .analyze-sticky{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    z-index:40;
+    padding:8px 12px calc(8px + env(safe-area-inset-bottom));
+    background:#071018;
+    border-top:1px solid #15334c;
+    pointer-events:none;
+  }
+  .analyze-sticky .primary-btn{ pointer-events:auto; min-height:48px; }
+  body.show-analyze-sticky .container{ padding-bottom:calc(96px + env(safe-area-inset-bottom)); }
+  .brand-logo img{ filter:none !important; }
 }
-.analyze-sticky{display:none!important;pointer-events:none!important}
-select#homeTeam,select#awayTeam{min-height:48px;color:#fff;background:#06101a}
