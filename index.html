@@ -1,22 +1,6 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <script>
-  /* Tue les anciens service workers qui bloquent le site (écran blanc / page figée) */
-  (function(){
-    try {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(regs){
-          regs.forEach(function(r){ r.unregister(); });
-        });
-      }
-      if (window.caches && caches.keys) {
-        caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k); }); });
-      }
-    } catch (e) {}
-  })();
-  </script>
-  
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>BETZONE — Outil d’analyse NHL pour parieurs</title>
@@ -28,7 +12,7 @@
   <link rel="apple-touch-icon" href="/logo.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="BETZONE">
-  <link rel="stylesheet" href="/styles.css?v=20261002i">
+  <link rel="stylesheet" href="/styles.css?v=20260930p">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -71,12 +55,8 @@
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"WebApplication","name":"BETZONE","applicationCategory":"SportsApplication","operatingSystem":"Web","url":"https://betzone-rdb.com/","description":"Outil d'analyse NHL pour parieurs : projections, VALUE, props, kombos et forum.","offers":{"@type":"Offer","price":"20","priceCurrency":"EUR"}}
   </script>
-<style id="click-fix">
-#mainNav{position:static !important;inset:auto !important;height:auto !important;pointer-events:auto !important}
-.modal.hidden,.analyze-sticky{display:none !important;pointer-events:none !important}
-</style>
 </head>
-<body class="app-shell">
+<body>
   <div class="bg-glow glow-a"></div>
   <div class="bg-glow glow-b"></div>
 
@@ -88,19 +68,24 @@
         <small>by Ratsdubet</small>
       </span>
     </a>
+
+    <button type="button" class="nav-menu-btn" id="navMenuBtn" aria-label="Menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
     <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
-      <button class="nav-btn active" data-view="analyse" onclick="window.BZ.show('analyse');return false;">Analyse</button>
-      <button class="nav-btn" data-view="matchs" onclick="window.BZ.show('matchs');return false;">Matchs</button>
-      <button class="nav-btn" data-view="classement" onclick="window.BZ.show('classement');return false;">Classement</button>
-      <button class="nav-btn" data-view="leaders" onclick="window.BZ.show('leaders');return false;">Leaders</button>
-      <button class="nav-btn" data-view="equipes" onclick="window.BZ.show('equipes');return false;">Équipes</button>
-      <button class="nav-btn" data-view="props" onclick="window.BZ.show('props');return false;">Props</button>
-      <button class="nav-btn" data-view="actu" onclick="window.BZ.show('actu');return false;">Actu</button>
-      <button class="nav-btn" data-view="blessures" onclick="window.BZ.show('blessures');return false;">Blessures</button>
-      <button class="nav-btn" data-view="historique" onclick="window.BZ.show('historique');return false;">Histo</button>
-      <button class="nav-btn" data-view="kombos" onclick="window.BZ.show('kombos');return false;">Kombos</button>
-      <button class="nav-btn" data-view="forum" onclick="window.BZ.show('forum');return false;">Forum</button>
+      <button class="nav-btn active" data-view="analyse">Analyse</button>
+      <button class="nav-btn" data-view="matchs">Matchs</button>
+      <button class="nav-btn" data-view="classement">Classement</button>
+      <button class="nav-btn" data-view="leaders">Leaders</button>
+      <button class="nav-btn" data-view="equipes">Équipes</button>
+      <button class="nav-btn" data-view="props">Props</button>
+      <button class="nav-btn" data-view="actu">Actu</button>
+      <button class="nav-btn" data-view="blessures">Blessures</button>
+      <button class="nav-btn" data-view="historique">Histo</button>
+      <button class="nav-btn" data-view="kombos">Kombos</button>
+      <button class="nav-btn" data-view="forum">Forum</button>
       </nav>
+
     <div class="topbar-right">
       <div class="status-pill" title="Statut API NHL"><i></i><span id="apiStatus">NHL</span></div>
       <div class="social-links">
@@ -114,12 +99,8 @@
       <button type="button" class="nav-btn nav-admin" id="navAdmin" data-view="admin" title="Dashboard admin">Admin</button>
       <button type="button" class="nav-btn nav-premium" id="navPremium" data-view="premium">Premium</button>
       <button type="button" class="auth-chip" id="authChip">Compte</button>
-    <button type="button" class="nav-menu-btn" id="navMenuBtn" aria-label="Menu" aria-expanded="false">
-          <span></span><span></span><span></span>
-        </button>
-      </div>
+    </div>
   </header>
-
 
   <div id="apiErrorToast" class="api-error-toast hidden" role="alert"></div>
   <main class="container">
@@ -133,9 +114,9 @@
           <div class="eyebrow">🏒 BETZONE · NHL</div>
           <h1>Lis un match en <span>30 secondes</span></h1>
           <p class="hero-lead">xG, forme, trajet, H2H, blessures et props — essai Premium <b>48 h</b> à l’inscription.</p>
-          <div class="hero-cta-row hidden" id="heroCtaRow">
-            <button type="button" class="primary-btn hero-cta-main hidden" id="heroAnalyzeBtn">Analyser un match →</button>
-            <button type="button" class="ghost-btn hidden" id="heroAccountBtn">Créer un compte</button>
+          <div class="hero-cta-row">
+            <button type="button" class="primary-btn hero-cta-main" id="heroAnalyzeBtn">Analyser un match →</button>
+            <button type="button" class="ghost-btn" id="heroAccountBtn">Créer un compte</button>
           </div>
         </div>
         <div class="hero-side">
@@ -149,82 +130,16 @@
       <section class="match-picker card">
         <div class="picker-team">
           <label>Domicile</label>
-          <select id="homeTeam">
-            <option value="ANA">ANA — Anaheim Ducks</option>
-            <option value="BOS">BOS — Boston Bruins</option>
-            <option value="BUF">BUF — Buffalo Sabres</option>
-            <option value="CAR">CAR — Carolina Hurricanes</option>
-            <option value="CBJ">CBJ — Columbus Blue Jackets</option>
-            <option value="CGY">CGY — Calgary Flames</option>
-            <option value="CHI">CHI — Chicago Blackhawks</option>
-            <option value="COL">COL — Colorado Avalanche</option>
-            <option value="DAL">DAL — Dallas Stars</option>
-            <option value="DET">DET — Detroit Red Wings</option>
-            <option value="EDM" selected>EDM — Edmonton Oilers</option>
-            <option value="FLA">FLA — Florida Panthers</option>
-            <option value="LAK">LAK — Los Angeles Kings</option>
-            <option value="MIN">MIN — Minnesota Wild</option>
-            <option value="MTL">MTL — Montréal Canadiens</option>
-            <option value="NJD">NJD — New Jersey Devils</option>
-            <option value="NSH">NSH — Nashville Predators</option>
-            <option value="NYI">NYI — New York Islanders</option>
-            <option value="NYR">NYR — New York Rangers</option>
-            <option value="OTT">OTT — Ottawa Senators</option>
-            <option value="PHI">PHI — Philadelphia Flyers</option>
-            <option value="PIT">PIT — Pittsburgh Penguins</option>
-            <option value="SEA">SEA — Seattle Kraken</option>
-            <option value="SJS">SJS — San Jose Sharks</option>
-            <option value="STL">STL — St. Louis Blues</option>
-            <option value="TBL">TBL — Tampa Bay Lightning</option>
-            <option value="TOR">TOR — Toronto Maple Leafs</option>
-            <option value="UTA">UTA — Utah Hockey Club</option>
-            <option value="VAN">VAN — Vancouver Canucks</option>
-            <option value="VGK">VGK — Vegas Golden Knights</option>
-            <option value="WPG">WPG — Winnipeg Jets</option>
-            <option value="WSH">WSH — Washington Capitals</option>
-          </select>
+          <select id="homeTeam"></select>
           <div id="homeMeta" class="team-mini">—</div>
         </div>
         <div class="versus">VS</div>
         <div class="picker-team">
           <label>Extérieur</label>
-          <select id="awayTeam">
-            <option value="ANA">ANA — Anaheim Ducks</option>
-            <option value="BOS">BOS — Boston Bruins</option>
-            <option value="BUF">BUF — Buffalo Sabres</option>
-            <option value="CAR">CAR — Carolina Hurricanes</option>
-            <option value="CBJ">CBJ — Columbus Blue Jackets</option>
-            <option value="CGY">CGY — Calgary Flames</option>
-            <option value="CHI" selected>CHI — Chicago Blackhawks</option>
-            <option value="COL">COL — Colorado Avalanche</option>
-            <option value="DAL">DAL — Dallas Stars</option>
-            <option value="DET">DET — Detroit Red Wings</option>
-            <option value="EDM">EDM — Edmonton Oilers</option>
-            <option value="FLA">FLA — Florida Panthers</option>
-            <option value="LAK">LAK — Los Angeles Kings</option>
-            <option value="MIN">MIN — Minnesota Wild</option>
-            <option value="MTL">MTL — Montréal Canadiens</option>
-            <option value="NJD">NJD — New Jersey Devils</option>
-            <option value="NSH">NSH — Nashville Predators</option>
-            <option value="NYI">NYI — New York Islanders</option>
-            <option value="NYR">NYR — New York Rangers</option>
-            <option value="OTT">OTT — Ottawa Senators</option>
-            <option value="PHI">PHI — Philadelphia Flyers</option>
-            <option value="PIT">PIT — Pittsburgh Penguins</option>
-            <option value="SEA">SEA — Seattle Kraken</option>
-            <option value="SJS">SJS — San Jose Sharks</option>
-            <option value="STL">STL — St. Louis Blues</option>
-            <option value="TBL">TBL — Tampa Bay Lightning</option>
-            <option value="TOR">TOR — Toronto Maple Leafs</option>
-            <option value="UTA">UTA — Utah Hockey Club</option>
-            <option value="VAN">VAN — Vancouver Canucks</option>
-            <option value="VGK">VGK — Vegas Golden Knights</option>
-            <option value="WPG">WPG — Winnipeg Jets</option>
-            <option value="WSH">WSH — Washington Capitals</option>
-          </select>
+          <select id="awayTeam"></select>
           <div id="awayMeta" class="team-mini">—</div>
         </div>
-        <button id="analyzeBtn" class="primary-btn" onclick="window.BZ.go()">ANALYSER LE MATCH <span>→</span></button>
+        <button id="analyzeBtn" class="primary-btn">ANALYSER LE MATCH <span>→</span></button>
       </section>
 
       <div id="loading" class="loading card hidden">
@@ -729,7 +644,11 @@
     </div>
   </div>
 
-  <link rel="preload" href="/styles.css?v=20261002i" as="style">
+  <script src="/config.js?v=20260930p"></script>
+  <script src="/auth.js?v=20260930p"></script>
+  <script src="/forum.js?v=20260930p"></script>
+  <script src="/app.js?v=20260930p"></script>
+
   <script>
   (function(){
     function tryForum(){
@@ -752,151 +671,6 @@
     });
   })();
   </script>
-
-<script>
-(function(){
-  var teams=[["ANA","Anaheim Ducks"],["BOS","Boston Bruins"],["BUF","Buffalo Sabres"],["CAR","Carolina Hurricanes"],["CBJ","Columbus Blue Jackets"],["CGY","Calgary Flames"],["CHI","Chicago Blackhawks"],["COL","Colorado Avalanche"],["DAL","Dallas Stars"],["DET","Detroit Red Wings"],["EDM","Edmonton Oilers"],["FLA","Florida Panthers"],["LAK","Los Angeles Kings"],["MIN","Minnesota Wild"],["MTL","Montréal Canadiens"],["NJD","New Jersey Devils"],["NSH","Nashville Predators"],["NYI","New York Islanders"],["NYR","New York Rangers"],["OTT","Ottawa Senators"],["PHI","Philadelphia Flyers"],["PIT","Pittsburgh Penguins"],["SEA","Seattle Kraken"],["SJS","San Jose Sharks"],["STL","St. Louis Blues"],["TBL","Tampa Bay Lightning"],["TOR","Toronto Maple Leafs"],["UTA","Utah Hockey Club"],["VAN","Vancouver Canucks"],["VGK","Vegas Golden Knights"],["WPG","Winnipeg Jets"],["WSH","Washington Capitals"]];
-  function fill(id, sel){
-    var s=document.getElementById(id);
-    if(!s || s.options.length>1) return;
-    s.innerHTML=teams.map(function(t){return '<option value="'+t[0]+'"'+(t[0]===sel?' selected':'')+'>'+t[0]+' — '+t[1]+'</option>';}).join('');
-  }
-  function go(){ fill('homeTeam','EDM'); fill('awayTeam','CHI'); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', go);
-  else go();
-})();
-</script>
-
-
-<script>
-(function(){
-  try {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(regs){
-        regs.forEach(function(r){ r.unregister(); });
-      });
-    }
-  } catch(e) {}
-  function show(view){
-    document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.view===view); });
-    document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id==='view-'+view); });
-  }
-  document.addEventListener('click', function(e){
-    var b = e.target.closest && e.target.closest('.nav-btn[data-view]');
-    if(!b) return;
-    show(b.dataset.view);
-  });
-})();
-</script>
-
-
-<script>
-(function(){
-  function show(view){
-    document.querySelectorAll('.nav-btn').forEach(function(b){
-      b.classList.toggle('active', b.getAttribute('data-view')===view);
-    });
-    document.querySelectorAll('.view').forEach(function(v){
-      v.classList.toggle('active', v.id==='view-'+view);
-    });
-  }
-  document.addEventListener('click', function(e){
-    var b = e.target.closest && e.target.closest('[data-view]');
-    if(b && b.getAttribute('data-view')) show(b.getAttribute('data-view'));
-  });
-  var loaded = false;
-  function loadApp(){
-    if(loaded) return;
-    loaded = true;
-    /* app.js désactivé : il figeait la page au clic Analyser */
-  }
-  document.getElementById('analyzeBtn') && document.getElementById('analyzeBtn').addEventListener('click', function(){
-    loadApp();
-  });
-  // charge le moteur après l'affichage, sans bloquer les clics du menu
-  
-})();
-</script>
-
-
-<style id="click-fix-final">
-  .modal, #authModal, #onboardModal, .analyze-sticky, .bg-glow, .modal-backdrop { display:none !important; pointer-events:none !important; }
-  #mainNav { position:static !important; inset:auto !important; width:auto !important; height:auto !important; bottom:auto !important; z-index:3 !important; display:flex !important; pointer-events:auto !important; background:transparent !important; }
-  button, a, select, .nav-btn, .primary-btn { pointer-events:auto !important; position:relative; z-index:5; }
-</style>
-
-
-<script>
-(function(){
-  function esc(s){return String(s||"").replace(/[&<>]/g,function(c){return {"&":"&","<":"<",">":">"}[c];});}
-  function fillSchedule(data){
-    var box=document.getElementById("schedule");
-    if(!box) return;
-    var games=[];
-    (data.gameWeek||[]).forEach(function(d){ (d.games||[]).forEach(function(g){ games.push(g); }); });
-    if(!games.length){ box.innerHTML='<p style="padding:12px;color:#8aa">Aucun match sur ce créneau.</p>'; return; }
-    box.innerHTML=games.slice(0,16).map(function(g){
-      var a=g.awayTeam||{}, ho=g.homeTeam||{};
-      var when=(g.startTimeUTC||"").replace("T"," ").slice(0,16);
-      return '<div style="display:flex;justify-content:space-between;gap:8px;padding:10px 4px;border-bottom:1px solid #1a3044"><b>'+esc(a.abbrev)+" @ "+esc(ho.abbrev)+'</b><span style="color:#8aa">'+esc(when)+'</span></div>';
-    }).join("");
-  }
-  function fillStandings(data){
-    var box=document.getElementById("standingsTable");
-    if(!box) return;
-    var rows=data.standings||[];
-    if(!rows.length){ box.innerHTML='<p style="padding:12px;color:#8aa">Classement indisponible.</p>'; return; }
-    box.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:#8aa"><th align="left">Équipe</th><th>V</th><th>D</th><th>PTS</th></tr>'+rows.slice(0,32).map(function(r){
-      var name=(r.teamName&&r.teamName.default)||r.teamAbbrev&&r.teamAbbrev.default||"";
-      return '<tr><td style="padding:6px 0">'+esc(name)+'</td><td align="center">'+(r.wins||0)+'</td><td align="center">'+(r.losses||0)+'</td><td align="center"><b>'+(r.points||0)+'</b></td></tr>';
-    }).join("")+'</table>';
-  }
-  function load(path){
-    return fetch("/api?path="+encodeURIComponent(path)).then(function(r){return r.json();});
-  }
-  load("api-web.nhle.com/v1/schedule/now").then(fillSchedule).catch(function(){
-    var box=document.getElementById("schedule");
-    if(box) box.innerHTML='<p style="padding:12px;color:#8aa">Matchs temporairement indisponibles.</p>';
-  });
-  load("api-web.nhle.com/v1/standings/now").then(fillStandings).catch(function(){});
-})();
-</script>
-
-
-<script>
-(function(){
-  function esc(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){return {"&":"&","<":"<",">":">"}[c];});}
-  function load(url){return fetch(url).then(function(r){return r.json();});}
-  var teams=[["ANA","Anaheim Ducks"],["BOS","Boston Bruins"],["BUF","Buffalo Sabres"],["CAR","Carolina Hurricanes"],["CBJ","Columbus Blue Jackets"],["CGY","Calgary Flames"],["CHI","Chicago Blackhawks"],["COL","Colorado Avalanche"],["DAL","Dallas Stars"],["DET","Detroit Red Wings"],["EDM","Edmonton Oilers"],["FLA","Florida Panthers"],["LAK","Los Angeles Kings"],["MIN","Minnesota Wild"],["MTL","Montréal Canadiens"],["NJD","New Jersey Devils"],["NSH","Nashville Predators"],["NYI","New York Islanders"],["NYR","New York Rangers"],["OTT","Ottawa Senators"],["PHI","Philadelphia Flyers"],["PIT","Pittsburgh Penguins"],["SEA","Seattle Kraken"],["SJS","San Jose Sharks"],["STL","St. Louis Blues"],["TBL","Tampa Bay Lightning"],["TOR","Toronto Maple Leafs"],["UTA","Utah Hockey Club"],["VAN","Vancouver Canucks"],["VGK","Vegas Golden Knights"],["WPG","Winnipeg Jets"],["WSH","Washington Capitals"]];
-  var tt=document.getElementById("teamTable");
-  if(tt) tt.innerHTML=teams.map(function(t){return '<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #1a3044"><b>'+t[0]+'</b><span>'+esc(t[1])+'</span></div>';}).join("");
-  load("/api?path="+encodeURIComponent("api-web.nhle.com/v1/skater-stats-leaders/current?categories=points&limit=20")).then(function(d){
-    var box=document.getElementById("leadersTable"); if(!box) return;
-    var rows=(d.points)||d.leaders||d.data||[];
-    if(!rows.length){ box.innerHTML='<p style="padding:12px;color:#8aa">Leaders indisponibles pour le moment.</p>'; return; }
-    box.innerHTML=rows.slice(0,20).map(function(r,i){
-      var name=(r.firstName&&r.firstName.default?r.firstName.default+" ":"")+(r.lastName&&r.lastName.default||r.lastName||"");
-      return '<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #1a3044"><span>'+(i+1)+'. '+esc(name)+'</span><b>'+(r.points||r.value||0)+' pts</b></div>';
-    }).join("");
-  }).catch(function(){});
-  load("/api?news=1").then(function(d){
-    var box=document.getElementById("newsFeed"); if(!box) return;
-    var arts=d.articles||[];
-    if(!arts.length){ box.innerHTML='<p style="padding:12px;color:#8aa">Aucune actu.</p>'; return; }
-    box.innerHTML=arts.slice(0,12).map(function(a){
-      return '<a href="'+esc(a.url||a.link||"#")+'" target="_blank" rel="noopener" style="display:block;padding:10px 4px;border-bottom:1px solid #1a3044;color:#e8f0f6;text-decoration:none"><b>'+esc(a.title)+'</b><div style="color:#8aa;font-size:12px">'+esc(a.source||"")+'</div></a>';
-    }).join("");
-  }).catch(function(){});
-  load("/api?injuries=1").then(function(d){
-    var box=document.getElementById("injuriesFeed"); if(!box) return;
-    var list=d.injuries||d.players||d.items||[];
-    if(!list.length){ box.innerHTML='<p style="padding:12px;color:#8aa">Aucune blessure remontée.</p>'; return; }
-    box.innerHTML=list.slice(0,30).map(function(x){
-      return '<div style="padding:8px 4px;border-bottom:1px solid #1a3044"><b>'+esc(x.name||x.player)+'</b> <span style="color:#8aa">'+esc(x.team||"")+' · '+esc(x.status||x.detail||"")+'</span></div>';
-    }).join("");
-  }).catch(function(){});
-})();
-</script>
 
 </body>
 </html>
