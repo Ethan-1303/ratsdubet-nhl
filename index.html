@@ -28,7 +28,7 @@
   <link rel="apple-touch-icon" href="/logo.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="BETZONE">
-  <link rel="stylesheet" href="/styles.css?v=20261002c">
+  <link rel="stylesheet" href="/styles.css?v=20261002d">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -71,6 +71,10 @@
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"WebApplication","name":"BETZONE","applicationCategory":"SportsApplication","operatingSystem":"Web","url":"https://betzone-rdb.com/","description":"Outil d'analyse NHL pour parieurs : projections, VALUE, props, kombos et forum.","offers":{"@type":"Offer","price":"20","priceCurrency":"EUR"}}
   </script>
+<style id="click-fix">
+#mainNav{position:static !important;inset:auto !important;height:auto !important;pointer-events:auto !important}
+.modal.hidden,.analyze-sticky{display:none !important;pointer-events:none !important}
+</style>
 </head>
 <body class="app-shell">
   <div class="bg-glow glow-a"></div>
@@ -84,6 +88,19 @@
         <small>by Ratsdubet</small>
       </span>
     </a>
+    <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
+      <button class="nav-btn active" data-view="analyse">Analyse</button>
+      <button class="nav-btn" data-view="matchs">Matchs</button>
+      <button class="nav-btn" data-view="classement">Classement</button>
+      <button class="nav-btn" data-view="leaders">Leaders</button>
+      <button class="nav-btn" data-view="equipes">Équipes</button>
+      <button class="nav-btn" data-view="props">Props</button>
+      <button class="nav-btn" data-view="actu">Actu</button>
+      <button class="nav-btn" data-view="blessures">Blessures</button>
+      <button class="nav-btn" data-view="historique">Histo</button>
+      <button class="nav-btn" data-view="kombos">Kombos</button>
+      <button class="nav-btn" data-view="forum">Forum</button>
+      </nav>
     <div class="topbar-right">
       <div class="status-pill" title="Statut API NHL"><i></i><span id="apiStatus">NHL</span></div>
       <div class="social-links">
@@ -102,20 +119,6 @@
         </button>
       </div>
   </header>
-  <!-- mobile-nav-host -->
-  <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
-      <button class="nav-btn active" data-view="analyse">Analyse</button>
-      <button class="nav-btn" data-view="matchs">Matchs</button>
-      <button class="nav-btn" data-view="classement">Classement</button>
-      <button class="nav-btn" data-view="leaders">Leaders</button>
-      <button class="nav-btn" data-view="equipes">Équipes</button>
-      <button class="nav-btn" data-view="props">Props</button>
-      <button class="nav-btn" data-view="actu">Actu</button>
-      <button class="nav-btn" data-view="blessures">Blessures</button>
-      <button class="nav-btn" data-view="historique">Histo</button>
-      <button class="nav-btn" data-view="kombos">Kombos</button>
-      <button class="nav-btn" data-view="forum">Forum</button>
-      </nav>
 
 
   <div id="apiErrorToast" class="api-error-toast hidden" role="alert"></div>
@@ -726,12 +729,12 @@
     </div>
   </div>
 
-  <link rel="preload" href="/styles.css?v=20261002c" as="style">
-  <link rel="preload" href="/app.js?v=20261002c" as="script">
-  <script src="/config.js?v=20261002c" defer></script>
-  <script src="/auth.js?v=20261002c" defer></script>
-  <script src="/forum.js?v=20261002c" defer></script>
-  <script src="/app.js?v=20261002c" defer></script>
+  <link rel="preload" href="/styles.css?v=20261002d" as="style">
+  <link rel="preload" href="/app.js?v=20261002d" as="script">
+  <script src="/config.js?v=20261002d" defer></script>
+  <script src="/auth.js?v=20261002d" defer></script>
+  <script src="/forum.js?v=20261002d" defer></script>
+  <script src="/app.js?v=20261002d" defer></script>
 
   <script>
   (function(){
