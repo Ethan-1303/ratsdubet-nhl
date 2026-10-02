@@ -96,17 +96,17 @@
       </span>
     </a>
     <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
-      <button class="nav-btn active" data-view="analyse" onclick="window.BZ.show(\'analyse\');return false;">Analyse</button>
-      <button class="nav-btn" data-view="matchs" onclick="window.BZ.show(\'matchs\');return false;">Matchs</button>
-      <button class="nav-btn" data-view="classement" onclick="window.BZ.show(\'classement\');return false;">Classement</button>
-      <button class="nav-btn" data-view="leaders" onclick="window.BZ.show(\'leaders\');return false;">Leaders</button>
-      <button class="nav-btn" data-view="equipes" onclick="window.BZ.show(\'equipes\');return false;">Équipes</button>
-      <button class="nav-btn" data-view="props" onclick="window.BZ.show(\'props\');return false;">Props</button>
-      <button class="nav-btn" data-view="actu" onclick="window.BZ.show(\'actu\');return false;">Actu</button>
-      <button class="nav-btn" data-view="blessures" onclick="window.BZ.show(\'blessures\');return false;">Blessures</button>
-      <button class="nav-btn" data-view="historique" onclick="window.BZ.show(\'historique\');return false;">Histo</button>
-      <button class="nav-btn" data-view="kombos" onclick="window.BZ.show(\'kombos\');return false;">Kombos</button>
-      <button class="nav-btn" data-view="forum" onclick="window.BZ.show(\'forum\');return false;">Forum</button>
+      <button class="nav-btn active" data-view="analyse" onclick="window.BZ.show('analyse');return false;">Analyse</button>
+      <button class="nav-btn" data-view="matchs" onclick="window.BZ.show('matchs');return false;">Matchs</button>
+      <button class="nav-btn" data-view="classement" onclick="window.BZ.show('classement');return false;">Classement</button>
+      <button class="nav-btn" data-view="leaders" onclick="window.BZ.show('leaders');return false;">Leaders</button>
+      <button class="nav-btn" data-view="equipes" onclick="window.BZ.show('equipes');return false;">Équipes</button>
+      <button class="nav-btn" data-view="props" onclick="window.BZ.show('props');return false;">Props</button>
+      <button class="nav-btn" data-view="actu" onclick="window.BZ.show('actu');return false;">Actu</button>
+      <button class="nav-btn" data-view="blessures" onclick="window.BZ.show('blessures');return false;">Blessures</button>
+      <button class="nav-btn" data-view="historique" onclick="window.BZ.show('historique');return false;">Histo</button>
+      <button class="nav-btn" data-view="kombos" onclick="window.BZ.show('kombos');return false;">Kombos</button>
+      <button class="nav-btn" data-view="forum" onclick="window.BZ.show('forum');return false;">Forum</button>
       </nav>
     <div class="topbar-right">
       <div class="status-pill" title="Statut API NHL"><i></i><span id="apiStatus">NHL</span></div>
@@ -737,8 +737,7 @@
   </div>
 
   <link rel="preload" href="/styles.css?v=20261002i" as="style">
-  <link rel="preload" href="/app.js?v=20261002g" as="script">
-<script>
+  <script>
   (function(){
     function tryForum(){
       if(window.RDB_FORUM){
@@ -816,12 +815,7 @@
   function loadApp(){
     if(loaded) return;
     loaded = true;
-    ['/config.js','/auth.js','/forum.js','/app.js'].forEach(function(src){
-      var s = document.createElement('script');
-      s.src = src + '?v=20261002i';
-      s.async = false;
-      document.body.appendChild(s);
-    });
+    /* app.js désactivé : il figeait la page au clic Analyser */
   }
   document.getElementById('analyzeBtn') && document.getElementById('analyzeBtn').addEventListener('click', function(){
     loadApp();
@@ -924,17 +918,17 @@
       </span>
     </a>
     <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
-      <button class="nav-btn active" data-view="analyse" onclick="window.BZ.show(\'analyse\');return false;">Analyse</button>
-      <button class="nav-btn" data-view="matchs" onclick="window.BZ.show(\'matchs\');return false;">Matchs</button>
-      <button class="nav-btn" data-view="classement" onclick="window.BZ.show(\'classement\');return false;">Classement</button>
-      <button class="nav-btn" data-view="leaders" onclick="window.BZ.show(\'leaders\');return false;">Leaders</button>
-      <button class="nav-btn" data-view="equipes" onclick="window.BZ.show(\'equipes\');return false;">Équipes</button>
-      <button class="nav-btn" data-view="props" onclick="window.BZ.show(\'props\');return false;">Props</button>
-      <button class="nav-btn" data-view="actu" onclick="window.BZ.show(\'actu\');return false;">Actu</button>
-      <button class="nav-btn" data-view="blessures" onclick="window.BZ.show(\'blessures\');return false;">Blessures</button>
-      <button class="nav-btn" data-view="historique" onclick="window.BZ.show(\'historique\');return false;">Histo</button>
-      <button class="nav-btn" data-view="kombos" onclick="window.BZ.show(\'kombos\');return false;">Kombos</button>
-      <button class="nav-btn" data-view="forum" onclick="window.BZ.show(\'forum\');return false;">Forum</button>
+      <button class="nav-btn active" data-view="analyse" onclick="window.BZ.show('analyse');return false;">Analyse</button>
+      <button class="nav-btn" data-view="matchs" onclick="window.BZ.show('matchs');return false;">Matchs</button>
+      <button class="nav-btn" data-view="classement" onclick="window.BZ.show('classement');return false;">Classement</button>
+      <button class="nav-btn" data-view="leaders" onclick="window.BZ.show('leaders');return false;">Leaders</button>
+      <button class="nav-btn" data-view="equipes" onclick="window.BZ.show('equipes');return false;">Équipes</button>
+      <button class="nav-btn" data-view="props" onclick="window.BZ.show('props');return false;">Props</button>
+      <button class="nav-btn" data-view="actu" onclick="window.BZ.show('actu');return false;">Actu</button>
+      <button class="nav-btn" data-view="blessures" onclick="window.BZ.show('blessures');return false;">Blessures</button>
+      <button class="nav-btn" data-view="historique" onclick="window.BZ.show('historique');return false;">Histo</button>
+      <button class="nav-btn" data-view="kombos" onclick="window.BZ.show('kombos');return false;">Kombos</button>
+      <button class="nav-btn" data-view="forum" onclick="window.BZ.show('forum');return false;">Forum</button>
       </nav>
     <div class="topbar-right">
       <div class="status-pill" title="Statut API NHL"><i></i><span id="apiStatus">NHL</span></div>
@@ -1565,8 +1559,7 @@
   </div>
 
   <link rel="preload" href="/styles.css?v=20261002i" as="style">
-  <link rel="preload" href="/app.js?v=20261002g" as="script">
-<script>
+  <script>
   (function(){
     function tryForum(){
       if(window.RDB_FORUM){
@@ -1644,12 +1637,7 @@
   function loadApp(){
     if(loaded) return;
     loaded = true;
-    ['/config.js','/auth.js','/forum.js','/app.js'].forEach(function(src){
-      var s = document.createElement('script');
-      s.src = src + '?v=20261002i';
-      s.async = false;
-      document.body.appendChild(s);
-    });
+    /* app.js retiré : il figeait la page */
   }
   document.getElementById('analyzeBtn') && document.getElementById('analyzeBtn').addEventListener('click', function(){
     loadApp();
