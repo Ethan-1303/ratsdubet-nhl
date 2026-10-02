@@ -1,6 +1,22 @@
 <!doctype html>
 <html lang="fr">
 <head>
+  <script>
+  /* Tue les anciens service workers qui bloquent le site (écran blanc / page figée) */
+  (function(){
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs){
+          regs.forEach(function(r){ r.unregister(); });
+        });
+      }
+      if (window.caches && caches.keys) {
+        caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k); }); });
+      }
+    } catch (e) {}
+  })();
+  </script>
+  
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>BETZONE — Outil d’analyse NHL pour parieurs</title>
@@ -8,11 +24,11 @@
   <meta name="theme-color" content="#02070d">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <link rel="icon" href="/icon-192.png" type="image/png">
-  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" href="/logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="/logo.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="BETZONE">
-  <link rel="stylesheet" href="/styles.css?v=20261001c">
+  <link rel="stylesheet" href="/styles.css?v=20261002c">
 
   <style id="site-critical">
     :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
@@ -37,11 +53,11 @@
     #view-forum .forum-form select,#view-forum .forum-form input,#view-forum .forum-form textarea{width:100%;box-sizing:border-box}
   </style>
 
-  <link rel="icon" href="/icon-192.png" type="image/png">
-  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" href="/logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="/logo.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="BETZONE">
-  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/logo.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="BETZONE by Ratsdubet">
   <meta property="og:title" content="BETZONE — Analyse NHL, props & kombos">
@@ -68,20 +84,6 @@
         <small>by Ratsdubet</small>
       </span>
     </a>
-    <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
-      <button class="nav-btn active" data-view="analyse">Analyse</button>
-      <button class="nav-btn" data-view="matchs">Matchs</button>
-      <button class="nav-btn" data-view="classement">Classement</button>
-      <button class="nav-btn" data-view="leaders">Leaders</button>
-      <button class="nav-btn" data-view="equipes">Équipes</button>
-      <button class="nav-btn" data-view="props">Props</button>
-      <button class="nav-btn" data-view="actu">Actu</button>
-      <button class="nav-btn" data-view="blessures">Blessures</button>
-      <button class="nav-btn" data-view="historique">Histo</button>
-      <button class="nav-btn" data-view="kombos">Kombos</button>
-      <button class="nav-btn" data-view="forum">Forum</button>
-      </nav>
-
     <div class="topbar-right">
       <div class="status-pill" title="Statut API NHL"><i></i><span id="apiStatus">NHL</span></div>
       <div class="social-links">
@@ -100,6 +102,21 @@
         </button>
       </div>
   </header>
+  <!-- mobile-nav-host -->
+  <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
+      <button class="nav-btn active" data-view="analyse">Analyse</button>
+      <button class="nav-btn" data-view="matchs">Matchs</button>
+      <button class="nav-btn" data-view="classement">Classement</button>
+      <button class="nav-btn" data-view="leaders">Leaders</button>
+      <button class="nav-btn" data-view="equipes">Équipes</button>
+      <button class="nav-btn" data-view="props">Props</button>
+      <button class="nav-btn" data-view="actu">Actu</button>
+      <button class="nav-btn" data-view="blessures">Blessures</button>
+      <button class="nav-btn" data-view="historique">Histo</button>
+      <button class="nav-btn" data-view="kombos">Kombos</button>
+      <button class="nav-btn" data-view="forum">Forum</button>
+      </nav>
+
 
   <div id="apiErrorToast" class="api-error-toast hidden" role="alert"></div>
   <main class="container">
@@ -129,13 +146,79 @@
       <section class="match-picker card">
         <div class="picker-team">
           <label>Domicile</label>
-          <select id="homeTeam"></select>
+          <select id="homeTeam">
+            <option value="ANA">ANA — Anaheim Ducks</option>
+            <option value="BOS">BOS — Boston Bruins</option>
+            <option value="BUF">BUF — Buffalo Sabres</option>
+            <option value="CAR">CAR — Carolina Hurricanes</option>
+            <option value="CBJ">CBJ — Columbus Blue Jackets</option>
+            <option value="CGY">CGY — Calgary Flames</option>
+            <option value="CHI">CHI — Chicago Blackhawks</option>
+            <option value="COL">COL — Colorado Avalanche</option>
+            <option value="DAL">DAL — Dallas Stars</option>
+            <option value="DET">DET — Detroit Red Wings</option>
+            <option value="EDM" selected>EDM — Edmonton Oilers</option>
+            <option value="FLA">FLA — Florida Panthers</option>
+            <option value="LAK">LAK — Los Angeles Kings</option>
+            <option value="MIN">MIN — Minnesota Wild</option>
+            <option value="MTL">MTL — Montréal Canadiens</option>
+            <option value="NJD">NJD — New Jersey Devils</option>
+            <option value="NSH">NSH — Nashville Predators</option>
+            <option value="NYI">NYI — New York Islanders</option>
+            <option value="NYR">NYR — New York Rangers</option>
+            <option value="OTT">OTT — Ottawa Senators</option>
+            <option value="PHI">PHI — Philadelphia Flyers</option>
+            <option value="PIT">PIT — Pittsburgh Penguins</option>
+            <option value="SEA">SEA — Seattle Kraken</option>
+            <option value="SJS">SJS — San Jose Sharks</option>
+            <option value="STL">STL — St. Louis Blues</option>
+            <option value="TBL">TBL — Tampa Bay Lightning</option>
+            <option value="TOR">TOR — Toronto Maple Leafs</option>
+            <option value="UTA">UTA — Utah Hockey Club</option>
+            <option value="VAN">VAN — Vancouver Canucks</option>
+            <option value="VGK">VGK — Vegas Golden Knights</option>
+            <option value="WPG">WPG — Winnipeg Jets</option>
+            <option value="WSH">WSH — Washington Capitals</option>
+          </select>
           <div id="homeMeta" class="team-mini">—</div>
         </div>
         <div class="versus">VS</div>
         <div class="picker-team">
           <label>Extérieur</label>
-          <select id="awayTeam"></select>
+          <select id="awayTeam">
+            <option value="ANA">ANA — Anaheim Ducks</option>
+            <option value="BOS">BOS — Boston Bruins</option>
+            <option value="BUF">BUF — Buffalo Sabres</option>
+            <option value="CAR">CAR — Carolina Hurricanes</option>
+            <option value="CBJ">CBJ — Columbus Blue Jackets</option>
+            <option value="CGY">CGY — Calgary Flames</option>
+            <option value="CHI" selected>CHI — Chicago Blackhawks</option>
+            <option value="COL">COL — Colorado Avalanche</option>
+            <option value="DAL">DAL — Dallas Stars</option>
+            <option value="DET">DET — Detroit Red Wings</option>
+            <option value="EDM">EDM — Edmonton Oilers</option>
+            <option value="FLA">FLA — Florida Panthers</option>
+            <option value="LAK">LAK — Los Angeles Kings</option>
+            <option value="MIN">MIN — Minnesota Wild</option>
+            <option value="MTL">MTL — Montréal Canadiens</option>
+            <option value="NJD">NJD — New Jersey Devils</option>
+            <option value="NSH">NSH — Nashville Predators</option>
+            <option value="NYI">NYI — New York Islanders</option>
+            <option value="NYR">NYR — New York Rangers</option>
+            <option value="OTT">OTT — Ottawa Senators</option>
+            <option value="PHI">PHI — Philadelphia Flyers</option>
+            <option value="PIT">PIT — Pittsburgh Penguins</option>
+            <option value="SEA">SEA — Seattle Kraken</option>
+            <option value="SJS">SJS — San Jose Sharks</option>
+            <option value="STL">STL — St. Louis Blues</option>
+            <option value="TBL">TBL — Tampa Bay Lightning</option>
+            <option value="TOR">TOR — Toronto Maple Leafs</option>
+            <option value="UTA">UTA — Utah Hockey Club</option>
+            <option value="VAN">VAN — Vancouver Canucks</option>
+            <option value="VGK">VGK — Vegas Golden Knights</option>
+            <option value="WPG">WPG — Winnipeg Jets</option>
+            <option value="WSH">WSH — Washington Capitals</option>
+          </select>
           <div id="awayMeta" class="team-mini">—</div>
         </div>
         <button id="analyzeBtn" class="primary-btn">ANALYSER LE MATCH <span>→</span></button>
@@ -643,37 +726,49 @@
     </div>
   </div>
 
-  <script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.getRegistrations().then(function(rs){
-      return Promise.all(rs.map(function(r){return r.unregister();}));
-    }).then(function(){ return caches.keys(); }).then(function(keys){
-      return Promise.all(keys.map(function(k){return caches.delete(k);}));
-    }).catch(function(){});
-  }
-  </script>
-  <script src="/config.js?v=20261001c" defer></script>
-  <script src="/auth.js?v=20261001c" defer></script>
-  <script src="/forum.js?v=20261001c" defer></script>
-  <script src="/app.js?v=20261001c" defer></script>
+  <link rel="preload" href="/styles.css?v=20261002c" as="style">
+  <link rel="preload" href="/app.js?v=20261002c" as="script">
+  <script src="/config.js?v=20261002c" defer></script>
+  <script src="/auth.js?v=20261002c" defer></script>
+  <script src="/forum.js?v=20261002c" defer></script>
+  <script src="/app.js?v=20261002c" defer></script>
 
   <script>
   (function(){
-    function forumVisible(){
-      var v=document.getElementById("view-forum");
-      return v && v.classList.contains("active");
-    }
     function tryForum(){
-      if(!window.RDB_FORUM || !forumVisible()) return false;
-      try{ window.RDB_FORUM.setup(); }catch(e){ console.warn(e); }
-      try{ window.RDB_FORUM.refresh(); }catch(e){ console.warn(e); }
-      return true;
+      if(window.RDB_FORUM){
+        try{ window.RDB_FORUM.setup(); }catch(e){ console.warn(e); }
+        try{ window.RDB_FORUM.refresh(); }catch(e){ console.warn(e); }
+        return true;
+      }
+      return false;
+    }
+    if(!tryForum()){
+      var n=0, t=setInterval(function(){
+        n++;
+        if(tryForum() || n>40) clearInterval(t);
+      }, 250);
     }
     document.addEventListener("click", function(ev){
       var b=ev.target.closest && ev.target.closest(".nav-btn[data-view=forum]");
-      if(b) setTimeout(tryForum, 60);
+      if(b) setTimeout(tryForum, 50);
     });
   })();
   </script>
+
+<script>
+(function(){
+  var teams=[["ANA","Anaheim Ducks"],["BOS","Boston Bruins"],["BUF","Buffalo Sabres"],["CAR","Carolina Hurricanes"],["CBJ","Columbus Blue Jackets"],["CGY","Calgary Flames"],["CHI","Chicago Blackhawks"],["COL","Colorado Avalanche"],["DAL","Dallas Stars"],["DET","Detroit Red Wings"],["EDM","Edmonton Oilers"],["FLA","Florida Panthers"],["LAK","Los Angeles Kings"],["MIN","Minnesota Wild"],["MTL","Montréal Canadiens"],["NJD","New Jersey Devils"],["NSH","Nashville Predators"],["NYI","New York Islanders"],["NYR","New York Rangers"],["OTT","Ottawa Senators"],["PHI","Philadelphia Flyers"],["PIT","Pittsburgh Penguins"],["SEA","Seattle Kraken"],["SJS","San Jose Sharks"],["STL","St. Louis Blues"],["TBL","Tampa Bay Lightning"],["TOR","Toronto Maple Leafs"],["UTA","Utah Hockey Club"],["VAN","Vancouver Canucks"],["VGK","Vegas Golden Knights"],["WPG","Winnipeg Jets"],["WSH","Washington Capitals"]];
+  function fill(id, sel){
+    var s=document.getElementById(id);
+    if(!s || s.options.length>1) return;
+    s.innerHTML=teams.map(function(t){return '<option value="'+t[0]+'"'+(t[0]===sel?' selected':'')+'>'+t[0]+' — '+t[1]+'</option>';}).join('');
+  }
+  function go(){ fill('homeTeam','EDM'); fill('awayTeam','CHI'); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', go);
+  else go();
+})();
+</script>
+
 </body>
 </html>
