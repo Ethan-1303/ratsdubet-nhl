@@ -862,5 +862,41 @@
 })();
 </script>
 
+
+<script>
+(function(){
+  function esc(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){return {"&":"&","<":"<",">":">"}[c];});}
+  function load(url){return fetch(url).then(function(r){return r.json();});}
+  var teams=[["ANA","Anaheim Ducks"],["BOS","Boston Bruins"],["BUF","Buffalo Sabres"],["CAR","Carolina Hurricanes"],["CBJ","Columbus Blue Jackets"],["CGY","Calgary Flames"],["CHI","Chicago Blackhawks"],["COL","Colorado Avalanche"],["DAL","Dallas Stars"],["DET","Detroit Red Wings"],["EDM","Edmonton Oilers"],["FLA","Florida Panthers"],["LAK","Los Angeles Kings"],["MIN","Minnesota Wild"],["MTL","Montréal Canadiens"],["NJD","New Jersey Devils"],["NSH","Nashville Predators"],["NYI","New York Islanders"],["NYR","New York Rangers"],["OTT","Ottawa Senators"],["PHI","Philadelphia Flyers"],["PIT","Pittsburgh Penguins"],["SEA","Seattle Kraken"],["SJS","San Jose Sharks"],["STL","St. Louis Blues"],["TBL","Tampa Bay Lightning"],["TOR","Toronto Maple Leafs"],["UTA","Utah Hockey Club"],["VAN","Vancouver Canucks"],["VGK","Vegas Golden Knights"],["WPG","Winnipeg Jets"],["WSH","Washington Capitals"]];
+  var tt=document.getElementById("teamTable");
+  if(tt) tt.innerHTML=teams.map(function(t){return '<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #1a3044"><b>'+t[0]+'</b><span>'+esc(t[1])+'</span></div>';}).join("");
+  load("/api?path="+encodeURIComponent("api-web.nhle.com/v1/skater-stats-leaders/current?categories=points&limit=20")).then(function(d){
+    var box=document.getElementById("leadersTable"); if(!box) return;
+    var rows=(d.points)||d.leaders||d.data||[];
+    if(!rows.length){ box.innerHTML='<p style="padding:12px;color:#8aa">Leaders indisponibles pour le moment.</p>'; return; }
+    box.innerHTML=rows.slice(0,20).map(function(r,i){
+      var name=(r.firstName&&r.firstName.default?r.firstName.default+" ":"")+(r.lastName&&r.lastName.default||r.lastName||"");
+      return '<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #1a3044"><span>'+(i+1)+'. '+esc(name)+'</span><b>'+(r.points||r.value||0)+' pts</b></div>';
+    }).join("");
+  }).catch(function(){});
+  load("/api?news=1").then(function(d){
+    var box=document.getElementById("newsFeed"); if(!box) return;
+    var arts=d.articles||[];
+    if(!arts.length){ box.innerHTML='<p style="padding:12px;color:#8aa">Aucune actu.</p>'; return; }
+    box.innerHTML=arts.slice(0,12).map(function(a){
+      return '<a href="'+esc(a.url||a.link||"#")+'" target="_blank" rel="noopener" style="display:block;padding:10px 4px;border-bottom:1px solid #1a3044;color:#e8f0f6;text-decoration:none"><b>'+esc(a.title)+'</b><div style="color:#8aa;font-size:12px">'+esc(a.source||"")+'</div></a>';
+    }).join("");
+  }).catch(function(){});
+  load("/api?injuries=1").then(function(d){
+    var box=document.getElementById("injuriesFeed"); if(!box) return;
+    var list=d.injuries||d.players||d.items||[];
+    if(!list.length){ box.innerHTML='<p style="padding:12px;color:#8aa">Aucune blessure remontée.</p>'; return; }
+    box.innerHTML=list.slice(0,30).map(function(x){
+      return '<div style="padding:8px 4px;border-bottom:1px solid #1a3044"><b>'+esc(x.name||x.player)+'</b> <span style="color:#8aa">'+esc(x.team||"")+' · '+esc(x.status||x.detail||"")+'</span></div>';
+    }).join("");
+  }).catch(function(){});
+})();
+</script>
+
 </body>
 </html>
