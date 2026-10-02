@@ -5,7 +5,842 @@
   /* Tue les anciens service workers qui bloquent le site (écran blanc / page figée) */
   (function(){
     try {
+      if ('serviceWorker' in navigator) {<!doctype html>
+<html lang="fr">
+<head>
+  <script>
+  /* Tue les anciens service workers qui bloquent le site (écran blanc / page figée) */
+  (function(){
+    try {
       if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs){
+          regs.forEach(function(r){ r.unregister(); });
+        });
+      }
+      if (window.caches && caches.keys) {
+        caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k); }); });
+      }
+    } catch (e) {}
+  })();
+  </script>
+  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>BETZONE — Outil d’analyse NHL pour parieurs</title>
+  <meta name="description" content="BETZONE by Ratsdubet — analyses NHL : xG, marchés, stats avancées, player props. Accès complet à vie.">
+  <meta name="theme-color" content="#02070d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="icon" href="/logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="BETZONE">
+  <link rel="stylesheet" href="/styles.css?v=20261002i">
+
+  <style id="site-critical">
+    :root{--bg:#02070d;--text:#f4f8fb;--muted:#8ea4b8;--green:#00e676;--line:#15334c}
+    html,body{margin:0;background:#02070d!important;color:#f4f8fb!important;font-family:Inter,system-ui,sans-serif;min-height:100vh}
+    a{color:#7ec8ff}
+    .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:10px 16px;background:#071018;border-bottom:1px solid #15334c;flex-wrap:wrap}
+    .brand{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none}
+    .brand b{color:#fff}.brand small{color:#8ea4b8}
+    .main-nav{display:flex;flex-wrap:wrap;gap:4px}
+    .nav-btn,.day-btn,.tab,.ghost-btn{background:#0a1824;border:1px solid #1a3a52;color:#c5d4e0;padding:8px 12px;border-radius:8px;cursor:pointer}
+    .nav-btn.active{background:rgba(0,230,118,.15);color:#fff;border-color:rgba(0,230,118,.4)}
+    .container{width:min(1280px,94vw);margin:0 auto;padding:28px 0 60px}
+    .card{background:#0a1b2b;border:1px solid #15334c;border-radius:14px;padding:16px;margin:12px 0}
+    .primary-btn{background:linear-gradient(135deg,#00e676,#00c853);color:#02140a;border:0;border-radius:10px;padding:12px 18px;font-weight:800;cursor:pointer}
+    .hero h1{font-size:clamp(28px,5vw,42px);margin:8px 0}
+    .hero h1 span{color:#00e676}
+    .muted,.eyebrow{color:#8ea4b8}
+    select,input,textarea{background:#020a12;color:#fff;border:1px solid #21425a;border-radius:9px;padding:10px}
+    .view{display:none}.view.active{display:block}
+    #view-forum .forum-form{display:flex;flex-direction:column;gap:6px;max-width:640px}
+    #view-forum .forum-form label{color:#8ea4b8;font-size:12px;margin-top:6px}
+    #view-forum .forum-form select,#view-forum .forum-form input,#view-forum .forum-form textarea{width:100%;box-sizing:border-box}
+  </style>
+
+  <link rel="icon" href="/logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="BETZONE">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BETZONE by Ratsdubet">
+  <meta property="og:title" content="BETZONE — Analyse NHL, props & kombos">
+  <meta property="og:description" content="Projections match, player props, kombos du jour et forum meute. Essai Premium 48h.">
+  <meta property="og:url" content="https://betzone-rdb.com/">
+  <meta property="og:image" content="https://betzone-rdb.com/logo.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="BETZONE — Analyse NHL">
+  <meta name="twitter:description" content="Projections, props, kombos & forum. Essai Premium 48h.">
+  <meta name="twitter:image" content="https://betzone-rdb.com/logo.png">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebApplication","name":"BETZONE","applicationCategory":"SportsApplication","operatingSystem":"Web","url":"https://betzone-rdb.com/","description":"Outil d'analyse NHL pour parieurs : projections, VALUE, props, kombos et forum.","offers":{"@type":"Offer","price":"20","priceCurrency":"EUR"}}
+  </script>
+<style id="click-fix">
+#mainNav{position:static !important;inset:auto !important;height:auto !important;pointer-events:auto !important}
+.modal.hidden,.analyze-sticky{display:none !important;pointer-events:none !important}
+</style>
+</head>
+<body class="app-shell">
+  <div class="bg-glow glow-a"></div>
+  <div class="bg-glow glow-b"></div>
+
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="BETZONE by Ratsdubet">
+      <span class="brand-logo" aria-hidden="true"><img src="/logo.png" alt="BETZONE" width="40" height="40"></span>
+      <span class="brand-text">
+        <b>BETZONE</b>
+        <small>by Ratsdubet</small>
+      </span>
+    </a>
+    <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
+      <button class="nav-btn active" data-view="analyse" onclick="window.BZ.show(\'analyse\');return false;">Analyse</button>
+      <button class="nav-btn" data-view="matchs" onclick="window.BZ.show(\'matchs\');return false;">Matchs</button>
+      <button class="nav-btn" data-view="classement" onclick="window.BZ.show(\'classement\');return false;">Classement</button>
+      <button class="nav-btn" data-view="leaders" onclick="window.BZ.show(\'leaders\');return false;">Leaders</button>
+      <button class="nav-btn" data-view="equipes" onclick="window.BZ.show(\'equipes\');return false;">Équipes</button>
+      <button class="nav-btn" data-view="props" onclick="window.BZ.show(\'props\');return false;">Props</button>
+      <button class="nav-btn" data-view="actu" onclick="window.BZ.show(\'actu\');return false;">Actu</button>
+      <button class="nav-btn" data-view="blessures" onclick="window.BZ.show(\'blessures\');return false;">Blessures</button>
+      <button class="nav-btn" data-view="historique" onclick="window.BZ.show(\'historique\');return false;">Histo</button>
+      <button class="nav-btn" data-view="kombos" onclick="window.BZ.show(\'kombos\');return false;">Kombos</button>
+      <button class="nav-btn" data-view="forum" onclick="window.BZ.show(\'forum\');return false;">Forum</button>
+      </nav>
+    <div class="topbar-right">
+      <div class="status-pill" title="Statut API NHL"><i></i><span id="apiStatus">NHL</span></div>
+      <div class="social-links">
+        <a class="icon-btn" href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener" title="Telegram" aria-label="Telegram">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18 1.897-.962 6.502-1.359 8.627-.168.9-.5 1.201-.82 1.23-.697.064-1.226-.461-1.901-.903-1.056-.693-1.653-1.124-2.678-1.8-1.185-.781-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.139-5.062 3.345-.479.329-.913.489-1.302.481-.428-.009-1.252-.242-1.865-.442-.752-.244-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635.099-.002.321.023.465.141.12.099.154.232.17.326.016.093.036.305.02.47z"/></svg>
+        </a>
+        <a class="icon-btn" href="https://x.com/RATSDUBET" target="_blank" rel="noopener" title="X" aria-label="X">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.924L1.254 2.25H8.08l4.259 5.632L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/></svg>
+        </a>
+      </div>
+      <button type="button" class="nav-btn nav-admin" id="navAdmin" data-view="admin" title="Dashboard admin">Admin</button>
+      <button type="button" class="nav-btn nav-premium" id="navPremium" data-view="premium">Premium</button>
+      <button type="button" class="auth-chip" id="authChip">Compte</button>
+    <button type="button" class="nav-menu-btn" id="navMenuBtn" aria-label="Menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+  </header>
+
+
+  <div id="apiErrorToast" class="api-error-toast hidden" role="alert"></div>
+  <main class="container">
+    <!-- ANALYSE -->
+    <section id="view-analyse" class="view active">
+      <div id="trialBanner" class="trial-banner hidden"></div>
+      <div id="kombosNotif" class="kombos-notif hidden" role="status"></div>
+
+      <div class="hero hero-pro hero-v2">
+        <div class="hero-main">
+          <div class="eyebrow">🏒 BETZONE · NHL</div>
+          <h1>Lis un match en <span>30 secondes</span></h1>
+          <p class="hero-lead">xG, forme, trajet, H2H, blessures et props — essai Premium <b>48 h</b> à l’inscription.</p>
+          <div class="hero-cta-row hidden" id="heroCtaRow">
+            <button type="button" class="primary-btn hero-cta-main hidden" id="heroAnalyzeBtn">Analyser un match →</button>
+            <button type="button" class="ghost-btn hidden" id="heroAccountBtn">Créer un compte</button>
+          </div>
+        </div>
+        <div class="hero-side">
+          <div class="hero-badge" id="planBadge">
+            <strong>FREE</strong>
+            <span>Essai 48h à l’inscription</span>
+          </div>
+        </div>
+      </div>
+
+      <section class="match-picker card">
+        <div class="picker-team">
+          <label>Domicile</label>
+          <select id="homeTeam">
+            <option value="ANA">ANA — Anaheim Ducks</option>
+            <option value="BOS">BOS — Boston Bruins</option>
+            <option value="BUF">BUF — Buffalo Sabres</option>
+            <option value="CAR">CAR — Carolina Hurricanes</option>
+            <option value="CBJ">CBJ — Columbus Blue Jackets</option>
+            <option value="CGY">CGY — Calgary Flames</option>
+            <option value="CHI">CHI — Chicago Blackhawks</option>
+            <option value="COL">COL — Colorado Avalanche</option>
+            <option value="DAL">DAL — Dallas Stars</option>
+            <option value="DET">DET — Detroit Red Wings</option>
+            <option value="EDM" selected>EDM — Edmonton Oilers</option>
+            <option value="FLA">FLA — Florida Panthers</option>
+            <option value="LAK">LAK — Los Angeles Kings</option>
+            <option value="MIN">MIN — Minnesota Wild</option>
+            <option value="MTL">MTL — Montréal Canadiens</option>
+            <option value="NJD">NJD — New Jersey Devils</option>
+            <option value="NSH">NSH — Nashville Predators</option>
+            <option value="NYI">NYI — New York Islanders</option>
+            <option value="NYR">NYR — New York Rangers</option>
+            <option value="OTT">OTT — Ottawa Senators</option>
+            <option value="PHI">PHI — Philadelphia Flyers</option>
+            <option value="PIT">PIT — Pittsburgh Penguins</option>
+            <option value="SEA">SEA — Seattle Kraken</option>
+            <option value="SJS">SJS — San Jose Sharks</option>
+            <option value="STL">STL — St. Louis Blues</option>
+            <option value="TBL">TBL — Tampa Bay Lightning</option>
+            <option value="TOR">TOR — Toronto Maple Leafs</option>
+            <option value="UTA">UTA — Utah Hockey Club</option>
+            <option value="VAN">VAN — Vancouver Canucks</option>
+            <option value="VGK">VGK — Vegas Golden Knights</option>
+            <option value="WPG">WPG — Winnipeg Jets</option>
+            <option value="WSH">WSH — Washington Capitals</option>
+          </select>
+          <div id="homeMeta" class="team-mini">—</div>
+        </div>
+        <div class="versus">VS</div>
+        <div class="picker-team">
+          <label>Extérieur</label>
+          <select id="awayTeam">
+            <option value="ANA">ANA — Anaheim Ducks</option>
+            <option value="BOS">BOS — Boston Bruins</option>
+            <option value="BUF">BUF — Buffalo Sabres</option>
+            <option value="CAR">CAR — Carolina Hurricanes</option>
+            <option value="CBJ">CBJ — Columbus Blue Jackets</option>
+            <option value="CGY">CGY — Calgary Flames</option>
+            <option value="CHI" selected>CHI — Chicago Blackhawks</option>
+            <option value="COL">COL — Colorado Avalanche</option>
+            <option value="DAL">DAL — Dallas Stars</option>
+            <option value="DET">DET — Detroit Red Wings</option>
+            <option value="EDM">EDM — Edmonton Oilers</option>
+            <option value="FLA">FLA — Florida Panthers</option>
+            <option value="LAK">LAK — Los Angeles Kings</option>
+            <option value="MIN">MIN — Minnesota Wild</option>
+            <option value="MTL">MTL — Montréal Canadiens</option>
+            <option value="NJD">NJD — New Jersey Devils</option>
+            <option value="NSH">NSH — Nashville Predators</option>
+            <option value="NYI">NYI — New York Islanders</option>
+            <option value="NYR">NYR — New York Rangers</option>
+            <option value="OTT">OTT — Ottawa Senators</option>
+            <option value="PHI">PHI — Philadelphia Flyers</option>
+            <option value="PIT">PIT — Pittsburgh Penguins</option>
+            <option value="SEA">SEA — Seattle Kraken</option>
+            <option value="SJS">SJS — San Jose Sharks</option>
+            <option value="STL">STL — St. Louis Blues</option>
+            <option value="TBL">TBL — Tampa Bay Lightning</option>
+            <option value="TOR">TOR — Toronto Maple Leafs</option>
+            <option value="UTA">UTA — Utah Hockey Club</option>
+            <option value="VAN">VAN — Vancouver Canucks</option>
+            <option value="VGK">VGK — Vegas Golden Knights</option>
+            <option value="WPG">WPG — Winnipeg Jets</option>
+            <option value="WSH">WSH — Washington Capitals</option>
+          </select>
+          <div id="awayMeta" class="team-mini">—</div>
+        </div>
+        <button id="analyzeBtn" class="primary-btn" onclick="window.BZ.go()">ANALYSER LE MATCH <span>→</span></button>
+      </section>
+
+      <div id="loading" class="loading card hidden">
+        <div class="spinner"></div>
+        <div><b>Analyse RDB en cours…</b><small>Forme, gardiens, tirs et player props</small></div>
+      </div>
+
+      <div id="emptyState" class="empty card">
+        <div class="empty-icon">🏒</div>
+        <h2>Sélectionne deux équipes</h2>
+        <p>Le moteur RDB construit une fiche complète et spécifique au match.</p>
+      </div>
+
+      <div id="analysis" class="hidden">
+        <section class="score-card card score-hero">
+          <div class="score-side home">
+            <div class="team-code" id="aHomeCode">—</div>
+            <div class="team-name" id="aHomeName">—</div>
+            <small>DOMICILE</small>
+          </div>
+          <div class="score-main">
+            <div class="score-block">
+              <span class="score-label">Score le plus probable</span>
+              <div class="score-probable" id="scoreProb">—</div>
+            </div>
+            <div class="xg-block">
+              <span class="score-label">xG projetés</span>
+              <div class="xg-line"><span id="xgHome">0.00</span><b>–</b><span id="xgAway">0.00</span></div>
+            </div>
+            <div class="confidence"><span>Confiance</span><b id="confidence">—</b><div><i id="confidenceBar"></i></div></div>
+          </div>
+          <div class="score-side away">
+            <div class="team-code" id="aAwayCode">—</div>
+            <div class="team-name" id="aAwayName">—</div>
+            <small>EXTÉRIEUR</small>
+          </div>
+        </section>
+
+        <section class="card decision-board" id="decisionBoard">
+          <div class="decision-head">
+            <span class="decision-eyebrow">Décision rapide</span>
+            <span class="decision-status" id="decisionStatus">—</span>
+          </div>
+          <div class="verdict-line" id="decisionVerdict"></div>
+          <div class="decision-grid" id="decisionGrid"></div>
+          <div class="decision-values" id="decisionValues"></div>
+          <p class="decision-note muted" id="decisionNote"></p>
+        </section>
+
+        <section class="card" id="compareBox">
+          <div class="section-title"><span>⚖️</span> Face à face</div>
+          <div id="compareTable" class="compare-wrap"><div class="empty-inline">Analyse requise</div></div>
+        </section>
+
+        <section class="summary-bar card" id="summaryBar">
+          <div class="summary-main">
+            <span class="summary-label">Lecture BETZONE</span>
+            <p id="analysisSummary">—</p>
+          </div>
+          <div class="summary-actions">
+            <button type="button" class="ghost-btn" id="shareAnalysisBtn" title="Partager">↗ Partager</button>
+            <button type="button" class="ghost-btn" id="copyAnalysisBtn" title="Copier">⧉ Copier</button>
+          </div>
+        </section>
+
+        <section class="kpis" id="kpis"></section>
+
+        <div id="premiumLock" class="premium-lock hidden">
+          <div class="lock-card card">
+            <div class="lock-icon">🔒</div>
+            <h3>Analyse complète réservée aux membres</h3>
+            <p>Marchés, stats avancées, gardiens, forme, player props et audit — <b>20 € à vie · essai 48h offert à l’inscription</b>.</p>
+            <div class="lock-actions">
+              <button type="button" class="primary-btn" id="unlockBtn">Débloquer à vie — 20 €</button>
+              <button type="button" class="ghost-btn" id="lockLoginBtn">Créer un compte</button>
+            </div>
+            <a class="lock-tg" href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">Des questions ? Telegram → t.me/RATS_DU_BET</a>
+          </div>
+        </div>
+
+        <div id="premiumBody">
+          <div class="grid-2">
+            <section class="card">
+              <div class="section-title"><span>📊</span> Marchés RDB <small class="value-legend">● VALUE = proba ≥ 65 %</small></div>
+              <div id="markets" class="market-grid"></div>
+            </section>
+            <section class="card">
+              <div class="section-title"><span>🧠</span> Lecture du modèle</div>
+              <div id="modelNotes" class="notes"></div>
+            </section>
+          </div>
+
+          <div class="grid-2">
+            <section class="card">
+              <div class="section-title"><span>🧤</span> Gardiens projetés</div>
+              <div id="goalies" class="goalie-grid"></div>
+            </section>
+            <section class="card">
+              <div class="section-title"><span>⚡</span> Forme & fatigue</div>
+              <div id="form" class="form-grid"></div>
+            </section>
+          </div>
+
+          <section class="card accordion-block" id="h2hBox">
+            <div class="empty-inline">H2H après analyse…</div>
+          </section>
+
+          <section class="card match-injuries-box accordion-block" id="matchInjuriesBox">
+            <div class="empty-inline">Lance une analyse pour voir les blessures du match.</div>
+          </section>
+
+          <section class="card accordion-block">
+            <div class="section-title"><span>📋</span> Compositions</div>
+            <div id="lineupsBox"><div class="empty-inline">Lance une analyse pour voir les compositions.</div></div>
+          </section>
+
+          <section class="card accordion-block">
+            <div class="section-title"><span>📈</span> Stats avancées (saison 2025-26)</div>
+            <div id="advancedStats" class="advanced-wrap"><div class="empty-inline">Analyse requise</div></div>
+          </section>
+
+          <section class="card accordion-block">
+            <div class="section-title"><span>🎯</span> Player Props — Top 3 du match</div>
+            <div class="tabs" id="propTabs">
+              <button class="tab active" data-prop="pg">Buts</button>
+              <button class="tab" data-prop="pa">Passes</button>
+              <button class="tab" data-prop="pp">Points</button>
+              <button class="tab" data-prop="ps">Tirs</button>
+            </div>
+            <div id="playerTables" class="players-grid"></div>
+          </section>
+
+          <section class="card audit accordion-block">
+            <div class="section-title"><span>🔎</span> Audit des données utilisées</div>
+            <div id="audit"></div>
+          </section>
+        </div>
+
+        <div class="disclaimer">Les probabilités et cotes justes sont des sorties de modèle à titre informatif. Elles ne constituent pas une garantie de résultat.</div>
+      </div>
+    </section>
+
+    
+    <!-- ACTU NHL -->
+    <section id="view-actu" class="view" data-seo-title="Actualité NHL — BETZONE" data-seo-desc="Dernières actualités NHL pour préparer vos tickets : blessures, transferts, résultats.">
+      <div class="page-title">
+        <div><div class="eyebrow">NHL · SEO</div><h2>Actualité NHL</h2></div>
+        <button id="refreshNews" class="ghost-btn">↻ Actualiser</button>
+      </div>
+      <div class="card">
+        <div id="newsFeed" class="news-feed"><div class="empty-inline">Chargement des actus…</div></div>
+      </div>
+    </section>
+
+    <!-- MATCHS -->
+    <section id="view-matchs" class="view">
+      <div class="page-title"><div><div class="eyebrow">NHL</div><h2>Matchs</h2></div><button id="refreshSchedule" class="ghost-btn">↻ Actualiser</button></div>
+      <div class="card">
+        <div class="schedule-controls">
+          <button class="day-btn active" data-days="0">Aujourd'hui</button>
+          <button class="day-btn" data-days="1">Demain</button>
+          <button class="day-btn" data-days="2">J+2</button>
+          <button class="day-btn" data-days="3">J+3</button>
+        </div>
+        <div id="schedule" class="schedule"></div>
+      </div>
+    </section>
+
+    <!-- EQUIPES -->
+    <section id="view-equipes" class="view">
+      <div class="page-title"><div><div class="eyebrow">32 ÉQUIPES</div><h2>Base RDB</h2></div><button id="refreshTeams" class="ghost-btn">↻ Actualiser</button></div>
+      <div class="card"><div id="teamTable" class="team-table"></div></div>
+    </section>
+
+    <!-- PROPS -->
+    <section id="view-props" class="view">
+      <div class="page-title"><div><div class="eyebrow">MATCH SPÉCIFIQUE</div><h2>Player Props</h2></div></div>
+      <div class="card">
+        <p class="muted">Sélectionne un match dans <b>Analyse</b>, puis retrouve ici tous les joueurs exploitables.</p>
+        <div id="allProps" class="props-table-wrap"><div class="empty-inline">Aucune analyse chargée.</div></div>
+      </div>
+    </section>
+
+    <!-- HISTORIQUE -->
+    <section id="view-historique" class="view">
+      <div class="page-title">
+        <div><div class="eyebrow">PREUVE MODÈLE</div><h2>Historique & hit rate</h2></div>
+        <button id="clearHistory" class="ghost-btn">Effacer l'historique</button>
+      </div>
+      <div class="card">
+        <div class="section-title"><span>📈</span> Hit rate du modèle (tes analyses)</div>
+        <div id="hitRateBox"><div class="empty-inline">Ouvre cet onglet après des matchs joués pour voir le % de réussite.</div></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <p class="muted">Conservé localement dans ton navigateur. Les ✓/✗ apparaissent quand le match est terminé.</p>
+        <div id="historyTable" class="props-table-wrap"><div class="empty-inline">Aucune analyse enregistrée.</div></div>
+      </div>
+    </section>
+
+    
+    <!-- CLASSEMENT EQUIPES -->
+    <section id="view-classement" class="view" data-seo-title="Classement NHL 2026-27 — BETZONE" data-seo-desc="Classement NHL par conférence et division, mis à jour automatiquement.">
+      <div class="page-title"><div><div class="eyebrow">NHL</div><h2>Classement des équipes</h2></div><button id="refreshStandings" class="ghost-btn">↻ Actualiser</button></div>
+      <div class="card"><p class="muted">Classement officiel NHL. En pré-saison, affiche la fin 2025-26 ; bascule automatiquement sur 2026-27 dès les premiers matchs de saison régulière.</p><div id="standingsTable" class="team-table"></div></div>
+    </section>
+
+    <!-- LEADERS JOUEURS -->
+    <section id="view-leaders" class="view">
+      <div class="page-title"><div><div class="eyebrow">NHL</div><h2>Classement des joueurs</h2></div><button id="refreshLeaders" class="ghost-btn">↻ Actualiser</button></div>
+      <div class="card">
+        <div class="schedule-controls">
+          <button class="day-btn leader-sort active" data-sort="points">Points</button>
+          <button class="day-btn leader-sort" data-sort="goals">Buts</button>
+          <button class="day-btn leader-sort" data-sort="assists">Passes</button>
+          <button class="day-btn leader-sort" data-sort="shots">Tirs</button>
+          <button class="day-btn leader-sort" data-sort="toi">TOI</button>
+        </div>
+        <p class="muted">Classement joueurs : saison <b>2026-27</b> dès qu'assez de matchs, sinon <b>2025-26</b>. TOI = temps de glace moyen. Rosters d'analyse = effectifs <b>current</b> (transferts 2026-27 inclus).</p>
+        <div id="leadersTable" class="props-table-wrap"></div>
+      </div>
+    </section>
+
+    
+    <!-- BLESSURES -->
+    <section id="view-blessures" class="view">
+      <div class="page-title">
+        <div><div class="eyebrow">NHL</div><h2>Blessures</h2></div>
+        <button id="refreshInjuries" class="ghost-btn">↻ Actualiser</button>
+      </div>
+      <div class="card">
+        <p class="muted">Rapport blessures (source ESPN). Utile avant d’analyser un match ou des player props. Données indicatives — toujours croiser avec les news officielles.</p>
+        <div class="schedule-controls" id="injuryFilters" style="margin-top:10px">
+          <button class="day-btn injury-filter active" data-filter="all">Toutes</button>
+          <button class="day-btn injury-filter" data-filter="Out">Out</button>
+          <button class="day-btn injury-filter" data-filter="Day-To-Day">Day-To-Day</button>
+          <button class="day-btn injury-filter" data-filter="IR">IR</button>
+        </div>
+        <div id="injuriesFeed" class="injuries-feed"><div class="empty-inline">Chargement…</div></div>
+      </div>
+    </section>
+
+    
+    <!-- FORUM -->
+    
+    <section id="view-kombos" class="view">
+      <div class="page-title">
+        <div>
+          <div class="eyebrow">SUGGESTIONS DU JOUR</div>
+          <h2>Kombos</h2>
+        </div>
+      </div>
+      <p class="muted" style="margin-bottom:14px">Chaque jour : <b>1 Safe</b> (~cote 2), <b>1 Kombo</b> points/passes (~cote 5), <b>1 Mortal</b> buteurs (~cote 10). <b>1 seul calcul partagé / jour</b> pour tous les membres — suggestions uniquement, pas de suivi ROI.</p>
+      <div id="kombosBox"><div class="empty-inline">Ouvre cet onglet pour générer les Kombos du jour.</div></div>
+    </section>
+
+    <section id="view-forum" class="view">
+      <div class="page-title">
+        <div>
+          <div class="eyebrow">LA MEUTE</div>
+          <h2>Forum</h2>
+        </div>
+        <button type="button" id="refreshForum" class="ghost-btn">↻ Actualiser</button>
+      </div>
+
+      <div class="forum-layout">
+        <div class="card forum-compose">
+          <div class="section-title"><span>✍️</span> Publier</div>
+          <p class="muted" style="margin-bottom:10px">Tickets du jour, résultats, discussions. <b>Compte requis</b> pour poster.</p>
+          <form id="forumForm" class="forum-form">
+            <label class="forum-label" for="forumType">Type</label>
+            <select id="forumType">
+              <option value="ticket">Ticket du jour</option>
+              <option value="win">Ticket gagnant</option>
+              <option value="loss">Ticket perdant</option>
+              <option value="discussion">Discussion</option>
+            </select>
+            <label class="forum-label" for="forumTitle">Titre</label>
+            <input id="forumTitle" type="text" maxlength="120" placeholder="Ex. Overs NHL · soirée" required>
+            <label class="forum-label" for="forumBody">Message</label>
+            <textarea id="forumBody" rows="4" maxlength="2000" placeholder="Détaille tes picks, cotes, bankroll…" required></textarea>
+            <label class="forum-label" for="forumImage">Image (optionnel, max 3 Mo)</label>
+            <input id="forumImage" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+            <div id="forumImagePreview" class="forum-image-preview"></div>
+            <p id="forumError" class="auth-error"></p>
+            <button type="submit" class="primary-btn full">Publier</button>
+          </form>
+        </div>
+
+        <div class="card forum-list-card">
+          <div class="schedule-controls" style="margin-bottom:12px">
+            <button type="button" class="day-btn forum-filter active" data-filter="all">Tous</button>
+            <button type="button" class="day-btn forum-filter" data-filter="ticket">Tickets</button>
+            <button type="button" class="day-btn forum-filter" data-filter="win">Gagnants</button>
+            <button type="button" class="day-btn forum-filter" data-filter="loss">Perdants</button>
+            <button type="button" class="day-btn forum-filter" data-filter="discussion">Discussions</button>
+            <button type="button" class="day-btn forum-filter" data-filter="mine">Mes posts</button>
+          </div>
+          <div id="forumSocial" class="forum-social muted"></div>
+          <div id="forumFeed"><div class="empty-inline">Ouverture du forum…</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREMIUM -->
+    <section id="view-premium" class="view">
+      <div class="page-title"><div><div class="eyebrow">ACCÈS COMPLET</div><h2>Premium à vie</h2></div></div>
+      <div class="pricing-grid">
+        <div class="price-card card">
+          <div class="price-tag">FREE</div>
+          <h3>Découverte</h3>
+          <div class="price-amount">0 €</div>
+          <ul class="price-list">
+            <li>1 analyse résumé / jour</li>
+            <li>xG + score probable</li>
+            <li>Calendrier & équipes</li>
+            <li class="off">Marchés & cotes justes</li>
+            <li class="off">Stats avancées</li>
+            <li class="off">Player props complets</li>
+          </ul>
+          <button type="button" class="ghost-btn" id="freeAccountBtn">Créer un compte gratuit</button>
+        </div>
+        <div class="price-card card featured">
+          <div class="price-tag hot">À VIE</div>
+          <h3>Meute Premium</h3>
+          <div class="price-amount">20 €<small>paiement unique</small></div>
+          <ul class="price-list">
+            <li>Analyses illimitées</li>
+            <li>Tous les marchés RDB + VALUE</li>
+            <li>SAT% · USAT% · PP/PK · PDO</li>
+            <li>Gardiens + forme (ronds V/D) + B2B</li>
+            <li>Player props + TOI + blessures</li>
+            <li>Hit rate du modèle (suivi)</li>
+            <li>Accès à vie</li>
+          </ul>
+          <div class="promo-box">
+            <label for="promoCode">Code parrainage (−5 €)</label>
+            <div class="promo-row">
+              <input type="text" id="promoCode" placeholder="Ex. MEUTE5" autocomplete="off" spellcheck="false">
+              <button type="button" class="ghost-btn" id="applyPromoHint">Info</button>
+            </div>
+            <small class="muted">Parrainage : le filleul paie <b>15 €</b> au lieu de 20 € avec un code valide sur Stripe.</small>
+          </div>
+          <button type="button" class="primary-btn" id="buyPremiumBtn">Payer — accès à vie</button>
+          <a class="price-tg" href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">Support Telegram</a>
+        </div>
+      </div>
+    </section>
+    <div class="analyze-sticky" id="analyzeSticky">
+    <button type="button" class="primary-btn" id="analyzeBtnSticky">ANALYSER LE MATCH →</button>
+  </div>
+</main>
+
+  
+    <section id="view-admin" class="view">
+      <div class="page-title">
+        <div><div class="eyebrow">CHEF DE MEUTE</div><h2>Dashboard admin</h2></div>
+        <button type="button" class="ghost-btn" id="adminRefresh">↻ Actualiser</button>
+      </div>
+      <div class="admin-kpis" id="adminKpis">
+        <div class="empty-inline">Chargement…</div>
+      </div>
+      <div class="card">
+        <div class="section-title"><span>👥</span> Derniers inscrits</div>
+        <div id="adminUsers"><div class="empty-inline">—</div></div>
+      </div>
+      <div class="card">
+        <div class="section-title"><span>💬</span> Derniers posts forum</div>
+        <div id="adminPosts"><div class="empty-inline">—</div></div>
+      </div>
+      <p class="muted">Visible uniquement pour le Chef de meute (email admin Supabase).</p>
+    </section>
+
+  <footer>
+    <span>BETZONE by Ratsdubet</span>
+    <a href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">Telegram</a>
+    <a href="https://x.com/RATSDUBET" target="_blank" rel="noopener">X</a>
+    <a href="/mentions-legales.html">Mentions légales</a>
+    <a href="/cgu.html">CGU</a>
+    <a href="/disclaimer.html">Avertissement jeux</a>
+    <span>Source : NHL.com · ESPN</span>
+    <span id="lastUpdate">—</span>
+  </footer>
+
+  <!-- Onboarding 3 étapes -->
+  <div id="onboardModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="onboard"></div>
+    <div class="modal-card card onboard-card">
+      <div class="onboard-steps" id="onboardSteps">
+        <i class="on"></i><i></i><i></i>
+      </div>
+      <div id="onboardBody"></div>
+      <div class="onboard-actions">
+        <button type="button" class="ghost-btn" id="onboardSkip">Passer</button>
+        <button type="button" class="primary-btn" id="onboardNext">Continuer →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal email confirmé -->
+  <div id="emailConfirmModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="emailConfirm"></div>
+    <div class="modal-card card email-confirm-card">
+      <button type="button" class="modal-x" data-close="emailConfirm">×</button>
+      <div class="email-confirm-icon">✅</div>
+      <h3>Email confirmé</h3>
+      <p id="emailConfirmText">Ton adresse est validée. Bienvenue dans la meute !</p>
+      <ul class="email-confirm-list">
+        <li>Essai <b>Premium 48 h</b> activé</li>
+        <li>Forum, analyses et kombos débloqués</li>
+      </ul>
+      <button type="button" class="primary-btn" id="emailConfirmOk">C’est parti →</button>
+    </div>
+  </div>
+
+  <!-- MODAL AUTH / MON COMPTE -->
+  <div id="authModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="auth"></div>
+    <div class="modal-card card">
+      <button type="button" class="modal-x" data-close="auth">×</button>
+
+      <!-- Panneau connecté -->
+      <div id="accountPanel" class="account-panel hidden">
+        <div class="account-head">
+          <span class="account-emoji" id="accEmoji">🐀</span>
+          <div>
+            <h3 id="accTitle">Mon compte</h3>
+            <p class="muted" id="accLevelName">Nouveau Rat</p>
+          </div>
+        </div>
+        <div class="account-rows">
+          <div class="account-row account-row-edit">
+            <span>Pseudo</span>
+            <div class="acc-name-edit">
+              <input type="text" id="accNameInput" maxlength="24" placeholder="Ton pseudo" />
+              <button type="button" class="ghost-btn" id="accSaveName">OK</button>
+            </div>
+          </div>
+          <div class="account-row"><span>Email</span><b id="accEmail">—</b></div>
+          <div class="account-row"><span>Niveau</span><b id="accLevel">—</b></div>
+          <div class="account-row"><span>Plan</span><b id="accPlan">—</b></div>
+          <div class="account-row"><span>Posts forum</span><b id="accPosts">0</b></div>
+          <div class="account-row"><span>Tickets</span><b id="accTickets">0</b></div>
+        </div>
+        <p class="account-hint muted" id="accNext">Continue à poster pour monter de niveau.</p>
+        <div class="account-actions">
+          <button type="button" class="primary-btn hidden" id="accAdminBtn">Dashboard admin</button>
+          <button type="button" class="primary-btn" id="accPremiumBtn">Passer Premium</button>
+          <button type="button" class="ghost-btn full" id="accChangePassBtn">Changer le mot de passe</button>
+          <button type="button" class="ghost-btn full" id="authLogout">Se déconnecter</button>
+        </div>
+      </div>
+
+      <!-- Panneau connexion / inscription -->
+      <div id="authLoginPanel">
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" data-auth="login">Connexion</button>
+          <button type="button" class="auth-tab" data-auth="register">Créer un compte</button>
+        </div>
+        <form id="authForm" class="auth-form">
+          <div id="authNameWrap" class="hidden">
+            <label>Pseudo</label>
+            <input type="text" id="authName" placeholder="La Meute" autocomplete="nickname">
+          </div>
+          <label>Email</label>
+          <input type="email" id="authEmail" required placeholder="toi@email.com" autocomplete="email">
+          <label>Mot de passe</label>
+          <input type="password" id="authPassword" required minlength="6" placeholder="6 caractères minimum" autocomplete="current-password">
+          <button type="button" class="link-btn" id="forgotPasswordBtn">Mot de passe oublié ?</button>
+          <p id="authError" class="auth-error hidden"></p>
+          <button type="submit" class="primary-btn" id="authSubmit">Se connecter</button>
+        </form>
+        <p class="auth-hint"><b>Important :</b> après inscription, <b>valide ton email</b> (lien Supabase dans ta boîte + spams). Sans validation, la connexion et l’essai 48 h restent bloqués.</p>
+      </div>
+
+      <!-- Mot de passe oublié -->
+      <div id="authForgotPanel" class="hidden">
+        <h3 class="auth-panel-title">Mot de passe oublié</h3>
+        <p class="muted" style="font-size:13px;margin:0 0 12px">Indique l’email de ton compte. Tu recevras un lien pour en choisir un nouveau.</p>
+        <div class="auth-form">
+          <label>Email</label>
+          <input type="email" id="forgotEmail" placeholder="toi@email.com" autocomplete="email">
+          <p id="forgotError" class="auth-error hidden"></p>
+          <p id="forgotOk" class="auth-ok hidden"></p>
+          <button type="button" class="primary-btn" id="forgotSubmit">Envoyer le lien</button>
+          <button type="button" class="ghost-btn full" id="forgotBack">← Retour</button>
+        </div>
+      </div>
+
+      <!-- Nouveau mot de passe (après clic lien email) -->
+      <div id="authNewPassPanel" class="hidden">
+        <h3 class="auth-panel-title">Nouveau mot de passe</h3>
+        <p class="muted" style="font-size:13px;margin:0 0 12px">Choisis un nouveau mot de passe (6 caractères min.).</p>
+        <div class="auth-form">
+          <label>Nouveau mot de passe</label>
+          <input type="password" id="newPassword" minlength="6" placeholder="6 caractères minimum" autocomplete="new-password">
+          <label>Confirmer</label>
+          <input type="password" id="newPassword2" minlength="6" placeholder="Répète le mot de passe" autocomplete="new-password">
+          <p id="newPassError" class="auth-error hidden"></p>
+          <button type="button" class="primary-btn" id="newPassSubmit">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <link rel="preload" href="/styles.css?v=20261002i" as="style">
+  <link rel="preload" href="/app.js?v=20261002g" as="script">
+<script>
+  (function(){
+    function tryForum(){
+      if(window.RDB_FORUM){
+        try{ window.RDB_FORUM.setup(); }catch(e){ console.warn(e); }
+        try{ window.RDB_FORUM.refresh(); }catch(e){ console.warn(e); }
+        return true;
+      }
+      return false;
+    }
+    if(!tryForum()){
+      var n=0, t=setInterval(function(){
+        n++;
+        if(tryForum() || n>40) clearInterval(t);
+      }, 250);
+    }
+    document.addEventListener("click", function(ev){
+      var b=ev.target.closest && ev.target.closest(".nav-btn[data-view=forum]");
+      if(b) setTimeout(tryForum, 50);
+    });
+  })();
+  </script>
+
+<script>
+(function(){
+  var teams=[["ANA","Anaheim Ducks"],["BOS","Boston Bruins"],["BUF","Buffalo Sabres"],["CAR","Carolina Hurricanes"],["CBJ","Columbus Blue Jackets"],["CGY","Calgary Flames"],["CHI","Chicago Blackhawks"],["COL","Colorado Avalanche"],["DAL","Dallas Stars"],["DET","Detroit Red Wings"],["EDM","Edmonton Oilers"],["FLA","Florida Panthers"],["LAK","Los Angeles Kings"],["MIN","Minnesota Wild"],["MTL","Montréal Canadiens"],["NJD","New Jersey Devils"],["NSH","Nashville Predators"],["NYI","New York Islanders"],["NYR","New York Rangers"],["OTT","Ottawa Senators"],["PHI","Philadelphia Flyers"],["PIT","Pittsburgh Penguins"],["SEA","Seattle Kraken"],["SJS","San Jose Sharks"],["STL","St. Louis Blues"],["TBL","Tampa Bay Lightning"],["TOR","Toronto Maple Leafs"],["UTA","Utah Hockey Club"],["VAN","Vancouver Canucks"],["VGK","Vegas Golden Knights"],["WPG","Winnipeg Jets"],["WSH","Washington Capitals"]];
+  function fill(id, sel){
+    var s=document.getElementById(id);
+    if(!s || s.options.length>1) return;
+    s.innerHTML=teams.map(function(t){return '<option value="'+t[0]+'"'+(t[0]===sel?' selected':'')+'>'+t[0]+' — '+t[1]+'</option>';}).join('');
+  }
+  function go(){ fill('homeTeam','EDM'); fill('awayTeam','CHI'); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', go);
+  else go();
+})();
+</script>
+
+
+<script>
+(function(){
+  try {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs){
+        regs.forEach(function(r){ r.unregister(); });
+      });
+    }
+  } catch(e) {}
+  function show(view){
+    document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.view===view); });
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id==='view-'+view); });
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.nav-btn[data-view]');
+    if(!b) return;
+    show(b.dataset.view);
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  function show(view){
+    document.querySelectorAll('.nav-btn').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-view')===view);
+    });
+    document.querySelectorAll('.view').forEach(function(v){
+      v.classList.toggle('active', v.id==='view-'+view);
+    });
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-view]');
+    if(b && b.getAttribute('data-view')) show(b.getAttribute('data-view'));
+  });
+  var loaded = false;
+  function loadApp(){
+    if(loaded) return;
+    loaded = true;
+    ['/config.js','/auth.js','/forum.js','/app.js'].forEach(function(src){
+      var s = document.createElement('script');
+      s.src = src + '?v=20261002i';
+      s.async = false;
+      document.body.appendChild(s);
+    });
+  }
+  document.getElementById('analyzeBtn') && document.getElementById('analyzeBtn').addEventListener('click', function(){
+    loadApp();
+  });
+  // charge le moteur après l'affichage, sans bloquer les clics du menu
+  
+})();
+</script>
+
+
+<style id="click-fix-final">
+  .modal, #authModal, #onboardModal, .analyze-sticky, .bg-glow, .modal-backdrop { display:none !important; pointer-events:none !important; }
+  #mainNav { position:static !important; inset:auto !important; width:auto !important; height:auto !important; bottom:auto !important; z-index:3 !important; display:flex !important; pointer-events:auto !important; background:transparent !important; }
+  button, a, select, .nav-btn, .primary-btn { pointer-events:auto !important; position:relative; z-index:5; }
+</style>
+
+</body>
+</html>
+
         navigator.serviceWorker.getRegistrations().then(function(regs){
           regs.forEach(function(r){ r.unregister(); });
         });
