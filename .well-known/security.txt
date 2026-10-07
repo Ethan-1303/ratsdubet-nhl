@@ -1,3 +1,0 @@
-Contact: mailto:djovins@hotmail.fr
-Preferred-Languages: fr, en
-Canonical: https://betzone-rdb.com/.well-known/security.txt
