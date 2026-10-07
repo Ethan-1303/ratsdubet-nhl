@@ -1,0 +1,2962 @@
+const TEAMS = {
+ANA:["Anaheim Ducks","Ouest","Pacifique"],BOS:["Boston Bruins","Est","Atlantique"],BUF:["Buffalo Sabres","Est","Atlantique"],
+CAR:["Carolina Hurricanes","Est","Métropolitaine"],CBJ:["Columbus Blue Jackets","Est","Métropolitaine"],CGY:["Calgary Flames","Ouest","Pacifique"],
+CHI:["Chicago Blackhawks","Ouest","Central"],COL:["Colorado Avalanche","Ouest","Central"],DAL:["Dallas Stars","Ouest","Central"],
+DET:["Detroit Red Wings","Est","Atlantique"],EDM:["Edmonton Oilers","Ouest","Pacifique"],FLA:["Florida Panthers","Est","Atlantique"],
+LAK:["Los Angeles Kings","Ouest","Pacifique"],MIN:["Minnesota Wild","Ouest","Central"],MTL:["Montréal Canadiens","Est","Atlantique"],
+NJD:["New Jersey Devils","Est","Métropolitaine"],NSH:["Nashville Predators","Ouest","Central"],NYI:["New York Islanders","Est","Métropolitaine"],
+NYR:["New York Rangers","Est","Métropolitaine"],OTT:["Ottawa Senators","Est","Atlantique"],PHI:["Philadelphia Flyers","Est","Métropolitaine"],
+PIT:["Pittsburgh Penguins","Est","Métropolitaine"],SJS:["San Jose Sharks","Ouest","Pacifique"],SEA:["Seattle Kraken","Ouest","Pacifique"],
+STL:["St. Louis Blues","Ouest","Central"],TBL:["Tampa Bay Lightning","Est","Atlantique"],TOR:["Toronto Maple Leafs","Est","Atlantique"],
+UTA:["Utah Mammoth","Ouest","Central"],VAN:["Vancouver Canucks","Ouest","Pacifique"],VGK:["Vegas Golden Knights","Ouest","Pacifique"],
+WPG:["Winnipeg Jets","Ouest","Central"],WSH:["Washington Capitals","Est","Métropolitaine"]
+};
+const BASE="20252026", CURRENT="20262027";
+
+const logoURL = (code, dark=false) => `https://assets.nhle.com/logos/nhl/svg/${code}_${dark?'dark':'light'}.svg`;
+const logoHTML = (code, cls='team-logo') => code ? `<img class="${cls}" src="${logoURL(code)}" alt="${code}" width="28" height="28" loading="lazy" onerror="this.style.display='none'">` : '';
+const toiFmt = (sec) => {
+  const val = Math.round(n(sec));
+  if(!val) return "—";
+  const totalSec = val > 40 ? val : Math.round(val*60);
+  const m = Math.floor(totalSec/60), r = totalSec%60;
+  return `${m}:${String(r).padStart(2,'0')}`;
+};
+const toiMinutes = (sec) => {
+  const val = n(sec);
+  if(!val) return 0;
+  return val > 40 ? val/60 : val;
+};
+
+const $=id=>document.getElementById(id);
+function skeleton(n=3){
+  return `<div class="skeleton-stack">${Array.from({length:n},()=>`<div class="skeleton-card"><div class="sk-line w40"></div><div class="sk-line"></div><div class="sk-line w70"></div></div>`).join("")}</div>`;
+}
+function showApiError(msg){
+  const el=$("apiErrorToast"); if(!el) return;
+  el.classList.remove("hidden");
+  el.innerHTML=`<div><b>NHL temporairement indisponible</b><span>${msg||"Réessaie dans quelques instants."}</span></div><button type="button" class="ghost-btn" id="apiErrorClose">Fermer</button>`;
+  $("apiErrorClose")&&($("apiErrorClose").onclick=()=>el.classList.add("hidden"));
+  clearTimeout(showApiError._t);
+  showApiError._t=setTimeout(()=>el.classList.add("hidden"),8000);
+}
+function checkKombosNotif(){
+  const el=$("kombosNotif"); if(!el) return;
+  const day=new Date().toISOString().slice(0,10);
+  const key="rdb_kombos_notif_"+day;
+  if(localStorage.getItem(key)){ el.classList.add("hidden"); return; }
+  // show if daily payload exists
+  fetch("/kombos-daily").then(r=>r.ok?r.json():null).then(j=>{
+    if(!j||!j.ok||!j.payload) return;
+    el.classList.remove("hidden");
+    el.innerHTML=`<div><b>Kombos du jour prêts</b> · Safe · Kombo · Mortal disponibles</div>
+      <button type="button" class="ghost-btn" id="kombosNotifGo">Voir</button>
+      <button type="button" class="ghost-btn" id="kombosNotifDismiss">✕</button>`;
+    $("kombosNotifGo")&&($("kombosNotifGo").onclick=()=>{
+      localStorage.setItem(key,"1");
+      el.classList.add("hidden");
+      document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+      document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+      const b=[...document.querySelectorAll(".nav-btn")].find(x=>x.dataset.view==="kombos");
+      if(b){b.classList.add("active");$("view-kombos")?.classList.add("active");loadKombos();syncAnalyzeSticky?.()}
+    });
+    $("kombosNotifDismiss")&&($("kombosNotifDismiss").onclick=()=>{localStorage.setItem(key,"1");el.classList.add("hidden")});
+  }).catch(()=>{});
+}
+
+const cache=new Map();
+const n=v=>Number.isFinite(Number(v))?Number(v):0;
+const avg=a=>a.length?a.reduce((s,x)=>s+n(x),0)/a.length:0;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const pct=x=>(n(x)*100).toFixed(1)+"%";
+const fmt=x=>n(x).toFixed(2);
+const fair=p=>p>0?(1/p).toFixed(2):"99.00";
+const pname=x=>typeof x==="object"?(x?.default||x?.name||""):String(x||"");
+const norm=s=>pname(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+const api=async(path,params={})=>{
+  const u=new URL("/api",location.origin); u.searchParams.set("path",path);
+  Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));
+  const key=u.toString(); if(cache.has(key))return cache.get(key);
+  const r=await fetch(u); if(!r.ok)throw new Error(await r.text());
+  const j=await r.json(); cache.set(key,j); return j;
+};
+const poisson=(l,k)=>{if(l<=0)return k===0?1:0;let f=1;for(let i=2;i<=k;i++)f*=i;return Math.exp(-l)*Math.pow(l,k)/f};
+const cdf=(l,k)=>{let s=0;for(let i=0;i<=k;i++)s+=poisson(l,i);return clamp(s,0,1)};
+const over=(l,line)=>clamp(1-cdf(l,Math.floor(line)),0,1);
+
+function populateTeams(){
+  for(const id of ["homeTeam","awayTeam"]){
+    const s=$(id); s.innerHTML=Object.keys(TEAMS).sort().map(c=>`<option value="${c}">${c} — ${TEAMS[c][0]}</option>`).join("");
+  }
+  $("homeTeam").value="EDM"; $("awayTeam").value="CHI"; updateTeamMeta();
+}
+function updateTeamMeta(){
+  for(const [id,meta] of [["homeTeam","homeMeta"],["awayTeam","awayMeta"]]){
+    const c=$(id).value;
+    $(meta).innerHTML=`${logoHTML(c,'team-logo-sm')} <span>${TEAMS[c][1]} • ${TEAMS[c][2]}</span>`;
+  }
+}
+async function teamReport(report){
+  const expr=`seasonId=${BASE} and gameTypeId=2`;
+  const j=await api(`stats/rest/en/team/${report}`,{isAggregate:"false",isGame:"false",start:0,limit:-1,cayenneExp:expr});
+  return j.data||[];
+}
+function teamCodeRow(r){
+  const c=String(r.teamAbbrev||r.teamAbbreviation||r.teamCode||r.triCode||"").toUpperCase();
+  if(TEAMS[c])return c;
+  const name=String(r.teamFullName||r.teamName||"").toLowerCase();
+  return Object.keys(TEAMS).find(k=>TEAMS[k][0].toLowerCase()===name)||"";
+}
+function field(r,names){for(const x of names){if(r[x]!==undefined&&r[x]!==null&&r[x]!=="")return n(r[x])}return NaN}
+function rate(r,per,total,gp){const p=field(r,per);if(Number.isFinite(p)&&p>0)return p;const t=field(r,total);return Number.isFinite(t)&&gp>0?t/gp:0}
+function mergeByTeam(rows){
+  const out={};
+  for(const r of rows){
+    const c=teamCodeRow(r); if(!c)continue;
+    out[c]=Object.assign(out[c]||{},r);
+  }
+  return out;
+}
+function parseTeamRows(summary,pcts,rt,pp,pk){
+  const out={};
+  const byS=mergeByTeam(summary),byP=mergeByTeam(pcts),byR=mergeByTeam(rt),byPP=mergeByTeam(pp),byPK=mergeByTeam(pk);
+  for(const c of Object.keys(TEAMS)){
+    const r=byS[c]; if(!r)continue;
+    const p=byP[c]||{},rt0=byR[c]||{},pp0=byPP[c]||{},pk0=byPK[c]||{};
+    const gp=field(r,["gamesPlayed","gp","games"]);
+    const gf=rate(r,["goalsForPerGame"],["goalsFor","gf"],gp);
+    const ga=rate(r,["goalsAgainstPerGame"],["goalsAgainst","ga"],gp);
+    const shots=rate(r,["shotsForPerGame","sogForPerGame"],["shotsFor","shots","sogFor"],gp);
+    const sa=rate(r,["shotsAgainstPerGame","sogAgainstPerGame"],["shotsAgainst","sogAgainst"],gp);
+    if(!(gp>0&&gf>0&&ga>0&&shots>0&&sa>0))continue;
+    const sat=field(p,["satPct"])||field(rt0,["satPct"]);
+    const usat=field(p,["usatPct"]);
+    const ppPct=field(r,["powerPlayPct"])||field(pp0,["powerPlayPct"]);
+    const pkPct=field(r,["penaltyKillPct"])||field(pk0,["penaltyKillPct"]);
+    const fo=field(r,["faceoffWinPct"]);
+    const sh5=field(p,["shootingPct5v5"]);
+    const sv5=field(p,["savePct5v5"]);
+    const pdo=field(p,["shootingPlusSavePct5v5"]);
+    const zs=field(p,["zoneStartPct5v5"]);
+    const gfPct=field(p,["goalsForPct"]);
+    const hits=field(rt0,["hitsPer60"]);
+    const blocks=field(rt0,["blockedShotsPer60"]);
+    const take=field(rt0,["takeawaysPer60"]);
+    const give=field(rt0,["giveawaysPer60"]);
+    out[c]={
+      team:c,gp,gf,ga,shots,shotsAgainst:sa,
+      sat:Number.isFinite(sat)?sat:.5,usat:Number.isFinite(usat)?usat:.5,
+      pp:Number.isFinite(ppPct)?ppPct:.2,pk:Number.isFinite(pkPct)?pkPct:.8,
+      fo:Number.isFinite(fo)?fo:.5,sh5:Number.isFinite(sh5)?sh5:.09,sv5:Number.isFinite(sv5)?sv5:.91,
+      pdo:Number.isFinite(pdo)?pdo:1,zs:Number.isFinite(zs)?zs:.5,gfPct:Number.isFinite(gfPct)?gfPct:.5,
+      hits:Number.isFinite(hits)?hits:15,blocks:Number.isFinite(blocks)?blocks:14,
+      takeaways:Number.isFinite(take)?take:5,giveaways:Number.isFinite(give)?give:10,
+      source:"NHL Stats 2025-26 + adv"
+    };
+  }
+  return out;
+}
+let TEAMS_CACHE=null, TEAMS_CACHE_TS=0;
+const TEAMS_TTL=5*60*1000; // 5 min
+async function getTeams(force=false){
+  if(!force&&TEAMS_CACHE&&Date.now()-TEAMS_CACHE_TS<TEAMS_TTL)return TEAMS_CACHE;
+  const [summary,pcts,rt,pp,pk]=await Promise.all([
+    teamReport("summary"),teamReport("percentages"),teamReport("realtime"),
+    teamReport("powerplay"),teamReport("penaltykill")
+  ]);
+  TEAMS_CACHE=parseTeamRows(summary,pcts,rt,pp,pk);
+  TEAMS_CACHE_TS=Date.now();
+  return TEAMS_CACHE;
+}
+function leagueFrom(t){
+  const vals=Object.values(t||{});
+  if(vals.length<28)return {valid:false,teams:vals.length};
+  return {
+    valid:true,teams:vals.length,
+    gf:avg(vals.map(x=>x.gf)),ga:avg(vals.map(x=>x.ga)),
+    shots:avg(vals.map(x=>x.shots)),shotsAgainst:avg(vals.map(x=>x.shotsAgainst)),
+    sat:avg(vals.map(x=>x.sat)),usat:avg(vals.map(x=>x.usat)),
+    pp:avg(vals.map(x=>x.pp)),pk:avg(vals.map(x=>x.pk)),
+    fo:avg(vals.map(x=>x.fo)),sh5:avg(vals.map(x=>x.sh5)),sv5:avg(vals.map(x=>x.sv5)),
+    pdo:avg(vals.map(x=>x.pdo)),zs:avg(vals.map(x=>x.zs))
+  };
+}
+async function league(){return leagueFrom(await getTeams());}
+async function getForm(team){
+  // Fusionne saison courante + 2025-26 pour toujours viser 5 matchs (début de saison)
+  const seen=new Set();
+  const candidates=[];
+  for(const season of [CURRENT,BASE]){
+    try{
+      const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/${season}`);
+      let games=(j.games||[]).filter(g=>g.gameType===2&&g.startTimeUTC&&new Date(g.startTimeUTC)<new Date());
+      for(const g of games){
+        if(seen.has(g.id)) continue;
+        seen.add(g.id);
+        candidates.push(g);
+      }
+    }catch(e){}
+  }
+  candidates.sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
+  const out=[];
+  for(const g of candidates.slice(0,5)){
+    try{
+      const x=await api(`api-web.nhle.com/v1/gamecenter/${g.id}/landing`);
+      const h=x.homeTeam||{},a=x.awayTeam||{};
+      const home=(h.abbrev||g.homeTeam?.abbrev)===team;
+      const t=home?h:a, o=home?a:h;
+      const opp=(o.abbrev||(home?g.awayTeam?.abbrev:g.homeTeam?.abbrev)||"?").toUpperCase();
+      const gf=n(t.score), ga=n(o.score);
+      out.push({
+        win:gf>ga, gf, ga,
+        shots:n(t.sog), shotsAgainst:n(o.sog),
+        date:g.startTimeUTC,
+        opp, home,
+        label: home ? `vs ${opp}` : `@ ${opp}`
+      });
+    }catch(_){}
+  }
+  return out;
+}
+
+/* Temps de trajet approximatif (villes arenas NHL) */
+const TEAM_CITY = {
+ANA:[33.81,-117.88],BOS:[42.37,-71.06],BUF:[42.88,-78.87],CAR:[35.80,-78.72],CBJ:[39.97,-83.01],
+CGY:[51.04,-114.05],CHI:[41.88,-87.67],COL:[39.75,-105.01],DAL:[32.79,-96.81],DET:[42.34,-83.06],
+EDM:[53.55,-113.50],FLA:[26.16,-80.33],LAK:[34.04,-118.27],MIN:[44.94,-93.10],MTL:[45.50,-73.57],
+NJD:[40.73,-74.15],NSH:[36.16,-86.78],NYI:[40.72,-73.73],NYR:[40.75,-73.99],OTT:[45.30,-75.93],
+PHI:[39.90,-75.17],PIT:[40.44,-80.00],SJS:[37.33,-121.90],SEA:[47.62,-122.35],STL:[38.63,-90.20],
+TBL:[27.94,-82.45],TOR:[43.64,-79.38],UTA:[40.77,-111.90],VAN:[49.28,-123.11],VGK:[36.10,-115.18],
+WPG:[49.89,-97.14],WSH:[38.90,-77.02]
+};
+function haversineKm(a,b){
+  if(!a||!b) return null;
+  const R=6371, toR=x=>x*Math.PI/180;
+  const dLat=toR(b[0]-a[0]), dLon=toR(b[1]-a[1]);
+  const lat1=toR(a[0]), lat2=toR(b[0]);
+  const h=Math.sin(dLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function travelHoursBetween(fromTeam, toTeam){
+  const km=haversineKm(TEAM_CITY[fromTeam], TEAM_CITY[toTeam]);
+  if(km==null) return null;
+  if(km<80) return 0.5;
+  return Math.round((km/800 + 1.5)*10)/10;
+}
+async function getTravelContext(team, venueTeam){
+  try{
+    let games=[];
+    for(const season of [CURRENT, BASE]){
+      const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/${season}`);
+      games=(j.games||[]).filter(g=>g.gameType===2&&g.startTimeUTC).sort((a,b)=>new Date(a.startTimeUTC)-new Date(b.startTimeUTC));
+      if(games.length>=2) break;
+    }
+    const now=Date.now();
+    let nextIdx=games.findIndex(g=>new Date(g.startTimeUTC)>=now-6*3600000);
+    if(nextIdx<0) nextIdx=games.length-1;
+    const prev=nextIdx>0?games[nextIdx-1]:null;
+    let fromAbbrev=team;
+    if(prev){
+      const isHome = (prev.homeTeam?.abbrev||"")===team;
+      fromAbbrev = isHome ? team : (prev.homeTeam?.abbrev||team);
+    }
+    const hours=travelHoursBetween(fromAbbrev, venueTeam);
+    return {
+      from: fromAbbrev, to: venueTeam, hours,
+      road: team!==venueTeam,
+      longHaul: hours!=null && hours>=4.5,
+      label: hours==null ? "—" : (hours<=1 ? "Local / court" : `~${hours} h de trajet`)
+    };
+  }catch(e){
+    return {from:team,to:venueTeam,hours:null,road:team!==venueTeam,longHaul:false,label:"—"};
+  }
+}
+async function getH2H(home, away, limit=5){
+  const out=[];
+  try{
+    for(const season of [CURRENT, BASE]){
+      const j=await api(`api-web.nhle.com/v1/club-schedule-season/${home}/${season}`);
+      const games=(j.games||[]).filter(g=>{
+        if(g.gameType!==2||!g.startTimeUTC) return false;
+        const h=g.homeTeam?.abbrev, a=g.awayTeam?.abbrev;
+        const pair=(h===home&&a===away)||(h===away&&a===home);
+        return pair && new Date(g.startTimeUTC)<new Date();
+      });
+      games.sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
+      for(const g of games){
+        if(out.length>=limit) break;
+        try{
+          const x=await api(`api-web.nhle.com/v1/gamecenter/${g.id}/landing`);
+          const ht=x.homeTeam||{}, at=x.awayTeam||{};
+          const hs=n(ht.score), as_=n(at.score);
+          if(!Number.isFinite(hs)||!Number.isFinite(as_)) continue;
+          out.push({
+            date: g.startTimeUTC,
+            home: ht.abbrev||g.homeTeam?.abbrev,
+            away: at.abbrev||g.awayTeam?.abbrev,
+            hs, as: as_,
+            winner: hs>as_?(ht.abbrev||g.homeTeam?.abbrev):(as_>hs?(at.abbrev||g.awayTeam?.abbrev):"TIE")
+          });
+        }catch(_){}
+      }
+      if(out.length>=limit) break;
+    }
+  }catch(e){ console.warn("h2h", e); }
+  return out.slice(0,limit);
+}
+
+async function getB2B(team){
+  try{
+    const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/${CURRENT}`);
+    const gs=(j.games||[]).filter(g=>g.gameType===2&&g.startTimeUTC).sort((a,b)=>new Date(a.startTimeUTC)-new Date(b.startTimeUTC));
+    const now=Date.now(); const idx=gs.findIndex(g=>new Date(g.startTimeUTC)>=now);
+    if(idx<1)return {b2b:false,restDays:null};
+    const d=(new Date(gs[idx].startTimeUTC)-new Date(gs[idx-1].startTimeUTC))/86400000;
+    return {b2b:d<1.35,restDays:d};
+  }catch(e){return {b2b:false,restDays:null}}
+}
+async function getGoalieFactors(){
+  const expr=`seasonId=${BASE} and gameTypeId=2`;
+  const j=await api("stats/rest/en/goalie/summary",{limit:-1,sort:"wins",cayenneExp:expr});
+  const map={},all=[];
+  for(const x of j.data||[]){
+    const tm=String(x.teamAbbrev||x.teamAbbreviation||x.teamCode||"").toUpperCase(),gp=n(x.gamesPlayed),sv=n(x.savePct);
+    if(!TEAMS[tm]||gp<=0||!sv)continue;
+    map[tm]??={s:0,w:0};map[tm].s+=sv*Math.max(1,gp);map[tm].w+=Math.max(1,gp);
+  }
+  const f={};for(const [k,v] of Object.entries(map))f[k]={sv:clamp(v.s/v.w,.87,.94)};
+  for(const v of Object.values(f))all.push(v.sv);
+  f.leagueSV=avg(all)||.905;return f;
+}
+async function getSkaters(){
+  // Fusionne saison courante + base 2025-26 (début de saison = peu de MJ)
+  async function fetchSeason(seasonId){
+    try{
+      const j=await api("stats/rest/en/skater/summary",{limit:-1,sort:"points",cayenneExp:`seasonId=${seasonId} and gameTypeId=2`});
+      return j.data||[];
+    }catch(_){ return []; }
+  }
+  const [cur, base] = await Promise.all([fetchSeason(CURRENT), fetchSeason(BASE)]);
+  // Préfère stats CURRENT si le joueur a déjà joué, sinon BASE
+  const byKey={};
+  function ingest(list, seasonTag){
+    for(const x of list){
+      const id=String(x.playerId||x.id||""),gp=n(x.gamesPlayed);
+      const name=pname(x.skaterFullName||x.playerName||x.fullName||`${x.firstName||""} ${x.lastName||""}`).trim();
+      if(!name||gp<=0)continue;
+      const tm=String(x.teamAbbrev||x.teamAbbreviation||x.teamCode||"").toUpperCase();
+      const key=id||norm(name);
+      const prev=byKey[key];
+      // CURRENT prioritaire dès 1 MJ
+      if(prev && seasonTag==="base" && prev._season==="cur") continue;
+      byKey[key]={
+        id,name,team:TEAMS[tm]?tm:"",gp,goals:n(x.goals),assists:n(x.assists),points:n(x.points),
+        shots:n(x.shots||x.shotsOnGoal),toi:n(x.timeOnIcePerGame||x.avgTimeOnIcePerGame||x.toiPerGame),
+        position:String(x.positionCode||x.position||""),_season:seasonTag
+      };
+    }
+  }
+  ingest(base,"base");
+  ingest(cur,"cur");
+  const rows=[],byId={},byName={};
+  for(const r of Object.values(byKey)){
+    delete r._season;
+    rows.push(r);
+    if(r.id) byId[r.id]=r;
+    byName[norm(r.name)]=r;
+  }
+  return {rows,byId,byName};
+}
+async function getRoster(team){
+  try{
+    const j=await api(`api-web.nhle.com/v1/roster/${team}/current`),players=[],goalies=[];
+    const forwards=[], defense=[];
+    for(const x of j.forwards||[]){
+      const name=pname(x.fullName||`${pname(x.firstName)} ${pname(x.lastName)}`).trim();
+      if(!name)continue;
+      const p={id:String(x.id||x.playerId||""),name,position:"F",team,sweater:x.sweaterNumber||x.sweater||""};
+      players.push(p); forwards.push(p);
+    }
+    for(const x of j.defensemen||[]){
+      const name=pname(x.fullName||`${pname(x.firstName)} ${pname(x.lastName)}`).trim();
+      if(!name)continue;
+      const p={id:String(x.id||x.playerId||""),name,position:"D",team,sweater:x.sweaterNumber||x.sweater||""};
+      players.push(p); defense.push(p);
+    }
+    for(const x of j.goalies||[]){
+      const name=pname(x.fullName||`${pname(x.firstName)} ${pname(x.lastName)}`).trim();
+      if(!name)continue;
+      goalies.push({id:String(x.id||x.playerId||""),name,position:"G",team,sweater:x.sweaterNumber||x.sweater||""});
+    }
+    return {players,goalies,forwards,defense,raw:true};
+  }catch(e){return {players:[],goalies:[],forwards:[],defense:[]}}
+}
+
+async function getGameLineup(gameId){
+  if(!gameId) return null;
+  try{
+    const j=await api(`api-web.nhle.com/v1/gamecenter/${gameId}/boxscore`);
+    const ps=j.playerByGameStats; if(!ps) return null;
+    function side(key){
+      const t=ps[key]||{};
+      const map=(arr,pos)=>(arr||[]).map(x=>({
+        id:String(x.playerId||""),
+        name:pname(x.name||`${pname(x.firstName)} ${pname(x.lastName)}`),
+        position:pos,
+        sweater:x.sweaterNumber||""
+      })).filter(x=>x.name);
+      return {
+        forwards: map(t.forwards,"F"),
+        defense: map(t.defense||t.defensemen,"D"),
+        goalies: map(t.goalies,"G")
+      };
+    }
+    return {
+      home: side("homeTeam"),
+      away: side("awayTeam"),
+      source: "boxscore",
+      state: j.gameState
+    };
+  }catch(e){return null}
+}
+
+
+function shortName(name){
+  const n=String(name||"").trim();
+  if(!n) return "?";
+  const parts=n.split(/\s+/);
+  if(parts.length===1) return parts[0].slice(0,10);
+  return parts[parts.length-1].slice(0,12);
+}
+function chunk(arr,size){
+  const out=[]; for(let i=0;i<(arr||[]).length;i+=size) out.push(arr.slice(i,i+size));
+  return out;
+}
+function buildLines(data){
+  const F=data?.forwards||[], D=data?.defense||[], G=data?.goalies||[];
+  const fLines=chunk(F,3), dPairs=chunk(D,2);
+  const max=Math.max(fLines.length, dPairs.length, 1);
+  const lines=[];
+  for(let i=0;i<max;i++){
+    lines.push({
+      forwards: fLines[i]||[],
+      defense: dPairs[i]||[],
+      goalie: i===0 ? (G[0]||null) : (G[i]||null)
+    });
+  }
+  if(!lines.length) lines.push({forwards:[],defense:[],goalie:G[0]||null});
+  return lines;
+}
+function playerToken(p, role){
+  if(!p) return `<div class="rink-slot empty"></div>`;
+  const num=p.sweater?`#${p.sweater}`:"";
+  return `<div class="rink-player ${role||""}" title="${p.name||""}">
+    <div class="rink-avatar">${num||"•"}</div>
+    <div class="rink-name">${shortName(p.name)}</div>
+  </div>`;
+}
+function renderRinkFormation(awayData, homeData, awayCode, homeCode, lineIdx){
+  const aLines=buildLines(awayData), hLines=buildLines(homeData);
+  // Flashscore-style : 4 formations max (L1–L3 + 4e / PP approximatif)
+  const max=Math.min(4, Math.max(aLines.length, hLines.length, 1));
+  const idx=Math.min(Math.max(0,lineIdx||0), max-1);
+  const a=aLines[idx]||{forwards:[],defense:[],goalie:null};
+  const h=hLines[idx]||{forwards:[],defense:[],goalie:null};
+  // forwards: LW C RW — pad to 3
+  const af=[a.forwards[0],a.forwards[1],a.forwards[2]];
+  const hf=[h.forwards[0],h.forwards[1],h.forwards[2]];
+  const ad=[a.defense[0],a.defense[1]];
+  const hd=[h.defense[0],h.defense[1]];
+  const tabs=Array.from({length:max},(_,i)=>`<button type="button" class="formation-tab ${i===idx?"active":""}" data-line="${i}">Formation ${i+1}</button>`).join("");
+  return `<div class="formation-wrap" data-home="${homeCode}" data-away="${awayCode}">
+    <div class="formation-tabs">${tabs}</div>
+    <div class="rink">
+      <div class="rink-ice">
+        <div class="rink-zone away-zone">
+          <div class="rink-row goalie">${playerToken(a.goalie,"g")}</div>
+          <div class="rink-row defense">${playerToken(ad[0],"d")}${playerToken(ad[1],"d")}</div>
+          <div class="rink-row forwards">${playerToken(af[0],"f")}${playerToken(af[1],"f")}${playerToken(af[2],"f")}</div>
+          <div class="rink-team-tag">${logoHTML(awayCode,"team-logo-sm")} ${awayCode}</div>
+        </div>
+        <div class="rink-center-line"></div>
+        <div class="rink-zone home-zone">
+          <div class="rink-row forwards">${playerToken(hf[0],"f")}${playerToken(hf[1],"f")}${playerToken(hf[2],"f")}</div>
+          <div class="rink-row defense">${playerToken(hd[0],"d")}${playerToken(hd[1],"d")}</div>
+          <div class="rink-row goalie">${playerToken(h.goalie,"g")}</div>
+          <div class="rink-team-tag">${logoHTML(homeCode,"team-logo-sm")} ${homeCode}</div>
+        </div>
+      </div>
+    </div>
+    <p class="muted formation-note">Lignes estimées par groupes de 3 attaquants / 2 défenseurs (ordre boxscore ou roster). Les lines officielles NHL peuvent différer.</p>
+  </div>`;
+}
+function renderLineupBlock(title, code, data){
+  if(!data) return `<div class="lineup-card"><div class="lineup-head">${logoHTML(code,"team-logo-sm")}<div><b>${code}</b><span>${title||""}</span></div></div><p class="muted">Composition non disponible</p></div>`;
+  const chip=(p,pos)=>`<span class="line-chip pos-${pos||"F"}">${p.sweater?`<em>#${p.sweater}</em>`:""}${p.name}</span>`;
+  const sec=(label,arr,pos)=>arr&&arr.length?`<div class="line-sec"><div class="line-sec-title"><span>${label}</span><b>${arr.length}</b></div><div class="line-chips">${arr.map(p=>chip(p,pos)).join("")}</div></div>`:"";
+  const nf=(data.forwards||[]).length, nd=(data.defense||[]).length, ng=(data.goalies||[]).length;
+  return `<div class="lineup-card">
+    <div class="lineup-head">
+      ${logoHTML(code,"team-logo-lg")}
+      <div><b>${code}</b><span>${title||TEAMS[code]?.[0]||""}</span></div>
+      <div class="lineup-count">${nf+nd+ng} joueurs</div>
+    </div>
+    ${sec("Attaque", data.forwards, "F")}
+    ${sec("Défense", data.defense, "D")}
+    ${sec("Gardiens", data.goalies, "G")}
+  </div>`;
+}
+async function renderMatchLineups(home, away, gameId){
+  const el=$("lineupsBox"); if(!el) return;
+  el.innerHTML=skeleton(2);
+  try{
+    let lineup = gameId ? await getGameLineup(gameId) : null;
+    let awayData, homeData, banner;
+    if(lineup && (lineup.home?.forwards?.length || lineup.away?.forwards?.length)){
+      awayData=lineup.away; homeData=lineup.home;
+      banner=`<div class="lineup-banner official">Composition officielle · ${lineup.state||"boxscore"}</div>`;
+    }else{
+      const [rh,ra]=await Promise.all([getRoster(home),getRoster(away)]);
+      awayData={forwards:ra.forwards,defense:ra.defense,goalies:ra.goalies};
+      homeData={forwards:rh.forwards,defense:rh.defense,goalies:rh.goalies};
+      banner=`<div class="lineup-banner roster">Roster actuel · formations estimées · transferts 2026-27 inclus</div>`;
+    }
+    const hasPlayers=(awayData.forwards?.length||0)+(homeData.forwards?.length||0)>0;
+    if(!hasPlayers){
+      el.innerHTML=`<div class="empty-inline">Composition non disponible pour ce match.</div>`;
+      return;
+    }
+    function paint(lineIdx){
+      el.innerHTML=banner+renderRinkFormation(awayData,homeData,away,home,lineIdx)+
+        `<details class="lineup-details"><summary>Voir listes complètes</summary><div class="lineup-grid">${renderLineupBlock(TEAMS[away]?.[0]||away,away,awayData)}${renderLineupBlock(TEAMS[home]?.[0]||home,home,homeData)}</div></details>`;
+      el.querySelectorAll(".formation-tab").forEach(btn=>{
+        btn.onclick=()=>paint(Number(btn.dataset.line||0));
+      });
+    }
+    paint(0);
+  }catch(e){
+    el.innerHTML=`<div class="empty-inline">Compositions indisponibles (${e.message||e}).</div>`;
+  }
+}
+
+async function getGoalies(){
+  const expr=`seasonId=${BASE} and gameTypeId=2`;
+  const j=await api("stats/rest/en/goalie/summary",{limit:-1,sort:"wins",cayenneExp:expr});
+  const byId={},rows=[];
+  for(const x of j.data||[]){
+    const id=String(x.playerId||x.id||""),tm=String(x.teamAbbrev||x.teamAbbreviation||x.teamCode||"").toUpperCase();
+    if(!id)continue;
+    const r={id,team:tm,gp:n(x.gamesPlayed),wins:n(x.wins),sv:n(x.savePct,.9),gaa:n(x.goalsAgainstAverage,3),name:pname(x.goalieFullName||x.playerName||x.fullName)};
+    byId[id]=r;rows.push(r);
+  }
+  return {byId,rows};
+}
+function expectedFrom(h,a,l,fh,fa,bh,ba,gf){
+  const hgf=fh.length?avg(fh.map(x=>x.gf)):h.gf,agf=fa.length?avg(fa.map(x=>x.gf)):a.gf;
+  const hga=fh.length?avg(fh.map(x=>x.ga)):h.ga,aga=fa.length?avg(fa.map(x=>x.ga)):a.ga;
+  // Attaque / défense classiques (saison + forme récente)
+  const ha=clamp((h.gf*.72+hgf*.28)/l.gf,.7,1.35),aa=clamp((a.gf*.72+agf*.28)/l.gf,.7,1.35);
+  const hd=clamp((h.ga*.72+hga*.28)/l.ga,.7,1.35),ad=clamp((a.ga*.72+aga*.28)/l.ga,.7,1.35);
+  let xh=l.gf*Math.sqrt(ha*ad)*1.035,xa=l.gf*Math.sqrt(aa*hd)*.985;
+  // Possession (SAT% ≈ Corsi) — impact modéré sur les xG
+  const satH=clamp(h.sat/(l.sat||.5),.85,1.18),satA=clamp(a.sat/(l.sat||.5),.85,1.18);
+  xh*=Math.sqrt(satH*(2-satA)); xa*=Math.sqrt(satA*(2-satH));
+  // Spécialités : PP offensif vs PK adverse
+  const ppEdgeH=clamp(1+(h.pp-(l.pp||.2))*.35+( (l.pk||.8)-a.pk)*.25,.92,1.1);
+  const ppEdgeA=clamp(1+(a.pp-(l.pp||.2))*.35+( (l.pk||.8)-h.pk)*.25,.92,1.1);
+  xh*=ppEdgeH; xa*=ppEdgeA;
+  // PDO (shooting+save 5v5) — régression vers la moyenne si extrême
+  if(h.pdo&&l.pdo){const pdoR=clamp(1-(h.pdo-l.pdo)*.4,.94,1.06);xh*=pdoR;}
+  if(a.pdo&&l.pdo){const pdoR=clamp(1-(a.pdo-l.pdo)*.4,.94,1.06);xa*=pdoR;}
+  // Fatigue B2B
+  if(bh.b2b)xh*=.94;if(ba.b2b)xa*=.94;
+  // Facteur gardien adverse
+  if(gf[a.team])xh*=clamp(1+(gf.leagueSV-gf[a.team].sv)*.65,.93,1.07);
+  if(gf[h.team])xa*=clamp(1+(gf.leagueSV-gf[h.team].sv)*.65,.93,1.07);
+  xh=clamp(xh,1.25,6);xa=clamp(xa,1.1,5.75);
+  // Tirs : SAT influence légère
+  const shBase=clamp((h.shots*.65+a.shotsAgainst*.35)*(xh/l.gf)*.98,20,40);
+  const saBase=clamp((a.shots*.65+h.shotsAgainst*.35)*(xa/l.gf)*.98,20,40);
+  return {
+    home:xh,away:xa,total:xh+xa,
+    shotsHome:clamp(shBase*Math.sqrt(satH),.98*20,40),
+    shotsAway:clamp(saBase*Math.sqrt(satA),.98*20,40),
+    factors:{satH,satA,ppEdgeH,ppEdgeA}
+  };
+}
+function markets(xh,xa){
+  let h60=0,a60=0,t60=0;
+  for(let h=0;h<=10;h++)for(let a=0;a<=10;a++){const p=poisson(xh,h)*poisson(xa,a);if(h>a)h60+=p;else if(a>h)a60+=p;else t60+=p}
+  const total=xh+xa;
+  // BTTS : Poisson indépendant surestime → facteur de corrélation + plafond réaliste
+  let bttsRaw=(1-Math.exp(-xh))*(1-Math.exp(-xa));
+  const btts=clamp(bttsRaw*0.86, 0.18, 0.72);
+  return {home:h60+t60/2,away:a60+t60/2,home60:h60,away60:a60,tie60:t60,o45:over(total,4.5),o55:over(total,5.5),u55:1-over(total,5.5),o65:over(total,6.5),u65:1-over(total,6.5),btts};
+
+}
+function projectedScore(xh,xa){
+  const a=[];for(let h=0;h<=8;h++)for(let x=0;x<=8;x++)a.push([h,x,poisson(xh,h)*poisson(xa,x)]);
+  a.sort((x,y)=>y[2]-x[2]);return a[0];
+}
+async function buildPlayers(home,away,xh,xa,sh,sa){
+  const [st,rh,ra]=await Promise.all([getSkaters(),getRoster(home),getRoster(away)]);
+  const out=[];
+  function build(r,tm,xg,shots){
+    let raw=[];
+    for(const p of r.players){
+      const s=st.byId[p.id]||st.byName[norm(p.name)];if(!s)continue;
+      let role=s.toi?clamp(toiMinutes(s.toi)/17,.55,1.45):1;if(p.position==="D")role*=.78;
+      raw.push({id:p.id,name:p.name,team:tm,position:p.position,gp:s.gp,goals:s.goals,assists:s.assists,points:s.points,shots:s.shots,toi:s.toi,
+        g:Math.max(.005,s.goals/s.gp*role),a:Math.max(.008,s.assists/s.gp*role),sht:Math.max(.15,s.shots/s.gp*role)});
+    }
+    // Toujours compléter avec les stats équipe (début de saison / IDs non matchés)
+    if(raw.length<10){
+      const have=new Set(raw.map(x=>x.id||norm(x.name)));
+      st.rows
+        .filter(s=>{
+          if(s.team===tm) return true;
+          // si team vide côté stats, match par nom roster
+          if(!s.team && (roster.players||[]).some(p=>norm(p.name)===norm(s.name))) return true;
+          return false;
+        })
+        .sort((a,b)=>b.points-a.points)
+        .slice(0,22)
+        .forEach(s=>{
+          const k=s.id||norm(s.name);
+          if(have.has(k)||!s.gp) return;
+          have.add(k);
+          let role=s.toi?clamp(toiMinutes(s.toi)/17,.55,1.45):1;if(s.position==="D")role*=.78;
+          raw.push({id:s.id,name:s.name,team:tm,position:s.position,gp:s.gp,goals:s.goals,assists:s.assists,points:s.points,shots:s.shots,toi:s.toi,
+            g:Math.max(.005,s.goals/s.gp*role),a:Math.max(.008,s.assists/s.gp*role),sht:Math.max(.15,s.shots/s.gp*role)});
+        });
+    }
+    // Dernier recours : top points de la ligue sans filtre équipe
+    if(raw.length<3){
+      st.rows.sort((a,b)=>b.points-a.points).slice(0,8).forEach(s=>{
+        if(!s.gp) return;
+        let role=s.toi?clamp(toiMinutes(s.toi)/17,.55,1.45):1;
+        raw.push({id:s.id,name:s.name,team:tm,position:s.position,gp:s.gp,goals:s.goals,assists:s.assists,points:s.points,shots:s.shots,toi:s.toi,
+          g:Math.max(.005,s.goals/s.gp*role),a:Math.max(.008,s.assists/s.gp*role),sht:Math.max(.15,s.shots/s.gp*role)});
+      });
+    }
+    raw.sort((a,b)=>(b.g+b.a+b.sht*.08)-(a.g+a.a+a.sht*.08));
+    const act=raw.slice(0,18),sg=act.reduce((s,x)=>s+x.g,0)||1,sa0=act.reduce((s,x)=>s+x.a,0)||1,ss0=act.reduce((s,x)=>s+x.sht,0)||1;
+    act.forEach(p=>{
+      p.lg=clamp(p.g/sg*xg*.82,.008,.95);p.la=clamp(p.a/sa0*xg*.95,.01,1.1);p.ls=clamp(p.sht/ss0*shots*.92,.2,8);p.lp=clamp(p.lg+p.la,.02,1.8);
+      p.pg=1-Math.exp(-p.lg);p.pa=1-Math.exp(-p.la);p.pp=1-Math.exp(-p.lp);p.ps=1-Math.exp(-p.ls);out.push(p);
+    });
+    return {matched:raw.length};
+  }
+  const mh=build(rh,home,xh,sh),ma=build(ra,away,xa,sa);
+  out.sort((a,b)=>b.pp-a.pp);
+  return {players:out,goaliesHome:rh.goalies,goaliesAway:ra.goalies,dataCount:out.length,totalCount:out.length,matchedHome:mh.matched,matchedAway:ma.matched};
+}
+async function projectGoalie(roster,team){
+  const st=await getGoalies();let best=null;
+  for(const g of roster||[]){const s=st.byId[g.id],score=s?s.gp*2+s.wins:0;if(!best||score>best.score)best={g,s,score}}
+  if(!best)for(const s of st.rows.filter(x=>x.team===team)){const score=s.gp*2+s.wins;if(!best||score>best.score)best={g:{name:s.name},s,score}}
+  return best&&best.s?{name:best.g.name||"Gardien 2025-26",sv:best.s.sv,gaa:best.s.gaa,conf:"baseline 2025-26"}:{name:best?.g?.name||"Non disponible",sv:.9,gaa:3,conf:"titulaire à confirmer"};
+}
+function setLoadMsg(msg){
+  const el=$("loading"); if(!el)return;
+  const s=el.querySelector("small"); if(s)s.textContent=msg;
+}
+async function analyze(home,away){
+  if(home===away)throw new Error("Sélectionne deux équipes différentes.");
+  setLoadMsg("Équipes, forme, trajet et gardiens…");
+  const [teams,fh,fa,bh,ba,gf,rh,ra,trH,trA]=await Promise.all([
+    getTeams(),getForm(home),getForm(away),getB2B(home),getB2B(away),getGoalieFactors(),
+    getRoster(home),getRoster(away),
+    getTravelContext(home, home),
+    getTravelContext(away, home) // away se déplace vers le domicile
+  ]);
+  const l=leagueFrom(teams);
+  const h=teams[home],a=teams[away];
+  if(!h||!a||!l.valid)throw new Error("Données équipes insuffisantes (saison 2025-26).");
+  const x=expectedFrom(h,a,l,fh,fa,bh,ba,gf);
+  // Ajustement léger trajet long pour l'extérieur
+  if(trA.longHaul){ x.away*=0.97; x.home*=1.01; x.total=x.home+x.away; }
+  if(trH.longHaul && trH.road){ x.home*=0.98; }
+  const m=markets(x.home,x.away);
+  setLoadMsg("H2H et player props…");
+  const [players,gh,ga,h2h]=await Promise.all([
+    buildPlayers(home,away,x.home,x.away,x.shotsHome,x.shotsAway),
+    projectGoalie(rh.goalies,home),
+    projectGoalie(ra.goalies,away),
+    getH2H(home,away,5)
+  ]);
+  let c=50;if(h&&a)c+=20;if(fh.length>=5)c+=5;if(fa.length>=5)c+=5;if(players.dataCount>=12)c+=8;else if(players.dataCount>=8)c+=5;
+  if(Number.isFinite(h.sat)&&Number.isFinite(a.sat))c+=6;if(Number.isFinite(h.pp)&&Number.isFinite(a.pk))c+=4;
+  if(bh.b2b||ba.b2b)c-=4;
+  if(trA.longHaul)c-=2;
+  c=Math.round(clamp(c,0,95));
+  const status=c<60||players.dataCount<6?"NO BET":"SURVEILLER";
+  const gameId=window.__RDB_GAME_ID||null; window.__RDB_GAME_ID=null;
+  return {home,away,h,a,l,fh,fa,bh,ba,gf,x,m,players,gh,ga,c,status,best:projectedScore(x.home,x.away),gameId,travel:{home:trH,away:trA},h2h};
+}
+let CURRENT_ANALYSIS=null, CURRENT_PROP="pg", LAST_HISTORY_KEY="";
+
+function buildSummary(d){
+  const fav = d.m.home >= d.m.away ? d.home : d.away;
+  const favP = Math.max(d.m.home, d.m.away);
+  const dog = fav === d.home ? d.away : d.home;
+  const total = d.x.total;
+  let totalTxt;
+  if(total >= 6.3) totalTxt = "total très haut";
+  else if(total >= 5.8) totalTxt = "total haut";
+  else if(total <= 5.0) totalTxt = "total bas";
+  else if(total <= 5.4) totalTxt = "total plutôt bas";
+  else totalTxt = "total moyen";
+  const btts = d.m.btts >= 0.55 ? "BTTS probable" : d.m.btts <= 0.42 ? "BTTS peu probable" : null;
+  const conf = d.c >= 75 ? "confiance élevée" : d.c >= 60 ? "confiance correcte" : "confiance limitée";
+  const edge = [];
+  if(favP >= 0.58) edge.push(`${fav} favori clair (${pct(favP)} OT)`);
+  else edge.push(`${fav} légèrement devant (${pct(favP)} OT)`);
+  edge.push(totalTxt);
+  if(btts) edge.push(btts);
+  if(d.status === "NO BET") edge.push("prudence — statut NO BET");
+  else edge.push(conf);
+  return `${d.home} vs ${d.away} : ${edge.join(" · ")}. Score le plus probable ${d.best[0]}–${d.best[1]} (xG ${fmt(d.x.home)}–${fmt(d.x.away)}).`;
+}
+
+function marketValueFlags(m, meta){
+  // VALUE max — logique parieur pro
+  // 1) Cote juste dans une bande jouable
+  // 2) Signal net vs 50% (edge modèle)
+  // 3) Pondération confiance / statut
+  // 4) 1 marché / famille, top scores uniquement
+  // 5) Pénalité totals extrêmes et BTTS trop hauts
+  const conf = meta?.confidence ?? 70;
+  const status = meta?.status || "SURVEILLER";
+  const allow = status !== "NO BET" && conf >= 60;
+
+  const MIN_FAIR = 1.45;   // max ~69%
+  const MAX_FAIR = 2.60;   // min ~38.5%
+  const MIN_Q = 62;        // sous ce score = pas de tag VALUE
+
+  function fairOf(p){ return p>0.01 ? 1/p : 99; }
+  function isShort(p){
+    return Number.isFinite(p) && p >= 0.60 && fairOf(p) < MIN_FAIR;
+  }
+  function isLong(p){
+    return Number.isFinite(p) && p > 0 && fairOf(p) > MAX_FAIR && p <= 0.45;
+  }
+
+  // Edge vs coin-flip (pour sides/totals)
+  function edgeVsHalf(p){ return Math.abs(p - 0.5); }
+
+  function quality(name, p, fam){
+    if(!allow || !Number.isFinite(p) || p <= 0) return 0;
+    const f = fairOf(p);
+    if(f < MIN_FAIR || f > MAX_FAIR) return 0;
+
+    // Base : distance à la cote idéale ~1.75
+    const ideal = 1.75;
+    let q = 100 - Math.abs(f - ideal) * 50;
+
+    // Signal : s'éloigner de 50% sans devenir favori écrasant
+    const edge = edgeVsHalf(p);
+    if(edge >= 0.08 && edge <= 0.18) q += 12;
+    else if(edge > 0.18 && edge <= 0.22) q += 4;
+    else if(edge < 0.06) q -= 15; // quasi 50/50 = peu de value lisible
+
+    // Bonus zone "bankroll friendly" 1.55–2.05
+    if(f >= 1.55 && f <= 2.05) q += 10;
+
+    // Familles : pénalités réalistes NHL
+    if(fam === "tot45") q -= 12; // Over 4.5 souvent trop court / peu d'intérêt
+    if(fam === "btts"){
+      if(p > 0.64) q -= 18;
+      if(p < 0.48) q -= 8;
+    }
+    if(fam === "side" || fam === "reg"){
+      // Légère préférence domicile seulement si vraiment edge
+      if(name.includes("domicile") && p >= 0.54 && p <= 0.64) q += 3;
+    }
+    if(fam === "tot65" && p > 0.58) q -= 6; // overs hauts plus volatils
+
+    // Confiance modèle
+    q *= (0.70 + (clamp(conf,50,95)/100)*0.35);
+
+    return clamp(Math.round(q), 0, 100);
+  }
+
+  const candidates = [
+    ["Victoire domicile OT", m.home, "side"],
+    ["Victoire extérieur OT", m.away, "side"],
+    ["Domicile 60 min", m.home60, "reg"],
+    ["Extérieur 60 min", m.away60, "reg"],
+    ["Nul 60 min", m.tie60, "reg"],
+    ["Over 5.5", m.o55, "tot55"],
+    ["Under 5.5", m.u55, "tot55"],
+    ["Over 6.5", m.o65, "tot65"],
+    ["Under 6.5", m.u65, "tot65"],
+    ["Over 4.5", m.o45, "tot45"],
+    ["BTTS", m.btts, "btts"],
+  ];
+
+  const scored = candidates.map(([name,p,fam])=>({
+    name, p, fam,
+    q: quality(name, p, fam),
+    fair: fairOf(p),
+    short: isShort(p),
+    long: isLong(p),
+    edge: edgeVsHalf(p)
+  }));
+
+  // Meilleur par famille
+  const bestByFam = {};
+  for(const x of scored){
+    if(x.q < MIN_Q) continue;
+    if(!bestByFam[x.fam] || x.q > bestByFam[x.fam].q) bestByFam[x.fam] = x;
+  }
+  // Conflit totals 4.5 / 5.5 / 6.5 : garder max 1 total "principal"
+  const totKeys = ["tot45","tot55","tot65"].filter(k=>bestByFam[k]);
+  if(totKeys.length > 1){
+    totKeys.sort((a,b)=>bestByFam[b].q - bestByFam[a].q);
+    for(const k of totKeys.slice(1)) delete bestByFam[k];
+  }
+  // Side + reg : si même sens, garder le meilleur
+  if(bestByFam.side && bestByFam.reg){
+    const s=bestByFam.side.name, r=bestByFam.reg.name;
+    const same =
+      (s.includes("domicile") && r.includes("Domicile")) ||
+      (s.includes("extérieur") && r.includes("Extérieur"));
+    if(same){
+      if(bestByFam.side.q >= bestByFam.reg.q) delete bestByFam.reg;
+      else delete bestByFam.side;
+    }
+  }
+
+  let ranked = Object.values(bestByFam).sort((a,b)=>b.q-a.q);
+  // Max 2 VALUE affichés (focus parieur)
+  ranked = ranked.slice(0, 2);
+
+  const flags = {}, qualities = {};
+  for(const x of ranked){ flags[x.name]=true; qualities[x.name]=x.q; }
+
+  const shortMap = {}, longMap = {};
+  for(const x of scored){
+    if(x.short) shortMap[x.name]=true;
+    if(x.long) longMap[x.name]=true;
+  }
+  for(const k of Object.keys(flags)){
+    if(shortMap[k]){ delete flags[k]; delete qualities[k]; }
+  }
+  ranked = ranked.filter(x=>flags[x.name]);
+
+  return {
+    ...flags,
+    _short: shortMap,
+    _long: longMap,
+    _quality: qualities,
+    _ranked: ranked,
+    _allow: allow,
+    _minQ: MIN_Q
+  };
+}
+
+
+
+function shareTextFrom(d){
+  const sum = buildSummary(d);
+  const lines = [
+    `🏒 BETZONE by Ratsdubet`,
+    `${d.home} vs ${d.away}`,
+    sum,
+    ``,
+    `Home OT ${pct(d.m.home)} (cote juste ${fair(d.m.home)})`,
+    `Away OT ${pct(d.m.away)} (cote juste ${fair(d.m.away)})`,
+    `Over 5.5 ${pct(d.m.o55)} · BTTS ${pct(d.m.btts)}`,
+    `Confiance ${d.c}% · ${d.status}`,
+    ``,
+    `→ https://ratsdubet-nhl.pages.dev`
+  ];
+  return lines.join("\n");
+}
+
+async function copyAnalysis(){
+  const d = CURRENT_ANALYSIS; if(!d) return;
+  const text = shareTextFrom(d);
+  try{
+    await navigator.clipboard.writeText(text);
+    flashShare("Copié ✓");
+  }catch(e){
+    // fallback
+    const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand("copy");flashShare("Copié ✓")}catch(_){flashShare("Échec copie")}
+    ta.remove();
+  }
+}
+
+async function shareAnalysis(){
+  const d = CURRENT_ANALYSIS; if(!d) return;
+  const text = shareTextFrom(d);
+  if(navigator.share){
+    try{
+      await navigator.share({title:`BETZONE · ${d.home} vs ${d.away}`, text, url:"https://ratsdubet-nhl.pages.dev"});
+      return;
+    }catch(e){ if(e.name==="AbortError") return; }
+  }
+  await copyAnalysis();
+}
+
+function flashShare(msg){
+  const b=$("shareAnalysisBtn"); if(!b) return;
+  const old=b.textContent; b.textContent=msg; b.classList.add("flash-ok");
+  setTimeout(()=>{b.textContent=old;b.classList.remove("flash-ok")},1600);
+  const c=$("copyAnalysisBtn");
+  if(c && msg.includes("Copié")){const o=c.textContent;c.textContent=msg;setTimeout(()=>c.textContent=o,1600)}
+}
+
+
+
+function applyPaywall(fullAccess){
+  const lock=$("premiumLock"), body=$("premiumBody");
+  if(!lock||!body)return;
+  if(fullAccess){
+    lock.classList.add("hidden");
+    body.classList.remove("hidden");
+    body.style.filter=""; body.style.pointerEvents=""; body.style.userSelect="";
+  }else{
+    lock.classList.remove("hidden");
+    body.classList.remove("hidden");
+    body.style.filter="blur(6px)"; body.style.pointerEvents="none"; body.style.userSelect="none";
+  }
+}
+function refreshPlanUI(){
+  const A=window.RDB_AUTH, badge=$("planBadge"), chip=$("authChip");
+  const banner=$("trialBanner");
+  const trialMs=A?.trialRemainingMs?.()||0;
+  const trialEnded=A?.hasTrialEnded?.()||false;
+
+  if(banner){
+    if(A?.isPremium() && trialMs>0){
+      const h=Math.floor(trialMs/3600000);
+      const m=Math.floor((trialMs%3600000)/60000);
+      banner.className="trial-banner trial-active";
+      banner.innerHTML=`<div><b>Essai Premium actif</b> — il te reste <strong>${h}h ${m}min</strong> d’accès complet (analyses illimitées, props, kombos…).</div>
+        <button type="button" class="ghost-btn trial-cta" id="trialBannerPremium">Garder Premium à vie →</button>`;
+      banner.classList.remove("hidden");
+      $("trialBannerPremium")&&($("trialBannerPremium").onclick=()=>{
+        document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+        document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+        const b=document.getElementById("navPremium"); if(b) b.classList.add("active");
+        $("view-premium")?.classList.add("active");
+      });
+    }else if(trialEnded && A?.isLoggedIn() && !A?.isPremium()){
+      banner.className="trial-banner trial-ended";
+      banner.innerHTML=`<div><b>Essai 48 h terminé</b> — tu es repassé en Free (1 analyse / jour). Passe Premium pour tout débloquer à vie.</div>
+        <button type="button" class="primary-btn trial-cta" id="trialBannerBuy">Passer Premium 20 € →</button>`;
+      banner.classList.remove("hidden");
+      $("trialBannerBuy")&&($("trialBannerBuy").onclick=()=>{
+        document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+        document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+        document.getElementById("navPremium")?.classList.add("active");
+        $("view-premium")?.classList.add("active");
+        window.RDB_AUTH?.openCheckout?.();
+      });
+    }else{
+      banner.classList.add("hidden");
+      banner.innerHTML="";
+    }
+  }
+
+  if(A?.isPremium() && trialMs>0){
+    const h=Math.ceil(trialMs/3600000);
+    if(badge){
+      const L=A.getLevelInfo?.();
+      badge.innerHTML=`<strong>ESSAI 48H</strong><span>${h}h restantes</span><small class="level-under">${L?.emoji||""} ${L?.name||""}</small>`;
+      badge.classList.add("prem");
+    }
+    if(chip){
+      const L=A.getLevelInfo?.();
+      chip.innerHTML=A.user?.name?`<span class="chip-level">${L?.emoji||"🐀"}</span> ${A.user.name}`:`${L?.emoji||"⭐"} Essai`;
+      chip.title=L?.name||"";
+    }
+  }else if(A?.isPremium()){
+    if(badge){
+      const L=A.getLevelInfo?.();
+      badge.innerHTML=`<strong>PREMIUM</strong><span>Accès à vie</span><small class="level-under">${L?.emoji||""} ${L?.name||""}</small>`;
+      badge.classList.add("prem");
+    }
+    if(chip){
+      const L=A.getLevelInfo?.();
+      chip.innerHTML=`<span class="chip-level">${L?.emoji||"⭐"}</span> ${A.user?.name||"Premium"}`;
+      chip.title=L?.name||"Premium";
+    }
+  }else if(A?.isLoggedIn()){
+    if(badge){
+      const L=A.getLevelInfo?.();
+      badge.innerHTML=`<strong>FREE</strong><span>${trialEnded?"Essai terminé":"1 analyse / jour"}</span><small class="level-under">${L?.emoji||""} ${L?.name||"Nouveau Rat"}</small>`;
+      badge.classList.remove("prem");
+    }
+    if(chip){
+      const L=A.getLevelInfo?.();
+      chip.innerHTML=`<span class="chip-level">${L?.emoji||"🐀"}</span> ${A.user?.name||A.user?.email||"Compte"}`;
+      chip.title=L?.name||"";
+    }
+  }else{
+    if(badge){badge.innerHTML=`<strong>FREE</strong><span>Essai 48h à l’inscription</span>`;badge.classList.remove("prem")}
+    if(chip)chip.textContent="Compte";
+  }
+
+  // Hero : pas de doublon ni "Créer un compte" si déjà connecté
+  const logged = !!A?.isLoggedIn?.();
+  const heroAnalyze = $("heroAnalyzeBtn");
+  const heroAccount = $("heroAccountBtn");
+  if(heroAnalyze) heroAnalyze.classList.toggle("hidden", true); // toujours : le picker dessous suffit
+  if(heroAccount){
+    heroAccount.classList.toggle("hidden", logged);
+    heroAccount.textContent = logged ? "" : "Créer un compte";
+  }
+  // Masquer toute la rangée CTA si plus rien à montrer
+  const row = document.querySelector(".hero-cta-row");
+  if(row) row.classList.toggle("hidden", logged || true); // always hide analyze; hide row if logged
+  if(row){
+    const anyVisible = [...row.querySelectorAll("button")].some(b=>!b.classList.contains("hidden"));
+    row.classList.toggle("hidden", !anyVisible);
+  }
+}
+
+
+async function renderMiniHitRate(){
+  const note=$("decisionNote"); if(!note) return;
+  try{
+    const {stats}=await resolveHistoryResults();
+    if(!stats) return;
+    const parts=[];
+    if(stats.fav?.n>=3) parts.push(`Favori OT ${pct(stats.fav.pct)} (${stats.fav.hit}/${stats.fav.n})`);
+    if(stats.o55?.n>=3) parts.push(`O/U 5.5 ${pct(stats.o55.pct)} (${stats.o55.hit}/${stats.o55.n})`);
+    if(parts.length){
+      const extra=document.createElement("div");
+      extra.className="mini-hit muted";
+      extra.innerHTML=`Hit rate local (tes analyses) : ${parts.join(" · ")}`;
+      // append once
+      if(!note.parentElement.querySelector(".mini-hit")) note.parentElement.appendChild(extra);
+      else note.parentElement.querySelector(".mini-hit").innerHTML=extra.innerHTML;
+    }
+  }catch(_){}
+}
+function renderDecisionBoard(d){
+  const board=$("decisionBoard"), grid=$("decisionGrid"), vals=$("decisionValues"), st=$("decisionStatus"), note=$("decisionNote");
+  if(!board||!grid) return;
+  const fav = d.m.home>=d.m.away ? d.home : d.away;
+  const dog = fav===d.home ? d.away : d.home;
+  const favP = Math.max(d.m.home, d.m.away);
+  const total = d.x.total;
+  const o55 = d.m.o55;
+  const leanTotal = o55>=0.55 ? "Over 5.5" : (d.m.u55>=0.55 ? "Under 5.5" : "Total neutre");
+  const leanP = o55>=0.55 ? o55 : (d.m.u55>=0.55 ? d.m.u55 : Math.max(o55,d.m.u55));
+  const conf = d.c>=75?"Élevée":d.c>=60?"Correcte":"Limitée";
+  const statusCls = d.status==="NO BET"?"no":"ok";
+  if(st){ st.textContent=d.status; st.className="decision-status "+statusCls; }
+
+  // Verdict 1 ligne pour parieurs
+  const earlyFlags = marketValueFlags(d.m,{confidence:d.c,status:d.status});
+  const topV = (earlyFlags._ranked||[])[0];
+  let verdict="Match ouvert — pas de VALUE solide";
+  if(d.status==="NO BET") verdict="Passer — confiance ou données insuffisantes";
+  else if(topV) verdict=`Piste n°1 : ${topV.name} (${pct(topV.p)} · juste ${fair(topV.p)})`;
+  else if(favP>=0.62 && (1/favP)>=1.45) verdict=`Léger edge ${fav} OT (${pct(favP)}) — pas encore VALUE taguée`;
+  else if(leanTotal.startsWith("Over") && leanP>=0.56 && leanP<=0.68) verdict=`Total à surveiller : ${leanTotal}`;
+  else if(leanTotal.startsWith("Under") && leanP>=0.56 && leanP<=0.68) verdict=`Total à surveiller : ${leanTotal}`;
+
+  const streak=g=>{
+    let n=0,w=null;
+    for(const x of g||[]){ if(w===null)w=x.win; if(x.win===w)n++; else break; }
+    return {n,w};
+  };
+  const sh=streak(d.fh), sa=streak(d.fa);
+
+  const verdEl=$("decisionVerdict");
+  if(verdEl){
+    verdEl.innerHTML=`<span class="verdict-pill ${d.status==="NO BET"?"warn":""}">${verdict}</span>
+      ${sh.n>=2?`<span class="verdict-pill ${sh.w?"hot":"cold"}">${d.home} : ${sh.n}${sh.w?"V":"D"} d’affilée</span>`:""}
+      ${sa.n>=2?`<span class="verdict-pill ${sa.w?"hot":"cold"}">${d.away} : ${sa.n}${sa.w?"V":"D"} d’affilée</span>`:""}`;
+  }
+
+  grid.innerHTML=`
+    <div class="decision-item primary">
+      <span>Favori OT</span>
+      <b>${fav}</b>
+      <em>${pct(favP)}</em>
+    </div>
+    <div class="decision-item">
+      <span>Score modèle</span>
+      <b>${d.best[0]}–${d.best[1]}</b>
+      <em>xG ${fmt(d.x.home)}–${fmt(d.x.away)}</em>
+    </div>
+    <div class="decision-item">
+      <span>Total</span>
+      <b>${leanTotal}</b>
+      <em>${pct(leanP)} · proj. ${fmt(total)}</em>
+    </div>
+    <div class="decision-item">
+      <span>Confiance</span>
+      <b>${conf}</b>
+      <em>${d.c}%</em>
+    </div>
+    <div class="decision-item">
+      <span>BTTS</span>
+      <b>${pct(d.m.btts)}</b>
+      <em>les deux marquent</em>
+    </div>
+    <div class="decision-item">
+      <span>Trajet</span>
+      <b>${d.travel?.away?.longHaul?"Long haul ⚠️":"OK"}</b>
+      <em>${d.travel?.away?.label||"—"}</em>
+    </div>`;
+
+  // Top value markets
+  const mk=[
+    ["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],
+    ["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["BTTS",d.m.btts],["Over 6.5",d.m.o65]
+  ];
+  const flags=marketValueFlags(d.m,{confidence:d.c,status:d.status})||{};
+  const ranked = flags._ranked || [];
+  const valueMk = ranked.slice(0,2);
+  const shortMk = mk.filter(x=>flags._short?.[x[0]]).sort((a,b)=>b[1]-a[1]).slice(0,2);
+  if(vals){
+    if(!flags._allow){
+      vals.innerHTML=`<div class="decision-novalue muted">VALUE off (confiance ${d.c}% / ${d.status}). Pas de forçage.</div>`;
+    } else if(!valueMk.length){
+      vals.innerHTML=`<div class="decision-novalue muted">Aucune VALUE solide (cote 1,45–2,60 · score ≥ ${flags._minQ||62} · max 2 pistes).${shortMk.length?` Trop courts : ${shortMk.map(x=>x[0]+" @"+fair(x[1])).join(", ")}.` :""}</div>`;
+    }else{
+      const main = valueMk[0];
+      const stars = q=>q>=88?"★★★":q>=75?"★★":"★";
+      vals.innerHTML=`
+        <div class="value-main">
+          <span class="value-main-label">Piste n°1</span>
+          <b>${main.name}</b>
+          <span>${pct(main.p)} · cote juste <strong>${fair(main.p)}</strong> · ${stars(main.q)}</span>
+        </div>
+        ${valueMk[1]?`<div class="decision-values-label">Piste n°2</div>
+        <span class="decision-chip value" title="Qualité ${valueMk[1].q}/100"><b>${valueMk[1].name}</b> ${pct(valueMk[1].p)} · ${fair(valueMk[1].p)} <em>${stars(valueMk[1].q)}</em></span>`:""}
+      `;
+    }
+  }
+  if(note){
+    note.textContent = d.status==="NO BET"
+      ? "Modèle prudent : données ou confiance insuffisantes. Évite de forcer un pari. Outil informatif, pas un conseil de jeu."
+      : "VALUE = pistes modèle, pas des certitudes. Croise avec compositions, blessures et cotes book. 18+ · jeu responsable.";
+  }
+}
+
+
+
+function renderCompare(d){
+  const el=$("compareTable"); if(!el) return;
+  const fh=d.fh||[], fa=d.fa||[];
+  const homeWins=fh.filter(g=>g.win).length, awayWins=fa.filter(g=>g.win).length;
+  const homeHome=fh.filter(g=>g.home), homeAway=fh.filter(g=>g.home===false);
+  const awayHome=fa.filter(g=>g.home), awayAway=fa.filter(g=>g.home===false);
+  const hwH=homeHome.filter(g=>g.win).length, haH=homeAway.filter(g=>g.win).length;
+  const awH=awayHome.filter(g=>g.win).length, aaH=awayAway.filter(g=>g.win).length;
+  const rows=[
+    ["Bilan 5 derniers", `${homeWins}V-${fh.length-homeWins}D`, `${awayWins}V-${fa.length-awayWins}D`],
+    ["À domicile (échantillon)", homeHome.length?`${hwH}V-${homeHome.length-hwH}D`:"—", awayHome.length?`${awH}V-${awayHome.length-awH}D`:"—"],
+    ["À l’extérieur", homeAway.length?`${haH}V-${homeAway.length-haH}D`:"—", awayAway.length?`${aaH}V-${awayAway.length-aaH}D`:"—"],
+    ["xG projetés", fmt(d.x.home), fmt(d.x.away)],
+    ["Proba OT", pct(d.m.home), pct(d.m.away)],
+    ["SAT% (Corsi)", pct(d.h.sat), pct(d.a.sat)],
+    ["PP%", pct(d.h.pp), pct(d.a.pp)],
+    ["PK%", pct(d.h.pk), pct(d.a.pk)],
+    ["B2B", d.bh.b2b?"⚠️ Oui":"Non", d.ba.b2b?"⚠️ Oui":"Non"],
+    ["Trajet", d.travel?.home?.label||"—", d.travel?.away?.label||"—"],
+    ["Gardien", d.gh?.name||"—", d.ga?.name||"—"],
+  ];
+  const xgMax=Math.max(d.x.home,d.x.away,1)*1.15;
+  const xgChart=`<div class="xg-chart">
+    <div class="xg-chart-row"><span>${d.home}</span><div class="xg-chart-track"><i style="width:${Math.round(d.x.home/xgMax*100)}%"></i></div><b>${fmt(d.x.home)}</b></div>
+    <div class="xg-chart-row away"><span>${d.away}</span><div class="xg-chart-track"><i style="width:${Math.round(d.x.away/xgMax*100)}%"></i></div><b>${fmt(d.x.away)}</b></div>
+  </div>`;
+  const formChart=(()=>{
+    function dots(games){
+      const o=[...games].reverse();
+      return o.map(g=>`<i class="form-dot ${g.win?"win":"loss"}" title="${g.win?"V":"D"} ${g.gf}-${g.ga}"></i>`).join("")||"—";
+    }
+    return `<div class="form-mini-chart">
+      <div><span>${d.home}</span><div class="form-dots">${dots(d.fh)}</div></div>
+      <div><span>${d.away}</span><div class="form-dots">${dots(d.fa)}</div></div>
+    </div>`;
+  })();
+  el.innerHTML=`${xgChart}
+  <div class="section-title" style="border:0;padding:12px 0 8px;font-size:13px"><span>📈</span> Forme récente</div>
+  ${formChart}
+  <div class="compare-table" style="margin-top:14px">
+    <div class="compare-head"><span>Indicateur</span><b>${logoHTML(d.home,"team-logo-sm")} ${d.home}</b><b>${logoHTML(d.away,"team-logo-sm")} ${d.away}</b></div>
+    ${rows.map(r=>`<div class="compare-row"><span>${r[0]}</span><b>${r[1]}</b><b>${r[2]}</b></div>`).join("")}
+  </div>
+  <p class="muted compare-foot">Mis à jour ${new Date().toLocaleString("fr-FR")} · données NHL + modèle BETZONE</p>`;
+}
+
+function renderAnalysis(d){
+  CURRENT_ANALYSIS=d;
+  const access=window.RDB_AUTH?.canAnalyzeFull?.()||{ok:true};
+  const full=!!access.ok;
+  if(full) window.RDB_AUTH?.consumeAnalysis?.();
+  saveHistory(d);
+  $("emptyState").classList.add("hidden");$("analysis").classList.remove("hidden");
+  $("aHomeCode").innerHTML=logoHTML(d.home,"team-logo-lg")+` <span>${d.home}</span>`;$("aHomeName").textContent=TEAMS[d.home][0];$("aAwayCode").innerHTML=logoHTML(d.away,"team-logo-lg")+` <span>${d.away}</span>`;$("aAwayName").textContent=TEAMS[d.away][0];
+  $("xgHome").textContent=fmt(d.x.home);$("xgAway").textContent=fmt(d.x.away);$("scoreProb").textContent=`${d.best[0]}–${d.best[1]}`;
+  $("confidence").textContent=pct(d.c/100);$("confidenceBar").style.width=`${d.c}%`;
+  const k=full
+    ?[["TOTAL BUTS",fmt(d.x.total)],["TOTAL TIRS",fmt(d.x.shotsHome+d.x.shotsAway)],["HOME OT",pct(d.m.home)],["AWAY OT",pct(d.m.away)],["OVER 5.5",pct(d.m.o55)],["BTTS",pct(d.m.btts)]]
+    :[["TOTAL BUTS",fmt(d.x.total)],["SCORE",`${d.best[0]}–${d.best[1]}`],["CONFIANCE",pct(d.c/100)],["STATUT",d.status],["🔒 PREMIUM","requis"],["PRIX","20 € à vie"]];
+  $("kpis").innerHTML=k.map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join("");
+  try{ renderDecisionBoard(d); }catch(_){}
+  try{ renderCompare(d); }catch(_){}
+  try{ renderMiniHitRate(); }catch(_){}
+  applyPaywall(full);
+  // Blessures des 2 équipes sur la dashboard analyse
+  ensureInjuryCache().then(()=>renderMatchInjuries(d.home,d.away)).catch(()=>{});
+  const mk=[["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],["Domicile 60 min",d.m.home60],["Extérieur 60 min",d.m.away60],["Nul 60 min",d.m.tie60],["Over 4.5",d.m.o45],["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["Over 6.5",d.m.o65],["Under 6.5",d.m.u65],["BTTS",d.m.btts]];
+  const valFlags=marketValueFlags(d.m,{confidence:d.c,status:d.status});
+  const shortFlags = valFlags._short || {};
+  const qMap = valFlags._quality || {};
+  $("markets").innerHTML=mk.map(x=>{
+    const isVal=!!valFlags[x[0]];
+    const isShort=!!shortFlags[x[0]];
+    const q = qMap[x[0]]||0;
+    let tag="", cls="", edgeTxt=`Cote juste ${fair(x[1])}`;
+    if(isVal){
+      const stars = q>=85?"★★★":q>=70?"★★":"★";
+      tag=` <span class="value-tag">VALUE ${stars}</span>`;
+      cls=" value";
+      edgeTxt=`Qualité ${q}/100 · zone 1,45–2,60 · ${fair(x[1])}`;
+    } else if(isShort){
+      tag=` <span class="short-tag">TROP COURT</span>`;
+      cls=" short";
+      edgeTxt=`Cote juste ${fair(x[1])} — inutilisable en value bankroll`;
+    }
+    return `<div class="market odds-chip${cls}" title="${isVal?`Value qualité ${q}`:(isShort?"Trop court":"")}">
+      <div class="label">${x[0]}${tag}</div>
+      <div class="value"><b class="odds-dec">${fair(x[1])}</b><span class="odds-prob">${pct(x[1])}</span></div>
+      <span class="edge-tag">${edgeTxt}</span>
+    </div>`;
+  }).join("");
+
+  // Cotes book en live sur marchés (async, non bloquant)
+  (async()=>{
+    try{
+      const book = await getBookOddsForMatch(d.home, d.away);
+      d.bookOdds = book;
+      if(book && $("markets")){
+        // re-render markets with book
+        const mk=[["Victoire domicile OT",d.m.home,"h2hHome"],["Victoire extérieur OT",d.m.away,"h2hAway"],["Domicile 60 min",d.m.home60,null],["Extérieur 60 min",d.m.away60,null],["Nul 60 min",d.m.tie60,null],["Over 4.5",d.m.o45,null],["Over 5.5",d.m.o55,"over55"],["Under 5.5",d.m.u55,"under55"],["Over 6.5",d.m.o65,null],["Under 6.5",d.m.u65,null],["BTTS",d.m.btts,null]];
+        const valFlags=marketValueFlags(d.m,{confidence:d.c,status:d.status});
+        const shortFlags=valFlags._short||{};
+        const qMap=valFlags._quality||{};
+        $("markets").innerHTML=mk.map(x=>{
+          const isVal=!!valFlags[x[0]];
+          const isShort=!!shortFlags[x[0]];
+          const q=qMap[x[0]]||0;
+          const bookPrice = x[2] && book ? book[x[2]] : null;
+          const ed = bookPrice ? edgeVsBook(x[1], bookPrice) : null;
+          let tag="", cls="", edgeTxt=`Cote juste ${fair(x[1])}`;
+          if(isVal){
+            const stars=q>=88?"★★★":q>=75?"★★":"★";
+            tag=` <span class="value-tag">VALUE ${stars}</span>`;
+            cls=" value";
+            edgeTxt=`Qualité ${q}/100 · juste ${fair(x[1])}`;
+          } else if(isShort){
+            tag=` <span class="short-tag">TROP COURT</span>`;
+            cls=" short";
+            edgeTxt=`Cote juste ${fair(x[1])} — trop court`;
+          }
+          let bookHtml="";
+          if(bookPrice){
+            const edgeOk = ed && ed.edge >= 0.03;
+            const edgeBad = ed && ed.edge < -0.02;
+            bookHtml=`<div class="book-line ${edgeOk?"book-edge":""}${edgeBad?" book-noedge":""}">
+              <span>Book ${book.book||""}</span>
+              <b>${Number(bookPrice).toFixed(2)}</b>
+              ${ed?`<em>edge ${ed.edgePct>=0?"+":""}${ed.edgePct.toFixed(1)} pts</em>`:""}
+            </div>`;
+            // VALUE réelle vs book : edge >= 3 pts
+            if(edgeOk && isVal) tag=` <span class="value-tag">VALUE BOOK</span>`;
+            else if(edgeOk && !isVal) { tag=` <span class="value-tag">EDGE BOOK</span>`; cls+=" value"; }
+          }
+          return `<div class="market odds-chip${cls}">
+            <div class="label">${x[0]}${tag}</div>
+            <div class="value"><b class="odds-dec">${bookPrice?Number(bookPrice).toFixed(2):fair(x[1])}</b><span class="odds-prob">${pct(x[1])}${bookPrice?" · juste "+fair(x[1]):""}</span></div>
+            <span class="edge-tag">${edgeTxt}</span>
+            ${bookHtml}
+          </div>`;
+        }).join("");
+      }
+    }catch(_){}
+  })();
+
+  const sumEl=$("analysisSummary");
+  if(sumEl){
+    const fav = d.m.home >= d.m.away ? d.home : d.away;
+    const favP = Math.max(d.m.home, d.m.away);
+    const total = d.x.total;
+    const totalLbl = total>=6.2?"Total haut":total<=5.2?"Total bas":"Total moyen";
+    const conf = d.c>=75?"Élevée":d.c>=60?"Correcte":"Limitée";
+    sumEl.innerHTML=`<div class="summary-rich">
+      <p class="summary-text">${buildSummary(d)}</p>
+      <div class="summary-kpis">
+        <div><span>Favori OT</span><b>${fav} ${pct(favP)}</b></div>
+        <div><span>xG</span><b>${fmt(d.x.home)} – ${fmt(d.x.away)}</b></div>
+        <div><span>${totalLbl}</span><b>${fmt(total)}</b></div>
+        <div><span>Confiance</span><b class="${d.c>=60?"ok":"warn"}">${conf} (${d.c}%)</b></div>
+        <div><span>Statut</span><b class="${d.status==="NO BET"?"warn":"ok"}">${d.status}</b></div>
+      </div>
+    </div>`;
+  }
+  const notes=[
+    {t:"VALUE",x:`Max 2 pistes. Cote juste 1,45–2,60, score qualité ≥ 62, 1 marché/famille, confiance ≥ 60 %. ★★★ = sweet spot ~1,75. Trop court = inutilisable (ex. 1,09).`},
+    {t:"Projection",x:`${d.home} ${fmt(d.x.home)} xG contre ${d.away} ${fmt(d.x.away)} xG. Total modèle : ${fmt(d.x.total)} buts.`},
+    {t:"Possession",x:`SAT% ${d.home} ${pct(d.h.sat)} vs ${d.away} ${pct(d.a.sat)} • USAT% ${pct(d.h.usat)} / ${pct(d.a.usat)}. Impact Corsi intégré aux xG.`},
+    {t:"Spécialités",x:`PP ${d.home} ${pct(d.h.pp)} vs PK ${d.away} ${pct(d.a.pk)} • PP ${d.away} ${pct(d.a.pp)} vs PK ${d.home} ${pct(d.h.pk)}.`},
+    {t:"Forme",x:`5 derniers matchs : ${d.home} ${d.fh.length}/5, ${d.away} ${d.fa.length}/5.`},
+    {t:"Fatigue",x:`B2B : ${d.home} ${d.bh.b2b?"OUI":"non"}${d.bh.restDays?` (${d.bh.restDays.toFixed(1)} j)`:``} • ${d.away} ${d.ba.b2b?"OUI":"non"}${d.ba.restDays?` (${d.ba.restDays.toFixed(1)} j)`:``}.`},
+    {t:"Trajet",x:`${d.home} : ${d.travel?.home?.label||"—"} · ${d.away} : ${d.travel?.away?.label||"—"}${d.travel?.away?.longHaul?" ⚠️ long haul extérieur":""}.`},
+    {t:"Statut",x:`${d.status} — confiance modèle ${pct(d.c/100)}.`}
+  ];
+  $("modelNotes").innerHTML=notes.map((x,i)=>`<div class="note ${(x.t==="Statut"&&d.status==="NO BET")?"warn":"good"}"><b>${x.t} :</b> ${x.x}</div>`).join("");
+  // H2H block
+  const h2hEl=$("h2hBox");
+  if(h2hEl){
+    const list=d.h2h||[];
+    if(!list.length){
+      h2hEl.innerHTML=`<div class="section-title" style="border:0;padding:0 0 8px"><span>⚔️</span> Confrontations directes</div><p class="muted">Pas de H2H récent disponible.</p>`;
+    }else{
+      let hw=0,aw=0;
+      for(const g of list){
+        if(g.winner===d.home) hw++; else if(g.winner===d.away) aw++;
+      }
+      h2hEl.innerHTML=`<div class="section-title" style="border:0;padding:0 0 10px"><span>⚔️</span> Derniers H2H
+        <small class="h2h-scoreline">${logoHTML(d.home,"team-logo-sm")} <b>${hw}</b> – <b>${aw}</b> ${logoHTML(d.away,"team-logo-sm")}</small>
+      </div>
+        <div class="h2h-list">${list.map(g=>{
+          const dt=g.date?new Date(g.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"";
+          const wHome=g.winner===g.home, wAway=g.winner===g.away;
+          return `<div class="h2h-card">
+            <div class="h2h-date">${dt}</div>
+            <div class="h2h-match">
+              <div class="h2h-side ${wAway?"winner":""}">${logoHTML(g.away,"team-logo-sm")}<span>${g.away}</span><b>${g.as}</b></div>
+              <span class="h2h-vs">–</span>
+              <div class="h2h-side ${wHome?"winner":""}"><b>${g.hs}</b><span>${g.home}</span>${logoHTML(g.home,"team-logo-sm")}</div>
+            </div>
+            <div class="h2h-result">${g.winner==="TIE"?"Match nul":`Victoire ${g.winner}`}</div>
+          </div>`;
+        }).join("")}</div>`;
+    }
+  }
+  $("goalies").innerHTML=[["home",d.home,d.gh],["away",d.away,d.ga]].map(x=>`<div class="goalie"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span style="color:#8ea4b8">• ${x[2].name}</span></h3><div class="stat-row"><span>SV%</span><b>${pct(x[2].sv)}</b></div><div class="stat-row"><span>GAA</span><b>${fmt(x[2].gaa)}</b></div><div class="stat-row"><span>Contexte</span><b>${x[2].conf}</b></div></div>`).join("");
+  $("form").innerHTML=[["home",d.home,d.fh,d.bh,d.travel?.home],["away",d.away,d.fa,d.ba,d.travel?.away]].map(x=>{
+    const games=x[2]||[];
+    const wins=games.filter(g=>g.win).length;
+    const losses=games.length-wins;
+    const gf=games.length?avg(games.map(g=>g.gf)):0;
+    const ga=games.length?avg(games.map(g=>g.ga)):0;
+    // plus récent à droite
+    const ordered=[...games].reverse();
+    const streakHtml = ordered.length
+      ? ordered.map(g=>{
+          const dt=g.date?new Date(g.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short"}):"";
+          const tip=`${g.win?"Victoire":"Défaite"} ${g.gf}-${g.ga} ${g.label||""} (${dt})`;
+          return `<span class="form-pill ${g.win?"win":"loss"}" title="${tip}">
+            <i class="form-pill-res">${g.win?"V":"D"}</i>
+            <span class="form-pill-score">${g.gf}-${g.ga}</span>
+            <span class="form-pill-opp">${g.label||""}</span>
+          </span>`;
+        }).join("")
+      : `<span class="muted">Pas encore de matchs recensés</span>`;
+    const tr=x[4]||{};
+    const restTxt = x[3]?.restDays!=null ? `${x[3].restDays.toFixed(1)} j depuis le dernier match` : "—";
+    const sampleNote = games.length<5
+      ? `<div class="form-note">Début de saison : ${games.length} match(s) (complété avec 2025-26 si besoin)</div>`
+      : "";
+    return `<div class="form-team card-inner">
+      <div class="form-team-head">
+        <h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span class="form-record">${wins}V – ${losses}D</span>${(()=>{let n=0,w=null;for(const g of games){if(w===null)w=g.win;if(g.win===w)n++;else break;}return n>=2?`<span class="form-streak ${w?"hot":"cold"}">${n}${w?"V":"D"} série</span>`:"";})()}</h3>
+        <div class="form-dots" title="Plus récent à droite">${ordered.map(g=>`<i class="form-dot ${g.win?"win":"loss"}"></i>`).join("")}</div>
+      </div>
+      <div class="form-pills">${streakHtml}</div>
+      ${sampleNote}
+      <div class="form-stats">
+        <div class="form-stat"><span>Buts / match</span><b><em class="ok">${fmt(gf)}</em> pour · <em class="bad">${fmt(ga)}</em> contre</b></div>
+        <div class="form-stat"><span>Repos</span><b>${x[3]?.b2b?"⚠️ Back-to-back":"Repos OK"}</b></div>
+        <div class="form-stat"><span>Repos (j)</span><b>${restTxt}</b></div>
+        <div class="form-stat"><span>Trajet</span><b class="${tr.longHaul?"warn":""}">${tr.label||"—"}${tr.longHaul?" · long haul":""}</b></div>
+      </div>
+    </div>`;
+  }).join("");
+  renderAdvanced(d);
+  renderPlayers(CURRENT_PROP);renderAllProps();renderAudit();
+  renderMatchLineups(d.home,d.away,d.gameId||null);
+  try{ setupAnalysisAccordion(); }catch(_){}
+}
+function renderAdvanced(d){
+  const el=$("advancedStats"); if(!el)return;
+  const rows=[
+    ["SAT% (Corsi)",pct(d.h.sat),pct(d.a.sat)],
+    ["USAT% (Fenwick)",pct(d.h.usat),pct(d.a.usat)],
+    ["Power Play %",pct(d.h.pp),pct(d.a.pp)],
+    ["Penalty Kill %",pct(d.h.pk),pct(d.a.pk)],
+    ["Faceoffs %",pct(d.h.fo),pct(d.a.fo)],
+    ["Zone Start % 5v5",pct(d.h.zs),pct(d.a.zs)],
+    ["Sh% 5v5",pct(d.h.sh5),pct(d.a.sh5)],
+    ["Sv% 5v5",pct(d.h.sv5),pct(d.a.sv5)],
+    ["PDO 5v5",fmt(d.h.pdo),fmt(d.a.pdo)],
+    ["GF%",pct(d.h.gfPct),pct(d.a.gfPct)],
+    ["Hits /60",fmt(d.h.hits),fmt(d.a.hits)],
+    ["Blocks /60",fmt(d.h.blocks),fmt(d.a.blocks)],
+    ["Takeaways /60",fmt(d.h.takeaways),fmt(d.a.takeaways)],
+    ["Giveaways /60",fmt(d.h.giveaways),fmt(d.a.giveaways)]
+  ];
+  el.innerHTML=`<div class="adv-grid"><div class="adv-head"><span>Métrique</span><b>${d.home}</b><b>${d.away}</b></div>${rows.map(r=>`<div class="adv-row"><span>${r[0]}</span><b>${r[1]}</b><b>${r[2]}</b></div>`).join("")}</div>`;
+}
+function renderPlayers(key){
+  CURRENT_PROP=key;const p=CURRENT_ANALYSIS?.players.players||[];
+  const h=p.filter(x=>x.team===CURRENT_ANALYSIS.home).sort((a,b)=>b[key]-a[key]).slice(0,3),a=p.filter(x=>x.team===CURRENT_ANALYSIS.away).sort((a,b)=>b[key]-a[key]).slice(0,3);
+  const labels={pg:["Buts","lg","but"],pa:["Passes","la","passe"],pp:["Points","lp","point"],ps:["Tirs","ls","tir"]};
+  const [title,proj,unit]=labels[key];
+  function box(team,arr){return `<div class="player-box"><h3>${logoHTML(team,"team-logo-sm")} ${team} — TOP 3 ${title.toUpperCase()}</h3>${arr.map((p,i)=>`<div class="player"><span class="rank">#${i+1}</span><span class="name">${p.name}<small>${p.position||"—"} • ${p.gp} MJ • TOI ${toiFmt(p.toi)}</small></span><span class="proj">${fmt(p[proj])} ${unit}</span><span class="prob">${pct(p[key])}</span></div>`).join("")||`<div class="player"><span></span><span class="name">Données insuffisantes</span></div>`}</div>`}
+  $("playerTables").innerHTML=box(CURRENT_ANALYSIS.home,h)+box(CURRENT_ANALYSIS.away,a);
+}
+
+function saveHistory(d){
+  const key="rdb_nhl_history_v1";
+  const fingerprint=`${d.home}-${d.away}-${d.x.home.toFixed(4)}-${d.x.away.toFixed(4)}`;
+  if(fingerprint===LAST_HISTORY_KEY)return;
+  LAST_HISTORY_KEY=fingerprint;
+  let h=[];try{h=JSON.parse(localStorage.getItem(key)||"[]")}catch(e){}
+  h.unshift({
+    ts:new Date().toISOString(),home:d.home,away:d.away,
+    xh:d.x.home,xa:d.x.away,total:d.x.total,
+    homeOT:d.m.home,awayOT:d.m.away,o55:d.m.o55,u55:d.m.u55,btts:d.m.btts,
+    score:`${d.best[0]}–${d.best[1]}`,confidence:d.c,status:d.status,
+    pickFav: d.m.home>=d.m.away ? "home" : "away",
+    pickOver55: d.m.o55>=0.5
+  });
+  h=h.slice(0,100);localStorage.setItem(key,JSON.stringify(h));renderHistory();
+}
+function getHistory(){
+  try{return JSON.parse(localStorage.getItem("rdb_nhl_history_v1")||"[]")}catch(e){return []}
+}
+
+
+async function resolveHistoryResults(){
+  const hist=getHistory();
+  if(!hist.length) return {items:[],stats:null};
+  const items=[];
+  let favHit=0,favN=0,o55Hit=0,o55N=0,bttsHit=0,bttsN=0;
+  for(const h of hist.slice(0,40)){
+    let result=null;
+    try{
+      // cherche un match FINAL home/away autour de la date d'analyse (±3j)
+      const base=new Date(h.ts);
+      for(let delta=-1; delta<=3; delta++){
+        const d=new Date(base); d.setDate(d.getDate()+delta);
+        const iso=d.toISOString().slice(0,10);
+        const j=await api(`api-web.nhle.com/v1/schedule/${iso}`);
+        const games=(j.gameWeek||[]).flatMap(x=>x.games||[]);
+        const g=games.find(x=>{
+          const ha=x.homeTeam?.abbrev, aa=x.awayTeam?.abbrev;
+          return ha===h.home && aa===h.away && (x.gameState==="OFF"||x.gameState==="FINAL"||x.gameScheduleState==="OK"&&Number.isFinite(x.homeTeam?.score));
+        });
+        if(g && Number.isFinite(g.homeTeam?.score) && Number.isFinite(g.awayTeam?.score)){
+          const hs=n(g.homeTeam.score), as_=n(g.awayTeam.score);
+          result={hs,as_,total:hs+as_,homeWin:hs>as_,awayWin:as_>hs,btts:hs>0&&as_>0,date:iso};
+          break;
+        }
+      }
+    }catch(_){}
+    let hits={};
+    if(result){
+      const favHome = (h.pickFav|| (h.homeOT>=h.awayOT?"home":"away"))==="home";
+      const favOk = favHome ? result.homeWin : result.awayWin;
+      favN++; if(favOk) favHit++;
+      hits.fav=favOk;
+      const overOk = result.total > 5.5;
+      const pickedOver = h.pickOver55!=null ? h.pickOver55 : h.o55>=0.5;
+      o55N++; if(pickedOver===overOk) o55Hit++;
+      hits.o55 = pickedOver===overOk;
+      bttsN++; const bttsPick=h.btts>=0.5; if(bttsPick===result.btts) bttsHit++;
+      hits.btts = bttsPick===result.btts;
+    }
+    items.push({...h, result, hits});
+  }
+  const stats={
+    fav:{hit:favHit,n:favN,pct:favN?favHit/favN:null},
+    o55:{hit:o55Hit,n:o55N,pct:o55N?o55Hit/o55N:null},
+    btts:{hit:bttsHit,n:bttsN,pct:bttsN?bttsHit/bttsN:null}
+  };
+  return {items,stats};
+}
+
+function svgRing(pct, color){
+  const p = Math.max(0, Math.min(1, pct||0));
+  const r=36, c=2*Math.PI*r, dash=c*p;
+  return `<svg class="perf-ring" viewBox="0 0 90 90" width="90" height="90">
+    <circle cx="45" cy="45" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8"/>
+    <circle cx="45" cy="45" r="${r}" fill="none" stroke="${color}" stroke-width="8"
+      stroke-linecap="round" stroke-dasharray="${dash} ${c-dash}"
+      transform="rotate(-90 45 45)"/>
+    <text x="45" y="50" text-anchor="middle" fill="#fff" font-size="16" font-weight="800">${pct!=null?Math.round(p*100)+"%":"—"}</text>
+  </svg>`;
+}
+function svgBars(items){
+  // items: [{label, pct, color}]
+  const max=1;
+  return `<div class="perf-bars">${items.map(it=>{
+    const h=Math.round((it.pct||0)*100);
+    return `<div class="perf-bar-col" title="${it.label}: ${h}%">
+      <div class="perf-bar-track"><div class="perf-bar-fill" style="height:${h}%;background:${it.color}"></div></div>
+      <span>${h}%</span>
+      <small>${it.label}</small>
+    </div>`;
+  }).join("")}</div>`;
+}
+function renderHitRate(stats){
+  const el=$("hitRateBox"); if(!el)return;
+  if(!stats || (!stats.fav.n && !stats.o55.n && !stats.btts.n)){
+    el.innerHTML=`<div class="empty-inline">Pas encore assez de matchs joués pour calculer le hit rate.<br><small>Analyse des matchs, puis reviens après les résultats (onglet Histo).</small></div>`;
+    return;
+  }
+  function color(p){ return p==null?"#556":p>=0.7?"#00e676":p>=0.5?"#ffd84d":"#ff5263"; }
+  function card(label,s,hint){
+    const cls=s.pct==null?"":s.pct>=0.70?"hit-good":s.pct>=0.50?"hit-mid":"hit-bad";
+    return `<div class="hit-card ${cls}">
+      ${svgRing(s.pct, color(s.pct))}
+      <div class="hit-card-body"><small>${label}</small><span>${s.hit||0}/${s.n||0} · ${hint}</span></div>
+    </div>`;
+  }
+  const bars=svgBars([
+    {label:"Favori", pct:stats.fav.pct, color:color(stats.fav.pct)},
+    {label:"O/U 5.5", pct:stats.o55.pct, color:color(stats.o55.pct)},
+    {label:"BTTS", pct:stats.btts.pct, color:color(stats.btts.pct)},
+  ]);
+  el.innerHTML=`<div class="perf-charts">
+    <div class="hit-grid">
+      ${card("Favori OT",stats.fav,"côté favori modèle")}
+      ${card("Total 5.5",stats.o55,"over/under selon modèle")}
+      ${card("BTTS",stats.btts,"les deux équipes marquent")}
+    </div>
+    <div class="perf-bars-wrap">
+      <div class="section-title" style="border:0;padding:0 0 10px"><span>📊</span> Comparaison hit rate</div>
+      ${bars}
+    </div>
+  </div>
+  <p class="muted" style="margin-top:12px">Basé sur <b>tes</b> analyses locales dont le match est terminé. Preuve sociale pour le Premium — pas un ROI bookmaker.</p>`;
+}
+
+async function renderHistory(){
+  const el=$("historyTable");if(!el)return;
+  el.innerHTML=`<div class="empty-inline">Calcul du hit rate…</div>`;
+  try{
+    const {items,stats}=await resolveHistoryResults();
+    renderHitRate(stats);
+    if(!items.length){el.innerHTML=`<div class="empty-inline">Aucune analyse enregistrée.</div>`;return}
+    el.innerHTML=`<table class="props-table"><thead><tr>
+      <th>Date</th><th>Match</th><th>xG</th><th>Pick</th><th>Résultat</th><th>Fav</th><th>O/U 5.5</th><th>Conf.</th>
+    </tr></thead><tbody>${items.map(x=>{
+      const pick=x.pickFav==="away"?x.away:x.home;
+      const res=x.result?`${x.result.as_}–${x.result.hs}`:"en attente";
+      const favI=x.hits?.fav==null?"—":(x.hits.fav?"✓":"✗");
+      const ouI=x.hits?.o55==null?"—":(x.hits.o55?"✓":"✗");
+      return `<tr>
+        <td>${new Date(x.ts).toLocaleString("fr-FR")}</td>
+        <td class="pname">${x.home} – ${x.away}</td>
+        <td>${fmt(x.xh)} – ${fmt(x.xa)}</td>
+        <td>${pick}</td>
+        <td>${res}</td>
+        <td class="${x.hits?.fav===true?"hit-yes":x.hits?.fav===false?"hit-no":""}">${favI}</td>
+        <td class="${x.hits?.o55===true?"hit-yes":x.hits?.o55===false?"hit-no":""}">${ouI}</td>
+        <td>${x.confidence}%</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+  }catch(e){
+    el.innerHTML=`<div class="empty-inline">Historique indisponible (${e.message||e}).</div>`;
+  }
+}
+
+function clearHistory(){
+  localStorage.removeItem("rdb_nhl_history_v1");renderHistory();const hr=$("hitRateBox");if(hr)hr.innerHTML="";
+}
+
+function renderAllProps(){
+  const p=CURRENT_ANALYSIS?.players.players||[];
+  $("allProps").innerHTML=`<table class="props-table"><thead><tr><th>Joueur</th><th>Équipe</th><th>TOI</th><th>Buts proj.</th><th>P 1+ but</th><th>Passes proj.</th><th>P 1+ passe</th><th>Points proj.</th><th>P 1+ point</th><th>Tirs proj.</th><th>P 1+ tir</th></tr></thead><tbody>${p.map(x=>`<tr><td class="pname">${x.name}</td><td>${logoHTML(x.team,"team-logo-xs")} ${x.team}</td><td>${toiFmt(x.toi)}</td><td>${fmt(x.lg)}</td><td class="prob">${pct(x.pg)}</td><td>${fmt(x.la)}</td><td class="prob">${pct(x.pa)}</td><td>${fmt(x.lp)}</td><td class="prob">${pct(x.pp)}</td><td>${fmt(x.ls)}</td><td class="prob">${pct(x.ps)}</td></tr>`).join("")}</tbody></table>`;
+}
+function renderAudit(){
+  const d=CURRENT_ANALYSIS;
+  $("audit").innerHTML=`<p class="muted" style="margin-bottom:8px">Rosters : API <b>/roster/{team}/current</b> (effectifs 2026-27, transferts inclus). Stats joueurs : saison régulière 2025-26.</p><table><thead><tr><th>Équipe</th><th>GP</th><th>GF</th><th>GA</th><th>Tirs</th><th>SAT%</th><th>PP%</th><th>PK%</th><th>FO%</th><th>PDO</th><th>Source</th></tr></thead><tbody>
+  <tr><td><b>${d.home}</b></td><td>${d.h.gp}</td><td>${fmt(d.h.gf)}</td><td>${fmt(d.h.ga)}</td><td>${fmt(d.h.shots)}</td><td>${pct(d.h.sat)}</td><td>${pct(d.h.pp)}</td><td>${pct(d.h.pk)}</td><td>${pct(d.h.fo)}</td><td>${fmt(d.h.pdo)}</td><td>${d.h.source}</td></tr>
+  <tr><td><b>${d.away}</b></td><td>${d.a.gp}</td><td>${fmt(d.a.gf)}</td><td>${fmt(d.a.ga)}</td><td>${fmt(d.a.shots)}</td><td>${pct(d.a.sat)}</td><td>${pct(d.a.pp)}</td><td>${pct(d.a.pk)}</td><td>${pct(d.a.fo)}</td><td>${fmt(d.a.pdo)}</td><td>${d.a.source}</td></tr></tbody></table>`;
+}
+
+async function loadNews(){
+  const el=$("newsFeed"); if(!el)return;
+  el.innerHTML=skeleton(4);
+  try{
+    const r=await fetch("/api?news=1",{cache:"no-store"});
+    const j=await r.json();
+    const arts=j.articles||[];
+    if(!arts.length){
+      el.innerHTML=`<div class="empty-inline">Aucune actu pour le moment. Réessaie avec ↻ Actualiser.<br><small>${j.error||""}</small></div>`;
+      return;
+    }
+    el.innerHTML=arts.map(a=>{
+      let d="";
+      try{ if(a.published) d=new Date(a.published).toLocaleString("fr-FR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); }catch(_){}
+      const img=a.image?`<img src="${a.image}" alt="" loading="lazy" referrerpolicy="no-referrer">`:"";
+      const desc=(a.description||"").slice(0,180);
+      return `<a class="news-card" href="${a.url||"https://www.nhl.com/news"}" target="_blank" rel="noopener">
+        <div class="news-img">${img||`<div class="news-ph">🏒</div>`}</div>
+        <div class="news-body">
+          <div class="news-meta">${d||"Récent"} · ${a.source||"NHL"}</div>
+          <h3>${a.title||"Sans titre"}</h3>
+          <p>${desc}${desc.length>=180?"…":""}</p>
+        </div>
+      </a>`;
+    }).join("");
+  }catch(e){
+    el.innerHTML=`<div class="empty-inline">Impossible de charger l'actu (${e.message||e}).<br>Vérifie que <code>functions/api.js</code> est bien déployé.</div>`;
+  }
+}
+
+
+function applyAnalysisDeepLink(){
+  try{
+    const p=new URLSearchParams(location.search);
+    const home=(p.get("home")||p.get("h")||"").toUpperCase();
+    const away=(p.get("away")||p.get("a")||"").toUpperCase();
+    if(home && away && TEAMS[home] && TEAMS[away] && home!==away){
+      $("homeTeam").value=home; $("awayTeam").value=away; updateTeamMeta();
+      setTimeout(()=>runAnalysis(), 400);
+    }
+  }catch(_){}
+}
+function setAnalysisDeepLink(home, away){
+  try{
+    const url=new URL(location.href);
+    url.searchParams.set("home", home);
+    url.searchParams.set("away", away);
+    history.replaceState({}, "", url.pathname + "?" + url.searchParams.toString());
+  }catch(_){}
+}
+
+async function runAnalysis(){
+  const home=$("homeTeam").value,away=$("awayTeam").value,btn=$("analyzeBtn");
+  if(btn){btn.disabled=true;btn.style.opacity=".6"}
+  $("loading").classList.remove("hidden");$("analysis").classList.add("hidden");$("emptyState").classList.add("hidden");
+  setLoadMsg("Connexion NHL…");
+  try{
+    renderAnalysis(await analyze(home,away)); setAnalysisDeepLink(home,away);
+    $("lastUpdate").textContent="Dernière analyse : "+new Date().toLocaleTimeString("fr-FR");
+  }catch(e){
+    $("emptyState").classList.remove("hidden");
+    $("emptyState").innerHTML=`<div class="empty-icon">⚠️</div><h2>Analyse indisponible</h2><p>${e.message||e}</p><p class="muted" style="margin-top:8px">Réessaie dans quelques secondes ou change d'équipes.</p>`;
+  }finally{
+    $("loading").classList.add("hidden");
+    if(btn){btn.disabled=false;btn.style.opacity="1"}
+  }
+}
+async function schedule(days=0){
+  const d=new Date();d.setDate(d.getDate()+days);
+  const iso=d.toISOString().slice(0,10);
+  $("schedule").innerHTML=skeleton(3);
+  try{
+    const j=await api(`api-web.nhle.com/v1/schedule/${iso}`);
+    const week=j.gameWeek||[];
+    // uniquement le jour demandé (pas toute la semaine)
+    const day=week.find(x=>(x.date||"").slice(0,10)===iso) || week.find(x=>x.numberOfGames>0) || week[0];
+    const games=(day?.games)||[];
+    const label=day?.date||iso;
+    if(!games.length){
+      $("schedule").innerHTML=`<div class="empty-inline">Aucun match le ${label}.<br><small>Pré-saison / début de saison : essaie Demain ou J+2.</small></div>`;
+      return;
+    }
+    $("schedule").innerHTML=`<div class="muted" style="margin-bottom:10px">📅 ${label} · ${games.length} match(s)</div>`+games.map(g=>{
+      const h=g.homeTeam?.abbrev||"", a=g.awayTeam?.abbrev||"";
+      const dt=new Date(g.startTimeUTC||g.gameDate||label);
+      const time=isNaN(dt)? "—" : dt.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+      const hs=g.homeTeam?.score, as_=g.awayTeam?.score;
+      const hasScore=Number.isFinite(hs)&&Number.isFinite(as_);
+      const score=hasScore?`${as_} – ${hs}`:time;
+      const type=g.gameType===1?"PRÉ":g.gameType===2?"Saison":g.gameType===3?"Séries":"";
+      const state=g.gameState||"";
+      return `<div class="sched-row">
+        <div class="sched-teams">
+          ${logoHTML(a,"team-logo-sm")}<span class="code">${a}</span>
+          <span class="sched-score">${score}</span>
+          ${logoHTML(h,"team-logo-sm")}<span class="code">${h}</span>
+          <small class="sched-tag">${type}${state?` · ${state}`:""}</small>
+        </div>
+        <button class="ghost-btn analyze-small" data-home="${h}" data-away="${a}" data-game-id="${g.id||""}">Analyser</button>
+      </div>`;
+    }).join("");
+    document.querySelectorAll(".analyze-small").forEach(b=>b.onclick=()=>{
+      if(!b.dataset.home||!b.dataset.away)return;
+      $("homeTeam").value=b.dataset.home;$("awayTeam").value=b.dataset.away;updateTeamMeta();
+      window.__RDB_GAME_ID=b.dataset.gameId||null;
+      document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+      document.querySelector('.nav-btn[data-view="analyse"]')?.classList.add("active");
+      document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));$("view-analyse").classList.add("active");
+      runAnalysis();
+    });
+  }catch(e){$("schedule").innerHTML=`<div class="empty-inline">Impossible de charger le calendrier (${e.message||e}).</div>`}
+}
+async function renderTeamTable(){
+  $("teamTable").innerHTML=skeleton(4);
+  try{
+    const t=await getTeams(),l=leagueFrom(t);
+    const rows=Object.keys(TEAMS).sort().map(c=>{
+      const x=t[c];
+      return x?`<tr>
+        <td>${logoHTML(c,"team-logo-sm")} <span class="code">${c}</span> ${TEAMS[c][0]}</td>
+        <td>${x.gp}</td><td>${fmt(x.gf)}</td><td>${fmt(x.ga)}</td>
+        <td>${pct(x.sat)}</td><td>${pct(x.usat)}</td>
+        <td>${pct(x.pp)}</td><td>${pct(x.pk)}</td>
+        <td>${pct(x.fo)}</td><td>${fmt(x.pdo)}</td>
+        <td>${fmt(x.gf/l.gf)}</td><td>${fmt(x.ga/l.ga)}</td>
+      </tr>`:`<tr><td>${logoHTML(c,"team-logo-sm")} <span class="code">${c}</span> ${TEAMS[c][0]}</td><td colspan="11">Données insuffisantes</td></tr>`;
+    }).join("");
+    $("teamTable").innerHTML=`<table><thead><tr>
+      <th>Équipe</th><th>GP</th><th>GF</th><th>GA</th>
+      <th>SAT%</th><th>USAT%</th><th>PP%</th><th>PK%</th><th>FO%</th><th>PDO</th>
+      <th>Attaque</th><th>Défense</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  }catch(e){$("teamTable").innerHTML=`<div class="empty-inline">${e.message}</div>`}
+}
+function fillAccountPanel(){
+  const A=window.RDB_AUTH; if(!A?.isLoggedIn()) return;
+  const L=A.getLevelInfo?.()||{name:"Nouveau Rat",emoji:"🐀",id:0};
+  const trialMs=A.trialRemainingMs?.()||0;
+  const trialEnded=A.hasTrialEnded?.()||false;
+  let plan="Free · 1 analyse / jour";
+  if(A.isPremium() && trialMs>0) plan=`Essai Premium · ${Math.ceil(trialMs/3600000)}h restantes`;
+  else if(A.isAdmin?.()) plan="Premium admin (Chef de meute)";
+  else if(A.isPremium()) plan="Premium à vie";
+  else if(trialEnded) plan="Free · essai terminé";
+  $("accEmoji")&&($("accEmoji").textContent=L.emoji||"🐀");
+  $("accLevelName")&&($("accLevelName").textContent=L.name||"");
+  $("accNameInput")&&($("accNameInput").value=A.user?.name||"");
+  $("accEmail")&&($("accEmail").textContent=A.user?.email||"—");
+  $("accLevel")&&($("accLevel").textContent=`${L.emoji||""} ${L.name||""} (niv. ${L.id ?? A.getLevel?.() ?? 0})`);
+  $("accPlan")&&($("accPlan").textContent=plan);
+  $("accPosts")&&($("accPosts").textContent=String(A.getPostsCount?.()??0));
+  $("accTickets")&&($("accTickets").textContent=String(A.getTicketsCount?.()??0));
+  const next=[
+    "Publie sur le forum pour progresser.",
+    "Encore quelques posts pour Rat confirmé (3 posts ou essai).",
+    "Objectif : 10 posts ou 5 tickets → Rat de la meute.",
+    "Passe Premium pour devenir Rat premium.",
+    "20 posts forum + Premium → Rat élite.",
+    "Tu es au sommet de la meute. 🏆",
+  ];
+  const lv=A.getLevel?.()??0;
+  $("accNext")&&($("accNext").textContent=next[Math.min(lv,5)]||next[0]);
+  const premBtn=$("accPremiumBtn");
+  $("accAdminBtn")?.classList.toggle("hidden", !(A.isAdmin?.()));
+  if(premBtn){
+    if(A.isAdmin?.() || (A.isPremium() && trialMs<=0)){ premBtn.classList.add("hidden"); }
+    else { premBtn.classList.remove("hidden"); premBtn.textContent = trialMs>0 ? "Garder Premium à vie" : "Passer Premium 20 €"; }
+  }
+}
+function showAuthSection(which){
+  // which: account | login | forgot | newpass
+  $("accountPanel")?.classList.toggle("hidden", which!=="account");
+  $("authLoginPanel")?.classList.toggle("hidden", which!=="login");
+  $("authForgotPanel")?.classList.toggle("hidden", which!=="forgot");
+  $("authNewPassPanel")?.classList.toggle("hidden", which!=="newpass");
+}
+function openAuth(mode){
+  const m=$("authModal"); if(!m)return;
+  m.classList.remove("hidden");
+  const A=window.RDB_AUTH;
+  const logged=!!A?.isLoggedIn();
+  if(mode==="forgot"){ showAuthSection("forgot"); return; }
+  if(mode==="newpass"){ showAuthSection("newpass"); return; }
+  if(logged){ showAuthSection("account"); fillAccountPanel(); return; }
+  showAuthSection("login");
+  const isReg=mode==="register";
+  document.querySelectorAll(".auth-tab").forEach(t=>t.classList.toggle("active",t.dataset.auth===(isReg?"register":"login")));
+  $("authNameWrap")?.classList.toggle("hidden",!isReg);
+  $("authSubmit").textContent=isReg?"Créer mon compte":"Se connecter";
+  $("authError")?.classList.add("hidden");
+}
+function closeAuth(){ $("authModal")?.classList.add("hidden"); }
+function setupAuthUI(){
+  const A=window.RDB_AUTH; if(!A)return;
+  A.checkUnlockParam?.();
+  refreshPlanUI();
+  $("authChip")?.addEventListener("click",()=>openAuth(A.isLoggedIn()?"account":"register"));
+  $("accSaveName")?.addEventListener("click", async ()=>{
+    const err=$("authError");
+    try{
+      await A.updateName?.($("accNameInput")?.value);
+      fillAccountPanel();
+      refreshPlanUI();
+      if(err){ err.style.color="#00e676"; err.textContent="Pseudo mis à jour."; err.classList.remove("hidden"); }
+    }catch(ex){
+      if(err){ err.style.color=""; err.textContent=ex.message||String(ex); err.classList.remove("hidden"); }
+    }
+  });
+  $("accPremiumBtn")?.addEventListener("click",()=>{closeAuth();A.openCheckout?.();});
+  $("accAdminBtn")?.addEventListener("click",()=>{
+    closeAuth();
+    document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));
+    $("navAdmin")?.classList.add("active");
+    document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+    $("view-admin")?.classList.add("active");
+    try{ loadAdminDashboard(); }catch(_){}
+  });
+  $("forgotPasswordBtn")?.addEventListener("click",()=>{
+    const em=$("authEmail")?.value||"";
+    openAuth("forgot");
+    if($("forgotEmail")&&em) $("forgotEmail").value=em;
+    $("forgotError")?.classList.add("hidden");
+    $("forgotOk")?.classList.add("hidden");
+  });
+  $("forgotBack")?.addEventListener("click",()=>openAuth("login"));
+  $("forgotSubmit")?.addEventListener("click",async()=>{
+    const err=$("forgotError"), ok=$("forgotOk");
+    err?.classList.add("hidden"); ok?.classList.add("hidden");
+    try{
+      await A.resetPassword?.($("forgotEmail")?.value);
+      if(ok){ ok.textContent="Email envoyé. Vérifie ta boîte (et les spams). Clique le lien pour choisir un nouveau mot de passe."; ok.classList.remove("hidden"); }
+    }catch(ex){
+      if(err){ err.textContent=ex.message||String(ex); err.classList.remove("hidden"); }
+    }
+  });
+  $("accChangePassBtn")?.addEventListener("click",()=>{
+    openAuth("forgot");
+    if($("forgotEmail")&&A.user?.email) $("forgotEmail").value=A.user.email;
+  });
+  $("newPassSubmit")?.addEventListener("click",async()=>{
+    const err=$("newPassError"); err?.classList.add("hidden");
+    const p1=$("newPassword")?.value||"", p2=$("newPassword2")?.value||"";
+    if(p1!==p2){ if(err){err.textContent="Les mots de passe ne correspondent pas."; err.classList.remove("hidden");} return; }
+    try{
+      await A.updatePassword?.(p1);
+      alert("Mot de passe mis à jour.");
+      closeAuth(); refreshPlanUI();
+    }catch(ex){
+      if(err){ err.textContent=ex.message||String(ex); err.classList.remove("hidden"); }
+    }
+  });
+  // Lien email Supabase recovery
+  try{
+    const hash=location.hash||"";
+    if(hash.includes("type=recovery") || hash.includes("type%3Drecovery")){
+      openAuth("newpass");
+    }
+  }catch(_){}
+  $("unlockBtn")?.addEventListener("click",()=>A.openCheckout());
+  $("buyPremiumBtn")?.addEventListener("click",()=>A.openCheckout());
+  $("lockLoginBtn")?.addEventListener("click",()=>openAuth("register"));
+  $("freeAccountBtn")?.addEventListener("click",()=>openAuth("register"));
+  document.querySelectorAll("[data-close=auth]").forEach(el=>el.addEventListener("click",closeAuth));
+  document.querySelectorAll(".auth-tab").forEach(t=>t.addEventListener("click",()=>openAuth(t.dataset.auth)));
+  $("authForm")?.addEventListener("submit",async e=>{
+    e.preventDefault();
+    const email=$("authEmail").value, pass=$("authPassword").value, name=$("authName")?.value;
+    const isReg=$("authNameWrap")&&!$("authNameWrap").classList.contains("hidden");
+    const err=$("authError");
+    try{
+      if(isReg) await A.register(email,pass,name);
+      else await A.login(email,pass);
+      err?.classList.add("hidden");
+      closeAuth(); refreshPlanUI();
+      if(CURRENT_ANALYSIS) renderAnalysis(CURRENT_ANALYSIS);
+    }catch(ex){
+      if(ex.code==="CONFIRM_EMAIL" || ex.message==="CONFIRM_EMAIL"){
+        if(err){
+          err.classList.remove("hidden");
+          err.style.color="#00e676";
+          err.innerHTML=`<b>Vérifie ta boîte mail</b><br>Un email de confirmation a été envoyé à <b>${ex.email||email}</b>.<br>Clique le lien (regarde aussi les spams), puis reconnecte-toi pour débloquer l’essai 48 h et le forum.`;
+        }
+        return;
+      }
+      if(err){err.style.color=""; err.textContent=ex.message||String(ex);err.classList.remove("hidden")}
+    }
+  });
+  $("authLogout")?.addEventListener("click",()=>{A.logout();refreshPlanUI();closeAuth()});
+  window.addEventListener("rdb:premium",()=>{refreshPlanUI();if(CURRENT_ANALYSIS)renderAnalysis(CURRENT_ANALYSIS)});
+  window.addEventListener("rdb:auth",()=>{refreshPlanUI();refreshAdminNav();
+    if(window.RDB_AUTH?.isLoggedIn?.() && !localStorage.getItem(ONBOARD_KEY)) setTimeout(()=>showOnboarding(false), 800);
+  });
+  refreshAdminNav();
+  setTimeout(refreshAdminNav, 500);
+  setTimeout(refreshAdminNav, 2000);
+  $("adminRefresh")&&($("adminRefresh").onclick=()=>loadAdminDashboard());
+  window.addEventListener("rdb:email-confirmed",(ev)=>{
+    setTimeout(()=>showOnboarding(true), 600);
+    try{ sessionStorage.setItem("rdb_email_ok_shown","1"); }catch(_){}
+    const m=$("emailConfirmModal");
+    const t=$("emailConfirmText");
+    const email=ev.detail?.email||"";
+    if(t) t.innerHTML = email
+      ? `L’adresse <b>${email}</b> est validée. Bienvenue dans la meute !`
+      : `Ton adresse est validée. Bienvenue dans la meute !`;
+    m?.classList.remove("hidden");
+    refreshPlanUI();
+  });
+  window.addEventListener("rdb:password-recovery",()=>{ openAuth("newpass"); });
+  document.querySelectorAll("[data-close=emailConfirm]").forEach(el=>el.addEventListener("click",()=>$("emailConfirmModal")?.classList.add("hidden")));
+  $("emailConfirmOk")?.addEventListener("click",()=>$("emailConfirmModal")?.classList.add("hidden"));
+}
+
+async function getStandings(){
+  const j=await api("api-web.nhle.com/v1/standings/now");
+  return j.standings||[];
+}
+async function renderStandings(){
+  const el=$("standingsTable"); if(!el)return;
+  el.innerHTML=skeleton(4);
+  if(STANDINGS_CACHE && Date.now()-STANDINGS_CACHE_AT < 20*60*1000){
+    el.innerHTML=STANDINGS_CACHE;
+    return;
+  }
+  try{
+    const rows=await getStandings();
+    if(!rows.length){el.innerHTML=`<div class="empty-inline">Classement indisponible (hors saison ou API).</div>`;return;}
+    const asOf=rows[0]?.date||rows[0]?.standingsDate||"";
+    const seasonNote=asOf&&String(asOf).startsWith("2026-0")&&Number(String(asOf).slice(5,7))<=4
+      ? "Fin de saison 2025-26 (en attente du classement 2026-27)"
+      : "Saison en cours (mis à jour automatiquement)";
+
+    const DIV_ORDER = [
+      {key:"Atlantic", label:"Atlantique", conf:"Est"},
+      {key:"Metropolitan", label:"Métropolitaine", conf:"Est"},
+      {key:"Central", label:"Centrale", conf:"Ouest"},
+      {key:"Pacific", label:"Pacifique", conf:"Ouest"},
+    ];
+    const byDiv = {};
+    for(const x of rows){
+      const d = x.divisionName || x.divisionAbbrev || "Autre";
+      (byDiv[d] = byDiv[d] || []).push(x);
+    }
+    for(const k of Object.keys(byDiv)){
+      byDiv[k].sort((a,b)=>(a.divisionSequence||99)-(b.divisionSequence||99) || (b.points||0)-(a.points||0));
+    }
+
+    function teamRow(x, rank){
+      const abbr=(x.teamAbbrev?.default||x.teamAbbrev||"").toString().toUpperCase();
+      const name=x.teamName?.default||x.teamCommonName?.default||abbr;
+      return `<tr>
+        <td>${rank}</td>
+        <td class="pname">${logoHTML(abbr,"team-logo-sm")} <span class="code">${abbr}</span> ${name}</td>
+        <td>${x.gamesPlayed??"—"}</td><td>${x.wins??"—"}</td><td>${x.losses??"—"}</td><td>${x.otLosses??"—"}</td>
+        <td><b>${x.points??"—"}</b></td><td>${x.goalFor??"—"}</td><td>${x.goalAgainst??"—"}</td>
+        <td>${x.goalDifferential??"—"}</td>
+      </tr>`;
+    }
+    function divTable(title, badge, list){
+      if(!list||!list.length) return "";
+      return `<div class="standings-div-card">
+        <div class="standings-div-head"><span class="standings-div-badge">${badge}</span><h3>${title}</h3></div>
+        <table class="props-table standings-table"><thead><tr>
+          <th>#</th><th>Équipe</th><th>MJ</th><th>V</th><th>D</th><th>DP</th><th>Pts</th><th>BP</th><th>BC</th><th>Diff</th>
+        </tr></thead><tbody>${list.map((x,i)=>teamRow(x,i+1)).join("")}</tbody></table>
+      </div>`;
+    }
+
+    // League overall
+    const league=[...rows].sort((a,b)=>(a.leagueSequence||99)-(b.leagueSequence||99));
+    let html=`<p class="muted" style="margin-bottom:12px">${seasonNote}${asOf?` · au ${asOf}`:""}</p>`;
+    html+=`<div class="standings-tabs">
+      <button type="button" class="day-btn standings-mode active" data-mode="div">Par division</button>
+      <button type="button" class="day-btn standings-mode" data-mode="league">Ligue entière</button>
+    </div>`;
+    html+=`<div id="standingsDivView" class="standings-div-grid">`;
+    for(const d of DIV_ORDER){
+      const list = byDiv[d.key] || byDiv[d.label] || [];
+      // also match by abbrev heuristics
+      if(!list.length){
+        for(const [k,v] of Object.entries(byDiv)){
+          if(k.toLowerCase().includes(d.key.toLowerCase().slice(0,4))) { list.push(...v); }
+        }
+      }
+      html+=divTable(d.label, d.conf, list.length?list:(byDiv[d.key]||[]));
+    }
+    // leftover divisions
+    const used=new Set(DIV_ORDER.map(d=>d.key));
+    for(const [k,v] of Object.entries(byDiv)){
+      if([...used].some(u=>k.toLowerCase().includes(u.toLowerCase().slice(0,4)))) continue;
+      html+=divTable(k, "—", v);
+    }
+    html+=`</div>`;
+    html+=`<div id="standingsLeagueView" class="hidden">
+      <table class="props-table standings-table"><thead><tr>
+        <th>#</th><th>Équipe</th><th>MJ</th><th>V</th><th>D</th><th>DP</th><th>Pts</th><th>BP</th><th>BC</th><th>Diff</th><th>Conf</th><th>Div</th>
+      </tr></thead><tbody>${league.map((x,i)=>{
+        const abbr=(x.teamAbbrev?.default||x.teamAbbrev||"").toString().toUpperCase();
+        const name=x.teamName?.default||x.teamCommonName?.default||abbr;
+        return `<tr>
+          <td>${x.leagueSequence||(i+1)}</td>
+          <td class="pname">${logoHTML(abbr,"team-logo-sm")} <span class="code">${abbr}</span> ${name}</td>
+          <td>${x.gamesPlayed??"—"}</td><td>${x.wins??"—"}</td><td>${x.losses??"—"}</td><td>${x.otLosses??"—"}</td>
+          <td><b>${x.points??"—"}</b></td><td>${x.goalFor??"—"}</td><td>${x.goalAgainst??"—"}</td>
+          <td>${x.goalDifferential??"—"}</td><td>${x.conferenceAbbrev||"—"}</td><td>${x.divisionAbbrev||"—"}</td>
+        </tr>`;
+      }).join("")}</tbody></table>
+    </div>`;
+    el.innerHTML=html;
+    STANDINGS_CACHE=html; STANDINGS_CACHE_AT=Date.now();
+    el.querySelectorAll(".standings-mode").forEach(btn=>{
+      btn.onclick=()=>{
+        el.querySelectorAll(".standings-mode").forEach(b=>b.classList.remove("active"));
+        btn.classList.add("active");
+        const mode=btn.dataset.mode;
+        const divV=$("standingsDivView"), legV=$("standingsLeagueView");
+        if(mode==="div"){divV?.classList.remove("hidden");legV?.classList.add("hidden");}
+        else{divV?.classList.add("hidden");legV?.classList.remove("hidden");}
+      };
+    });
+  }catch(e){el.innerHTML=`<div class="empty-inline">Classement indisponible : ${e.message||e}</div>`; showApiError(e.message||e)}
+}
+
+let STANDINGS_CACHE=null, STANDINGS_CACHE_AT=0;
+let LEADERS_CACHE=null, LEADERS_CACHE_AT=0;
+let LEADERS_STREAK={}; // id -> {goals:[0/1], assists, points} last 5 (oldest->newest or newest first)
+
+async function enrichTeamsFromLeadersAPI(rows){
+  try{
+    const cats=["points","goals","assists"];
+    for(const cat of cats){
+      const j=await api(`api-web.nhle.com/v1/skater-stats-leaders/current?categories=${cat}&limit=100`);
+      const list=j[cat]||[];
+      for(const p of list){
+        const id=String(p.id||p.playerId||"");
+        const tm=String(p.teamAbbrev||"").toUpperCase();
+        if(!id||!tm) continue;
+        const row=rows.find(r=>r.id===id) || rows.find(r=>norm(r.name)===norm(`${p.firstName?.default||p.firstName||""} ${p.lastName?.default||p.lastName||""}`));
+        if(row && !row.team) row.team=tm;
+        else if(row) row.team=row.team||tm;
+      }
+    }
+  }catch(e){ console.warn("enrich teams", e); }
+  return rows;
+}
+
+const STREAK_LS_KEY="rdb_streaks_v1";
+function loadStreakCache(){
+  try{
+    const o=JSON.parse(localStorage.getItem(STREAK_LS_KEY)||"{}");
+    if(o && o.at && Date.now()-o.at < 6*3600*1000 && o.map) return o.map;
+  }catch(_){}
+  return {};
+}
+function saveStreakCache(){
+  try{ localStorage.setItem(STREAK_LS_KEY, JSON.stringify({at:Date.now(), map:LEADERS_STREAK})); }catch(_){}
+}
+// hydrate memory from LS once
+try{ Object.assign(LEADERS_STREAK, loadStreakCache()); }catch(_){}
+
+async function fetchPlayerStreak(playerId){
+  if(!playerId) return null;
+  if(LEADERS_STREAK[playerId] && LEADERS_STREAK[playerId].points) return LEADERS_STREAK[playerId];
+  try{
+    let j=await api(`api-web.nhle.com/v1/player/${playerId}/game-log/${CURRENT}/2`);
+    let gl=j.gameLog||[];
+    if(gl.length<3){
+      j=await api(`api-web.nhle.com/v1/player/${playerId}/game-log/${BASE}/2`);
+      gl=j.gameLog||[];
+    }
+    const last5=gl.slice(0,5);
+    const streak={
+      goals: last5.map(g=>n(g.goals)>0?1:0),
+      assists: last5.map(g=>n(g.assists)>0?1:0),
+      points: last5.map(g=>n(g.points)>0?1:0),
+      team: last5[0]?String(last5[0].teamAbbrev||"").toUpperCase():""
+    };
+    LEADERS_STREAK[playerId]=streak;
+    saveStreakCache();
+    return streak;
+  }catch(_){
+    return {goals:[],assists:[],points:[],team:""};
+  }
+}
+
+function streakDots(arr){
+  if(!arr||!arr.length) return `<span class="streak-dots muted">—</span>`;
+  // show chronological left=oldest of the 5, right=most recent
+  const ordered=[...arr].reverse();
+  return `<span class="streak-dots" title="5 derniers matchs (gauche→droite = plus récent à droite)">${ordered.map(v=>
+    `<i class="streak-dot ${v? "hit":"miss"}"></i>`
+  ).join("")}</span>`;
+}
+
+async function renderLeaders(sortKey="points"){
+  const el=$("leadersTable"); if(!el)return;
+  el.innerHTML=skeleton(5);
+  try{
+    if(!LEADERS_CACHE){
+      try{
+        const ls=JSON.parse(localStorage.getItem("rdb_leaders_v1")||"null");
+        if(ls && ls.at && Date.now()-ls.at < 30*60*1000 && ls.rows){
+          const byId={},byName={};
+          for(const r of ls.rows){ if(r.id) byId[r.id]=r; if(r.name) byName[norm(r.name)]=r; }
+          LEADERS_CACHE={rows:ls.rows,byId,byName};
+          LEADERS_CACHE_AT=ls.at;
+        }
+      }catch(_){}
+    }
+    let st = LEADERS_CACHE;
+    if(!st || !LEADERS_CACHE_AT || Date.now()-LEADERS_CACHE_AT > 30*60*1000){
+      st = await getSkaters();
+      LEADERS_CACHE = st;
+      LEADERS_CACHE_AT = Date.now();
+      try{ localStorage.setItem("rdb_leaders_v1", JSON.stringify({at:Date.now(), rows:st.rows?.slice?.(0,80)})); }catch(_){}
+    }
+    if(st.rows.some(r=>!r.team)) await enrichTeamsFromLeadersAPI(st.rows);
+
+    const keyMap={points:"points",goals:"goals",assists:"assists",shots:"shots",toi:"toi"};
+    const k=keyMap[sortKey]||"points";
+    const rows=[...st.rows].filter(x=>x.gp>=1).sort((a,b)=> (k==="toi"?toiMinutes(b.toi)-toiMinutes(a.toi):b[k]-a[k])).slice(0,50);
+
+    const needStreak = ["points","goals","assists"].includes(k);
+    const streakKey = k==="goals"?"goals":k==="assists"?"assists":"points";
+    const streakHeader = needStreak ? `<th>Série 5</th>` : "";
+    // Affiche d'abord le tableau (rapide), séries en lazy-load
+    el.innerHTML=`<table class="props-table leaders-table"><thead><tr>
+      <th>#</th><th>Joueur</th><th>Équipe</th><th>Pos</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>Tirs</th><th>TOI/M</th>${streakHeader}
+    </tr></thead><tbody>${rows.map((x,i)=>{
+      const tm=x.team||"";
+      const cached = needStreak ? LEADERS_STREAK[x.id]?.[streakKey] : null;
+      const dots = needStreak ? `<td class="streak-cell" data-pid="${x.id}">${cached?streakDots(cached):`<span class="streak-dots muted">…</span>`}</td>` : "";
+      return `<tr>
+      <td>${i+1}</td>
+      <td class="pname">${x.name}</td>
+      <td class="team-cell">${tm?logoHTML(tm,"team-logo-sm"):""} <span class="code">${tm||"—"}</span></td>
+      <td>${x.position||"—"}</td><td>${x.gp}</td>
+      <td>${x.goals}</td><td>${x.assists}</td><td><b>${x.points}</b></td>
+      <td>${x.shots}</td><td>${toiFmt(x.toi)}</td>${dots}
+    </tr>`;
+    }).join("")}</tbody></table>
+    ${needStreak?`<p class="muted" style="margin-top:10px;font-size:11px">Série 5 : <span style="color:#00e676">vert</span> = ≥1 ${k==="goals"?"but":k==="assists"?"passe":"point"} · <span style="color:#ff5263">rouge</span> = 0 (droite = plus récent).</p>`:""}`;
+
+    if(needStreak){
+      // Lazy : par paquets de 8 pour ne pas bloquer l'UI
+      const ids=rows.slice(0,40).map(r=>r.id).filter(Boolean);
+      (async()=>{
+        for(let i=0;i<ids.length;i+=8){
+          const chunk=ids.slice(i,i+8);
+          await Promise.all(chunk.map(async id=>{
+            const s=await fetchPlayerStreak(id);
+            const cell=el.querySelector(`.streak-cell[data-pid="${id}"]`);
+            if(cell) cell.innerHTML=streakDots(s?.[streakKey]);
+            const row=rows.find(r=>r.id===id);
+            if(row && s?.team && !row.team){
+              row.team=s.team;
+              const tc=cell?.parentElement?.querySelector(".team-cell");
+              if(tc) tc.innerHTML=`${logoHTML(s.team,"team-logo-sm")} <span class="code">${s.team}</span>`;
+            }
+          }));
+        }
+      })();
+    }
+  }catch(e){el.innerHTML=`<div class="empty-inline">Classement joueurs indisponible : ${e.message||e}</div>`; showApiError(e.message||e)}
+}
+
+
+let INJURY_CACHE=null, INJURY_FILTER="all";
+
+async function ensureInjuryCache(){
+  if(INJURY_CACHE) return INJURY_CACHE;
+  try{
+    const r=await fetch("/api?injuries=1",{cache:"no-store"});
+    INJURY_CACHE=await r.json();
+  }catch(e){ INJURY_CACHE={teams:[],error:String(e)}; }
+  return INJURY_CACHE;
+}
+function injuriesForTeams(home, away){
+  const teams=INJURY_CACHE?.teams||[];
+  function matchTeam(abbr){
+    const a=String(abbr||"").toUpperCase();
+    const full=(TEAMS[a]?.[0]||"").toLowerCase();
+    return teams.filter(t=>{
+      const n=(t.name||"").toLowerCase();
+      const ab=(t.abbrev||t.abbreviation||"").toUpperCase();
+      if(ab===a) return true;
+      if(full && n.includes(full.split(" ").pop())) return true;
+      // ESPN often uses full name
+      if(a==="ANA" && n.includes("ducks")) return true;
+      if(a==="VGK" && (n.includes("golden")||n.includes("vegas"))) return true;
+      if(a==="UTA" && (n.includes("utah")||n.includes("mammoth"))) return true;
+      return false;
+    });
+  }
+  const out=[];
+  for(const side of [home, away]){
+    for(const t of matchTeam(side)){
+      for(const x of (t.injuries||[])){
+        out.push({team:side, teamName:t.name, ...x});
+      }
+    }
+  }
+  return out;
+}
+function frInjuryStatus(s){
+  const k=String(s||"").toLowerCase().trim();
+  const map={
+    "injured reserve":"Réserve blessés","ir":"Réserve blessés","ir-lt":"Réserve long terme",
+    "day-to-day":"Au jour le jour","day to day":"Au jour le jour","dtd":"Au jour le jour",
+    "out":"Absent","out for season":"Absent pour la saison","out indefinitely":"Absent (indéterminé)",
+    "doubtful":"Douteux","questionable":"Incertain","probable":"Probable",
+    "suspended":"Suspendu","personal":"Absent (personnel)","healthy scratch":"Écarté"
+  };
+  return map[k]||s||"—";
+}
+function frInjuryType(t){
+  const k=String(t||"").toLowerCase();
+  return k
+    .replace("upper body","Haut du corps").replace("lower body","Bas du corps")
+    .replace("undisclosed","Non communiqué").replace("personal","Personnel")
+    .replace("illness","Maladie").replace("knee","Genou").replace("ankle","Cheville")
+    .replace("shoulder","Épaule").replace("back","Dos").replace("hand","Main")
+    .replace("wrist","Poignet").replace("concussion","Commotion").replace("groin","Aine")
+    || t || "";
+}
+function frPosition(p){
+  const m={C:"Centre",LW:"AG",RW:"AD",D:"D",G:"G",F:"A"};
+  return m[String(p||"").toUpperCase()]||p||"";
+}
+function formatReturnDate(d){
+  if(!d) return "";
+  try{
+    const dt=new Date(d);
+    if(isNaN(dt)) return String(d);
+    return dt.toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"});
+  }catch(_){ return String(d); }
+}
+function renderMatchInjuries(home, away){
+  const el=$("matchInjuriesBox");
+  if(!el) return;
+  const list=injuriesForTeams(home, away);
+  if(!list.length){
+    el.innerHTML=`<div class="match-injuries empty-inline">Aucune blessure signalée pour ${home} / ${away} (source ESPN).</div>`;
+    return;
+  }
+  const by={};
+  for(const x of list){ (by[x.team]=by[x.team]||[]).push(x); }
+  let html=`<div class="section-title" style="border:0;padding:0 0 10px"><span>🏥</span> Blessures du match <small class="muted">${list.length}</small></div>`;
+  html+=`<div class="match-injuries-grid">`;
+  for(const side of [away, home]){
+    const rows=by[side]||[];
+    html+=`<div class="match-injury-side"><div class="match-injury-label">${logoHTML(side,"team-logo-sm")} ${side}</div>`;
+    if(!rows.length) html+=`<p class="muted" style="font-size:12px;margin:6px 0">Aucune signalée</p>`;
+    else html+=rows.map(x=>{
+      const ret=formatReturnDate(x.returnDate||x.date||x.return);
+      const pos=frPosition(x.position);
+      const typ=frInjuryType(x.type||x.detail||"");
+      const st=frInjuryStatus(x.status);
+      return `<div class="match-injury-row">
+        <div>
+          <b>${x.name}</b>
+          <small>${[pos,typ].filter(Boolean).join(" · ")}</small>
+          ${ret?`<small class="injury-return">Retour estimé : <b>${ret}</b></small>`:`<small class="injury-return muted">Retour : non communiqué</small>`}
+        </div>
+        <span class="injury-status status-${(x.status||"").toLowerCase().replace(/\s+/g,"-")}">${st}</span>
+      </div>`;
+    }).join("");
+    html+=`</div>`;
+  }
+  html+=`</div>`;
+  el.innerHTML=html;
+}
+
+async function loadInjuries(force=false){
+  const el=$("injuriesFeed"); if(!el)return;
+  el.innerHTML=skeleton(4);
+  try{
+    if(!INJURY_CACHE || force){
+      const r=await fetch("/api?injuries=1",{cache:"no-store"});
+      INJURY_CACHE=await r.json();
+    }
+    renderInjuries();
+  }catch(e){
+    el.innerHTML=`<div class="empty-inline">Impossible de charger les blessures (${e.message||e}).</div>`;
+  }
+}
+function renderInjuries(){
+  const el=$("injuriesFeed"); if(!el||!INJURY_CACHE)return;
+  const teams=INJURY_CACHE.teams||[];
+  const f=INJURY_FILTER;
+  let html="";
+  let total=0;
+  for(const t of teams){
+    const list=(t.injuries||[]).filter(x=>{
+      if(f==="all")return true;
+      const st=(x.status||"").toLowerCase();
+      if(f==="Out")return st.includes("out");
+      if(f==="Day-To-Day")return st.includes("day");
+      if(f==="IR")return st.includes("ir")||st.includes("injured reserve");
+      return true;
+    });
+    if(!list.length)continue;
+    total+=list.length;
+    html+=`<div class="injury-team"><h3>${t.name} <small>${list.length}</small></h3>
+      <div class="injury-list">${list.map(x=>`
+        <div class="injury-row">
+          <div class="injury-player">
+            <b>${x.name}</b>
+            <small>${frPosition(x.position)||"—"}${x.type?` · ${frInjuryType(x.type)}`:""}</small>
+          </div>
+          <span class="injury-status status-${(x.status||"").toLowerCase().replace(/\s+/g,"-")}">${frInjuryStatus(x.status)}</span>
+          <div class="injury-meta">
+            <span>Retour estimé : ${x.returnDate?formatReturnDate(x.returnDate):"non communiqué"}</span>
+            ${x.comment?`<p>${x.comment}</p>`:""}
+          </div>
+        </div>`).join("")}</div></div>`;
+  }
+  if(!html){
+    el.innerHTML=`<div class="empty-inline">Aucune blessure pour ce filtre.${INJURY_CACHE.error?`<br><small>${INJURY_CACHE.error}</small>`:""}</div>`;
+    return;
+  }
+  const head=`<div class="muted" style="margin-bottom:12px">${total} joueur(s) · maj ${INJURY_CACHE.updated?new Date(INJURY_CACHE.updated).toLocaleString("fr-FR"):"—"} · ${INJURY_CACHE.source||"ESPN"}</div>`;
+  el.innerHTML=head+html;
+}
+
+function setupAnalysisAccordion(){
+  // Mobile : sections détail repliables
+  document.querySelectorAll(".accordion-block .section-title").forEach(title=>{
+    if(title.dataset.accWired) return;
+    title.dataset.accWired="1";
+    title.classList.add("acc-toggle");
+    title.addEventListener("click",()=>{
+      if(window.innerWidth>900) return;
+      title.parentElement.classList.toggle("acc-open");
+    });
+  });
+}
+function applySeoForView(view){
+  const el = $("view-"+view);
+  const title = el?.dataset?.seoTitle || {
+    analyse:"BETZONE — Analyse NHL",
+    matchs:"Matchs NHL — BETZONE",
+    classement:"Classement NHL — BETZONE",
+    actu:"Actualité NHL — BETZONE",
+    kombos:"Kombos du jour — BETZONE",
+    forum:"Forum meute — BETZONE",
+    premium:"Premium — BETZONE",
+    admin:"Admin — BETZONE"
+  }[view] || "BETZONE — NHL";
+  const desc = el?.dataset?.seoDesc || document.querySelector('meta[name="description"]')?.content;
+  document.title = title;
+  const md = document.querySelector('meta[name="description"]');
+  if(md && desc) md.setAttribute("content", desc);
+  const ogt = document.querySelector('meta[property="og:title"]');
+  if(ogt) ogt.setAttribute("content", title);
+}
+function setupMobileNav(){
+  const btn=$("navMenuBtn"), nav=document.querySelector("#mainNav")||document.querySelector(".main-nav");
+  if(!btn||!nav) return;
+  function closeNav(){
+    nav.classList.remove("nav-open");
+    document.body.classList.remove("nav-drawer-open");
+    btn.setAttribute("aria-expanded","false");
+    nav.style.cssText="";
+  }
+  function openNav(){
+    nav.classList.add("nav-open");
+    document.body.classList.add("nav-drawer-open");
+    btn.setAttribute("aria-expanded","true");
+  }
+  btn.onclick=(e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    if(nav.classList.contains("nav-open")) closeNav();
+    else openNav();
+  };
+  nav.querySelectorAll(".nav-btn, a").forEach(b=>{
+    b.addEventListener("click",()=>closeNav());
+  });
+  document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") closeNav(); });
+  window.addEventListener("resize",()=>{ if(window.innerWidth>900) closeNav(); }, {passive:true});
+}
+function syncAnalyzeSticky(){
+  const active = document.querySelector(".nav-btn.active");
+  const view = active?.dataset?.view || "analyse";
+  document.body.classList.toggle("show-analyze-sticky", view === "analyse");
+}
+function setup(){
+  $("heroAnalyzeBtn")&&($("heroAnalyzeBtn").onclick=()=>$("analyzeBtn")?.scrollIntoView({behavior:"smooth",block:"center"}));
+  $("heroAccountBtn")&&($("heroAccountBtn").onclick=()=>$("authChip")?.click());
+  populateTeams();$("homeTeam").onchange=updateTeamMeta;$("awayTeam").onchange=updateTeamMeta;$("analyzeBtn").onclick=runAnalysis;
+  ["homeTeam","awayTeam"].forEach(id=>{
+    $(id)?.addEventListener("keydown",e=>{ if(e.key==="Enter") runAnalysis(); });
+  });
+  $("analyzeBtnSticky")&&($("analyzeBtnSticky").onclick=()=>$("analyzeBtn")?.click());
+  // Premium button also in topbar-right
+  document.getElementById("navPremium")?.addEventListener("click", ()=>setTimeout(syncAnalyzeSticky,0));
+  syncAnalyzeSticky();
+  setupMobileNav();
+setTimeout(()=>{ try{ checkKombosNotif(); }catch(_){} }, 1200);
+  
+
+/* ═══ Kombos du jour — proba modèle + cotes bookmakers ═══ */
+function fairOdds(p){ p=clamp(p,.02,.95); return (1/p); }
+function fmtOdds(o){ if(!Number.isFinite(o)) return "—"; return o>=10?o.toFixed(2):o.toFixed(2); }
+function normPlayer(s){
+  return String(s||"").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+}
+function lastName(s){
+  const p=normPlayer(s).split(" ");
+  return p[p.length-1]||"";
+}
+/** Meilleure cote décimale (Yes / Over 0.5) pour un joueur dans bookmakers Odds API */
+function bestBookOddsForPlayer(bookmakers, marketKeys, playerName){
+  if(!bookmakers||!playerName) return null;
+  const target=normPlayer(playerName);
+  const ln=lastName(playerName);
+  let best=null, book=null, market=null;
+  for(const b of bookmakers){
+    for(const m of (b.markets||[])){
+      if(marketKeys && !marketKeys.includes(m.key)) continue;
+      for(const o of (m.outcomes||[])){
+        const desc=normPlayer(o.description||"");
+        const name=normPlayer(o.name||"");
+        const price=Number(o.price);
+        if(!Number.isFinite(price)||price<1.01) continue;
+        // Anytime goalscorer: name=Yes, description=Player
+        // Points O/U: name=Over, description=Player, point=0.5
+        const isPlayer = desc===target || name===target || (desc.includes(ln)&&ln.length>3) || (name.includes(ln)&&ln.length>3);
+        if(!isPlayer) continue;
+        const isYes = /^(yes|over)$/i.test(o.name||"") || m.key==="player_goal_scorer_anytime";
+        const point = o.point!=null ? Number(o.point) : null;
+        if(m.key.includes("player_") && point!=null && point>0.5 && !/goal_scorer/.test(m.key)) continue; // only 0.5 lines
+        if(m.key==="player_goal_scorer_anytime" && !/^yes$/i.test(o.name||"") && o.name!==o.description){
+          // some books: name is player
+        }
+        if(!best || price>best){ best=price; book=b.title||b.key; market=m.key; }
+      }
+    }
+  }
+  return best?{odds:best, book, market}:null;
+}
+function bestTeamMarketOdds(bookmakers, marketKey, outcomeName){
+  if(!bookmakers) return null;
+  const t=normPlayer(outcomeName);
+  let best=null, book=null;
+  for(const b of bookmakers){
+    for(const m of (b.markets||[])){
+      if(m.key!==marketKey) continue;
+      for(const o of (m.outcomes||[])){
+        if(normPlayer(o.name)!==t && !(marketKey==="totals" && normPlayer(o.name)===normPlayer(outcomeName))) continue;
+        const price=Number(o.price);
+        if(Number.isFinite(price)&&price>1.01 && (!best||price>best)){ best=price; book=b.title||b.key; }
+      }
+    }
+  }
+  // totals: outcomeName like "Over 5.5"
+  if(marketKey==="totals" && !best){
+    const m2=String(outcomeName||"").match(/(over|under)\s*([\d.]+)/i);
+    if(m2){
+      const side=m2[1].toLowerCase(), line=Number(m2[2]);
+      for(const b of bookmakers){
+        for(const m of (b.markets||[])){
+          if(m.key!=="totals") continue;
+          for(const o of (m.outcomes||[])){
+            if(normPlayer(o.name)!==side) continue;
+            if(o.point!=null && Math.abs(Number(o.point)-line)>0.01) continue;
+            const price=Number(o.price);
+            if(Number.isFinite(price)&&price>1.01&&(!best||price>best)){best=price;book=b.title||b.key;}
+          }
+        }
+      }
+    }
+  }
+  return best?{odds:best,book}:null;
+}
+
+
+/** Cotes book (h2h / totals) pour un match — cache session */
+let BOOK_CACHE = {};
+async function getBookOddsForMatch(home, away){
+  const key = home+"@"+away;
+  if(BOOK_CACHE[key] && Date.now()-BOOK_CACHE[key].at < 10*60*1000) return BOOK_CACHE[key].data;
+  try{
+    const pack = await fetchOddsEvents();
+    const ev = matchEvent(pack.events||[], home, away);
+    if(!ev){ BOOK_CACHE[key]={at:Date.now(),data:null}; return null; }
+    // Agrège meilleures cotes décimales
+    const out = { h2hHome:null, h2hAway:null, over55:null, under55:null, book:null };
+    for(const bk of (ev.bookmakers||[])){
+      for(const mkt of (bk.markets||[])){
+        if(mkt.key==="h2h"){
+          for(const o of mkt.outcomes||[]){
+            const n=normPlayer(o.name||"");
+            const hn=normPlayer(TEAMS[home]?.[0]||home);
+            const an=normPlayer(TEAMS[away]?.[0]||away);
+            if(n.includes(hn.split(" ").pop()) || hn.includes(n.split(" ").pop())){
+              if(!out.h2hHome || o.price>out.h2hHome){ out.h2hHome=o.price; out.book=bk.title; }
+            }
+            if(n.includes(an.split(" ").pop()) || an.includes(n.split(" ").pop())){
+              if(!out.h2hAway || o.price>out.h2hAway){ out.h2hAway=o.price; out.book=bk.title; }
+            }
+          }
+        }
+        if(mkt.key==="totals"){
+          for(const o of mkt.outcomes||[]){
+            const pt=Number(o.point);
+            if(Math.abs(pt-5.5)>0.01) continue;
+            if(String(o.name).toLowerCase().startsWith("over")){
+              if(!out.over55 || o.price>out.over55){ out.over55=o.price; out.book=bk.title; }
+            }
+            if(String(o.name).toLowerCase().startsWith("under")){
+              if(!out.under55 || o.price>out.under55){ out.under55=o.price; out.book=bk.title; }
+            }
+          }
+        }
+      }
+    }
+    BOOK_CACHE[key]={at:Date.now(),data:out};
+    return out;
+  }catch(_){ return null; }
+}
+function edgeVsBook(modelP, bookOdds){
+  if(!modelP || !bookOdds || bookOdds<1.01) return null;
+  const implied = 1/bookOdds;
+  const edge = modelP - implied; // positif = value vs book
+  return { implied, edge, edgePct: edge*100 };
+}
+
+
+async function loadAdminDashboard(){
+  const kpis=$("adminKpis"), usersEl=$("adminUsers"), postsEl=$("adminPosts");
+  if(!kpis) return;
+  const A=window.RDB_AUTH;
+  if(!A?.isAdmin?.()){
+    kpis.innerHTML=`<div class="empty-inline">Réservé au Chef de meute.</div>`;
+    return;
+  }
+  kpis.innerHTML=skeleton(3);
+  try{
+    const sb = await (async()=>{
+      try{ return await window.RDB_AUTH && (await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm").then(()=>null)); }catch(_){ return null; }
+    })();
+    // Use supabase from auth module via global if available
+    const client = window.__RDB_SB || null;
+    let profiles=[], posts=[];
+    // Access via RDB_AUTH internal - fetch with anon
+    const { SUPABASE_URL, SUPABASE_ANON_KEY } = (window.RDB_CONFIG||{});
+    if(SUPABASE_URL && SUPABASE_ANON_KEY){
+      const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+      const s = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data:p } = await s.from("profiles").select("id,email,name,premium,created_at,posts_count,level,is_admin").order("created_at",{ascending:false}).limit(50);
+      profiles = p||[];
+      const { data:po } = await s.from("forum_posts").select("id,title,author_name,created_at,type").order("created_at",{ascending:false}).limit(20);
+      posts = po||[];
+    }
+    const nUsers = profiles.length;
+    const nPrem = profiles.filter(x=>x.premium).length;
+    const nPosts = posts.length;
+    kpis.innerHTML=`
+      <div class="admin-kpi"><small>Inscrits (échantillon)</small><b>${nUsers}</b></div>
+      <div class="admin-kpi"><small>Premium</small><b>${nPrem}</b></div>
+      <div class="admin-kpi"><small>Posts récents</small><b>${nPosts}</b></div>`;
+    usersEl.innerHTML = profiles.length
+      ? `<table class="props-table"><thead><tr><th>Pseudo</th><th>Email</th><th>Plan</th><th>Posts</th></tr></thead><tbody>
+        ${profiles.slice(0,30).map(u=>`<tr><td>${u.name||"—"}</td><td>${u.email||""}</td><td>${u.premium?"Premium":"Free"}${u.is_admin?" · Admin":""}</td><td>${u.posts_count||0}</td></tr>`).join("")}
+        </tbody></table>`
+      : `<div class="empty-inline">Aucun profil (RLS ou table vide). Vérifie les policies SELECT sur profiles pour l’admin.</div>`;
+    postsEl.innerHTML = posts.length
+      ? `<div class="admin-posts">${posts.map(p=>`<div class="admin-post"><b>${p.title||"Sans titre"}</b><span>${p.author_name||"?"} · ${p.type||""} · ${p.created_at?new Date(p.created_at).toLocaleString("fr-FR"):""}</span></div>`).join("")}</div>`
+      : `<div class="empty-inline">Aucun post</div>`;
+  }catch(e){
+    kpis.innerHTML=`<div class="empty-inline">Erreur admin : ${e.message||e}</div>`;
+  }
+}
+function refreshAdminNav(){
+  const A = window.RDB_AUTH;
+  const ok = !!(A?.isAdmin?.() || A?.isChefEmail?.(A?.user?.email));
+  const b = $("navAdmin");
+  if(b){
+    b.style.display = ok ? "inline-flex" : "none";
+    b.classList.toggle("hidden", !ok);
+  }
+  const ab = $("accAdminBtn");
+  if(ab) ab.classList.toggle("hidden", !ok);
+  console.info("[admin]", ok, A?.user?.email, A?.user?.is_admin);
+}
+
+
+const ONBOARD_KEY="rdb_onboard_v1";
+const ONBOARD_STEPS=[
+  {t:"Bienvenue dans la meute",x:"Essai Premium 48 h : analyses, props, kombos et forum. Valide ton email si ce n’est pas fait.",cta:"Voir l’analyse"},
+  {t:"Lis un match en 30 s",x:"Choisis 2 équipes → Analyser. Regarde Décision rapide + VALUE (cotes book si dispo). Ignore les « trop courts ».",cta:"Compris"},
+  {t:"Kombos & Forum",x:"Chaque jour : 3 suggestions Kombos. Sur le Forum, partage tes tickets. Premium à vie = 20 €.",cta:"C’est parti"}
+];
+function showOnboarding(force){
+  if(!force && localStorage.getItem(ONBOARD_KEY)) return;
+  const m=$("onboardModal"); if(!m) return;
+  let step=0;
+  const body=$("onboardBody"), steps=$("onboardSteps"), next=$("onboardNext");
+  function paint(){
+    const s=ONBOARD_STEPS[step];
+    body.innerHTML=`<h3>${s.t}</h3><p>${s.x}</p>`;
+    steps.querySelectorAll("i").forEach((el,i)=>el.classList.toggle("on",i<=step));
+    next.textContent = step>=ONBOARD_STEPS.length-1 ? "Terminer" : s.cta+" →";
+  }
+  paint();
+  m.classList.remove("hidden");
+  next.onclick=()=>{
+    if(step>=ONBOARD_STEPS.length-1){
+      localStorage.setItem(ONBOARD_KEY,"1");
+      m.classList.add("hidden");
+      return;
+    }
+    step++; paint();
+  };
+  $("onboardSkip")&&($("onboardSkip").onclick=()=>{ localStorage.setItem(ONBOARD_KEY,"1"); m.classList.add("hidden"); });
+  document.querySelectorAll("[data-close=onboard]").forEach(el=>el.onclick=()=>{ localStorage.setItem(ONBOARD_KEY,"1"); m.classList.add("hidden"); });
+}
+
+async function fetchOddsEvents(){
+  try{
+    const r=await fetch("/odds?mode=events&regions=eu,uk,us");
+    if(!r.ok) return {events:[], error: (await r.json().catch(()=>({}))).error || r.status};
+    return await r.json();
+  }catch(e){ return {events:[], error:String(e)}; }
+}
+async function fetchEventProps(eventId){
+  try{
+    const markets="h2h,totals,player_goal_scorer_anytime,player_points,player_assists,player_goals";
+    const r=await fetch(`/odds?mode=event&id=${encodeURIComponent(eventId)}&markets=${markets}&regions=eu,uk,us`);
+    if(!r.ok) return null;
+    const j=await r.json();
+    return j.event||null;
+  }catch(_){ return null; }
+}
+
+function matchEvent(events, home, away){
+  const hn=normPlayer(TEAMS[home]?.[0]||home), an=normPlayer(TEAMS[away]?.[0]||away);
+  for(const e of events||[]){
+    const eh=normPlayer(e.home_team), ea=normPlayer(e.away_team);
+    if((eh.includes(hn.split(" ").pop())||hn.includes(eh.split(" ").pop())) &&
+       (ea.includes(an.split(" ").pop())||an.includes(ea.split(" ").pop()))) return e;
+  }
+  return null;
+}
+
+/** Construit un combiné : legs triés par proba modèle, cotes = bookmaker, cible ~targetOdds */
+function buildValueCombo(pool, targetOdds, maxLegs){
+  // pool items: {name,p,bookOdds,book,match,kind}
+  const usable=pool.filter(x=>x.bookOdds>=1.4 && x.p>=0.08).sort((a,b)=>b.p-a.p);
+  if(!usable.length){
+    // fallback fair odds
+    const fb=pool.filter(x=>x.p>=0.1).sort((a,b)=>b.p-a.p);
+    if(!fb.length) return null;
+    const withFair=fb.map(x=>({...x, bookOdds:x.bookOdds||fairOdds(x.p), book:x.book||"modèle"}));
+    return buildValueCombo(withFair, targetOdds, maxLegs);
+  }
+  // Prefer single near target
+  let bestSingle=null;
+  for(const x of usable){
+    const dist=Math.abs(x.bookOdds-targetOdds)/targetOdds;
+    if(dist<=0.22 && (!bestSingle || x.p>bestSingle.p)) bestSingle={legs:[x], odds:x.bookOdds, score:x.p};
+  }
+  if(bestSingle && targetOdds<=3) return bestSingle;
+
+  let best=null;
+  const n=Math.min(usable.length, 24);
+  // pairs
+  for(let i=0;i<n;i++){
+    for(let j=i+1;j<n;j++){
+      const a=usable[i], b=usable[j];
+      if(a.name===b.name) continue;
+      // avoid same player different markets
+      if(lastName(a.name)===lastName(b.name) && a.match===b.match) continue;
+      const odds=a.bookOdds*b.bookOdds;
+      const dist=Math.abs(odds-targetOdds)/targetOdds;
+      const score=a.p+b.p - dist*0.15;
+      if(dist>0.55) continue;
+      if(!best || score>best.score) best={legs:[a,b], odds, score};
+    }
+  }
+  // triples for higher targets
+  if(maxLegs>=3){
+    for(let i=0;i<Math.min(14,n);i++)
+      for(let j=i+1;j<Math.min(14,n);j++)
+        for(let k=j+1;k<Math.min(16,n);k++){
+          const a=usable[i],b=usable[j],c=usable[k];
+          if(new Set([lastName(a.name)+a.match,lastName(b.name)+b.match,lastName(c.name)+c.match]).size<3) continue;
+          const odds=a.bookOdds*b.bookOdds*c.bookOdds;
+          const dist=Math.abs(odds-targetOdds)/targetOdds;
+          if(dist>0.5) continue;
+          const score=a.p+b.p+c.p - dist*0.12;
+          if(!best || score>best.score) best={legs:[a,b,c], odds, score};
+        }
+  }
+  if(best) return best;
+  if(bestSingle) return bestSingle;
+  // closest product of top probs
+  if(usable.length>=2){
+    const a=usable[0],b=usable[1];
+    return {legs:[a,b], odds:a.bookOdds*b.bookOdds, score:a.p+b.p};
+  }
+  return {legs:[usable[0]], odds:usable[0].bookOdds, score:usable[0].p};
+}
+
+function renderKombosPayload(el, dayKey, payload, oddsNote){
+  if(!el||!payload) return;
+  const {safe, kombo, mortal} = payload;
+  function card(title, subtitle, color, pick){
+    if(!pick||!pick.legs?.length){
+      return `<div class="kombo-card ${color}"><div class="kombo-head"><h3>${title}</h3><span>${subtitle}</span></div>
+        <p class="muted">Pas assez de données aujourd'hui pour cette suggestion.</p></div>`;
+    }
+    const legs=pick.legs.map(l=>{
+      const why = l.why || (l.kind==="but"
+        ? `Parmi les meilleures proba but du jour (${pct(l.p)})`
+        : l.kind==="passe" || l.kind==="point"
+          ? `Forte projection ${l.kind} (${pct(l.p)})`
+          : l.kind==="team"
+            ? `Edge modèle match (${pct(l.p)})`
+            : `Proba modèle ${pct(l.p)}`);
+      return `<li>
+      <b>${l.name}</b>
+      <small>${l.match||""} · cote book <b>${fmtOdds(l.bookOdds)}</b>${l.book?` (${l.book})`:""}${l.isBook?"":" · estimée"}</small>
+      <em class="kombo-why">Pourquoi : ${why}</em>
+    </li>`;
+    }).join("");
+    const mode=pick.legs.length===1?"Simple":`Combiné ${pick.legs.length} sélections`;
+    const allBook=pick.legs.every(l=>l.isBook);
+    const copyTxt = [
+      `🏒 BETZONE · ${title}`,
+      dayKey,
+      `Cote ~${fmtOdds(pick.odds)} (${mode})`,
+      "",
+      ...pick.legs.map(l=>`• ${l.name}${l.match?" · "+l.match:""} @ ${fmtOdds(l.bookOdds)}`),
+      "",
+      "Suggestions BETZONE — pas un conseil de pari.",
+      "https://betzone-rdb.com"
+    ].join("\n");
+    const enc = encodeURIComponent(copyTxt);
+    return `<div class="kombo-card ${color}">
+      <div class="kombo-head"><h3>${title}</h3><span>${subtitle}</span></div>
+      <div class="kombo-odds">Cote combinée ${allBook?"bookmakers":"indicative"} <b class="kombo-odds-big">~${fmtOdds(pick.odds)}</b> <em>${mode}</em></div>
+      <ul class="kombo-legs">${legs}</ul>
+      <button type="button" class="ghost-btn kombo-copy" data-copy="${enc}">⧉ Copier pour Telegram</button>
+      <p class="kombo-disc">Sélections = meilleures probas modèle BETZONE · cotes = bookmakers quand disponibles. Suggestions uniquement, pas un conseil de pari.</p>
+    </div>`;
+  }
+  const html=`<p class="muted" style="margin-bottom:12px">${oddsNote||"Cotes bookmakers actives"}<br>Suggestions du <b>${dayKey}</b> · <span class="kombo-once">1 calcul / jour pour tous les membres</span></p>
+    <div class="kombo-grid">
+      ${card("🟢 Safe","Cote book ~2", "k-safe", safe)}
+      ${card("🔵 Kombo","Points / passes · cote book ~5", "k-kombo", kombo)}
+      ${card("🔴 Mortal Kombo","Meilleurs buteurs · cote book ~10", "k-mortal", mortal)}
+    </div>`;
+  el.innerHTML=html;
+  el.querySelectorAll(".kombo-copy").forEach(btn=>{
+    btn.onclick=async()=>{
+      const t=decodeURIComponent(btn.getAttribute("data-copy")||"");
+      try{
+        await navigator.clipboard.writeText(t);
+        btn.textContent="✓ Copié";
+        setTimeout(()=>btn.textContent="⧉ Copier pour Telegram",1600);
+      }catch(_){
+        btn.textContent="Échec copie";
+      }
+    };
+  });
+}
+
+async function loadKombos(force){
+  const el=$("kombosBox"); if(!el) return;
+  const dayKey = new Date().toISOString().slice(0,10);
+
+  // 1) Résultat partagé du jour (tous les membres)
+  if(!force){
+    try{
+      const r=await fetch("/kombos-daily");
+      if(r.ok){
+        const j=await r.json();
+        if(j.ok && j.payload){
+          renderKombosPayload(el, j.date||dayKey, j.payload, "Cotes bookmakers actives");
+          return;
+        }
+      }
+    }catch(_){}
+  } else {
+    // force ignoré : toujours 1 calcul / jour
+    try{
+      const r=await fetch("/kombos-daily");
+      if(r.ok){
+        const j=await r.json();
+        if(j.ok && j.payload){
+          renderKombosPayload(el, j.date||dayKey, j.payload, "Cotes bookmakers actives · déjà calculé aujourd'hui");
+          return;
+        }
+      }
+    }catch(_){}
+  }
+
+  el.innerHTML=`<div class="empty-inline">Calcul du jour en cours (1× pour tous les membres)…</div>`;
+  try{
+    const oddsPack=await fetchOddsEvents();
+    const oddsEvents=oddsPack.events||[];
+    const oddsNote=oddsPack.error
+      ? `Cotes bookmakers temporairement en secours (modèle).`
+      : `Cotes bookmakers actives`;
+    if(oddsPack.remaining!=null) console.info("[odds] remaining", oddsPack.remaining);
+
+    const j=await api(`api-web.nhle.com/v1/schedule/${dayKey}`);
+    let games=[];
+    for(const d of (j.gameWeek||[])){
+      if(d.date===dayKey || !games.length) games=games.concat(d.games||[]);
+    }
+    games=(games||[]).filter(g=>{
+      const st=g.gameState||"";
+      return ["FUT","PRE","LIVE","OFF","CRIT"].includes(st) || !st;
+    }).slice(0,10);
+    if(!games.length){
+      el.innerHTML=`<div class="empty-inline">Aucun match planifié aujourd'hui pour générer des Kombos.</div>`;
+      return;
+    }
+
+    const candidates={safe:[],kombo:[],mortal:[]};
+    const propsCache={};
+
+    for(const g of games.slice(0,8)){
+      const home=(g.homeTeam?.abbrev||"").toUpperCase();
+      const away=(g.awayTeam?.abbrev||"").toUpperCase();
+      if(!home||!away||!TEAMS[home]||!TEAMS[away]) continue;
+      try{
+        const d=await analyze(home,away);
+        const match=`${away} @ ${home}`;
+        const ev=matchEvent(oddsEvents, home, away);
+        let books=ev?.bookmakers||[];
+        // fetch player props per event (limited)
+        if(ev?.id && !propsCache[ev.id]){
+          const full=await fetchEventProps(ev.id);
+          propsCache[ev.id]=full;
+          if(full?.bookmakers) books=full.bookmakers;
+        } else if(ev?.id && propsCache[ev.id]?.bookmakers){
+          books=propsCache[ev.id].bookmakers;
+        }
+
+        // SAFE — team markets with book odds
+        const safeMk=[
+          {name:`${home} vainqueur`, p:d.m.home, market:"h2h", outcome:TEAMS[home][0]},
+          {name:`${away} vainqueur`, p:d.m.away, market:"h2h", outcome:TEAMS[away][0]},
+          {name:`Over 5.5 buts`, p:d.m.o55, market:"totals", outcome:"Over 5.5"},
+          {name:`Under 5.5 buts`, p:d.m.u55, market:"totals", outcome:"Under 5.5"},
+          {name:`Over 4.5 buts`, p:d.m.o45, market:"totals", outcome:"Over 4.5"},
+        ];
+        for(const x of safeMk){
+          const bk=bestTeamMarketOdds(books, x.market, x.outcome);
+          candidates.safe.push({
+            name:x.name, p:x.p, match, kind:"team",
+            bookOdds: bk?.odds || fairOdds(x.p),
+            book: bk?.book || "modèle",
+            isBook: !!bk,
+            why:`Probabilité modèle ${pct(x.p)} sur ${match}`
+          });
+        }
+
+        // Players — rank by model prob, attach book odds
+        const pls=d.players?.players||[];
+        for(const p of pls.slice(0,14)){
+          const gBk=bestBookOddsForPlayer(books, ["player_goal_scorer_anytime","player_goals"], p.name);
+          const ptBk=bestBookOddsForPlayer(books, ["player_points"], p.name);
+          const aBk=bestBookOddsForPlayer(books, ["player_assists"], p.name);
+
+          candidates.mortal.push({
+            name:`${p.name} (${p.team}) · 1+ but`,
+            p:p.pg, match, kind:"but",
+            bookOdds: gBk?.odds || fairOdds(p.pg),
+            book: gBk?.book || "modèle",
+            isBook: !!gBk,
+            why:`Top proba but sur ${match} (${pct(p.pg)})`
+          });
+          candidates.kombo.push({
+            name:`${p.name} (${p.team}) · 1+ point`,
+            p:p.pp, match, kind:"point",
+            bookOdds: ptBk?.odds || fairOdds(p.pp),
+            book: ptBk?.book || "modèle",
+            isBook: !!ptBk,
+            why:`Projection points élevée (${pct(p.pp)})`
+          });
+          candidates.kombo.push({
+            name:`${p.name} (${p.team}) · 1+ passe`,
+            p:p.pa, match, kind:"passe",
+            bookOdds: aBk?.odds || fairOdds(p.pa),
+            book: aBk?.book || "modèle",
+            isBook: !!aBk,
+            why:`Projection passes (${pct(p.pa)})`
+          });
+        }
+      }catch(e){ console.warn("kombo analyze",home,away,e); }
+    }
+
+    // Mortal: prioritize highest goal probs with real book odds
+    candidates.mortal.sort((a,b)=>(b.isBook-a.isBook)|| (b.p-a.p));
+    candidates.kombo.sort((a,b)=>(b.isBook-a.isBook)|| (b.p-a.p));
+    candidates.safe.sort((a,b)=>(b.isBook-a.isBook)|| (b.p-a.p));
+
+    const safe = buildValueCombo(candidates.safe, 2.0, 2);
+    const kombo = buildValueCombo(candidates.kombo, 5.0, 3);
+    const mortal = buildValueCombo(candidates.mortal, 10.0, 3);
+
+    function card(title, subtitle, color, pick){
+      if(!pick||!pick.legs?.length){
+        return `<div class="kombo-card ${color}"><div class="kombo-head"><h3>${title}</h3><span>${subtitle}</span></div>
+          <p class="muted">Pas assez de données aujourd'hui pour cette suggestion.</p></div>`;
+      }
+      const legs=pick.legs.map(l=>`<li>
+        <b>${l.name}</b>
+        <small>${l.match||""} · proba modèle ${pct(l.p)} · cote book <b>${fmtOdds(l.bookOdds)}</b>${l.book?` (${l.book})`:""}${l.isBook?"":" · estimée"}</small>
+      </li>`).join("");
+      const mode=pick.legs.length===1?"Simple":`Combiné ${pick.legs.length} sélections`;
+      const allBook=pick.legs.every(l=>l.isBook);
+      return `<div class="kombo-card ${color}">
+        <div class="kombo-head"><h3>${title}</h3><span>${subtitle}</span></div>
+        <div class="kombo-odds">Cote combinée ${allBook?"bookmakers":"indicative"} <b>~${fmtOdds(pick.odds)}</b> <em>${mode}</em></div>
+        <ul class="kombo-legs">${legs}</ul>
+        <p class="kombo-disc">Sélections = meilleures probas modèle BETZONE · cotes = bookmakers quand disponibles. Suggestions uniquement, pas un conseil de pari.</p>
+      </div>`;
+    }
+
+    const payload = { safe, kombo, mortal };
+    // Publier pour tous les membres (1er calcul du jour gagne)
+    try{
+      await fetch("/kombos-daily", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload }),
+      });
+    }catch(_){}
+    // Re-fetch au cas où un autre membre a publié en premier
+    try{
+      const r2=await fetch("/kombos-daily");
+      if(r2.ok){
+        const j2=await r2.json();
+        if(j2.ok && j2.payload){
+          renderKombosPayload(el, j2.date||dayKey, j2.payload, oddsNote);
+          return;
+        }
+      }
+    }catch(_){}
+    renderKombosPayload(el, dayKey, payload, oddsNote);
+  }catch(e){
+    el.innerHTML=`<div class="empty-inline">Kombos indisponibles (${e.message||e}).</div>`;
+  }
+}
+
+
+document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));const v=$(`view-${b.dataset.view}`); if(v)v.classList.add("active");
+    syncAnalyzeSticky();try{ applySeoForView(b.dataset.view); }catch(_){}
+    if(b.dataset.view==="matchs")schedule(0);if(b.dataset.view==="equipes")renderTeamTable();if(b.dataset.view==="actu")loadNews();if(b.dataset.view==="classement")renderStandings();if(b.dataset.view==="leaders")renderLeaders("points");if(b.dataset.view==="blessures")loadInjuries();if(b.dataset.view==="historique")renderHistory();if(b.dataset.view==="forum"){window.RDB_FORUM?.setup?.();window.RDB_FORUM?.refresh?.()}if(b.dataset.view==="kombos")loadKombos();if(b.dataset.view==="admin")loadAdminDashboard()});
+  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderPlayers(b.dataset.prop)});
+  document.querySelectorAll(".day-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".day-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");schedule(Number(b.dataset.days))});
+  $("applyPromoHint")&&($("applyPromoHint").onclick=()=>alert("Code parrainage BETZONE\n\n• Le filleul saisit le code (ex. MEUTE5) avant de payer.\n• Réduction : −5 € (15 € au lieu de 20 €).\n• Les codes se créent dans Stripe → Produits → Coupons / Codes promo.\n• Tu peux aussi saisir le code directement sur la page de paiement Stripe."));$("shareAnalysisBtn")&&($("shareAnalysisBtn").onclick=()=>shareAnalysis());$("copyAnalysisBtn")&&($("copyAnalysisBtn").onclick=()=>copyAnalysis());$("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshInjuries")&&($("refreshInjuries").onclick=()=>loadInjuries(true));document.querySelectorAll(".injury-filter").forEach(b=>b.onclick=()=>{document.querySelectorAll(".injury-filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");INJURY_FILTER=b.dataset.filter;renderInjuries()});$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
+  $("clearHistory").onclick=clearHistory;
+  renderHistory();
+  setupAuthUI();
+  $("apiStatus").textContent="NHL • prêt";
+  getTeams().then(t=>{$("apiStatus").textContent=`NHL • ${Object.keys(t).length} équipes`}).catch(()=>{});
+}
+document.addEventListener("DOMContentLoaded",setup);
