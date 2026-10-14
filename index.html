@@ -902,7 +902,39 @@
 <script src="/config.js?v=20261002k" defer></script>
 <script src="/auth.js?v=20261002k" defer></script>
 <script src="/forum.js?v=20261002k" defer></script>
-<script src="/app.js?v=20261002k" defer></script>
+
+
+<script>
+(function(){
+  var loading = false;
+  function start(){
+    if (window.RDB_BOOT) {
+      try { window.RDB_BOOT(); } catch(e) {}
+      if (window.RDB_RUN) window.RDB_RUN();
+      return;
+    }
+    if (loading) return;
+    loading = true;
+    var btn = document.getElementById('analyzeBtn');
+    if (btn) btn.textContent = 'Chargement…';
+    var s = document.createElement('script');
+    s.src = '/app.js?v=20261014a';
+    s.onload = function(){
+      setTimeout(function(){
+        try { window.RDB_BOOT && window.RDB_BOOT(); } catch(e) {}
+        var b = document.getElementById('analyzeBtn');
+        if (b) { b.textContent = 'ANALYSER LE MATCH'; b.click(); }
+      }, 50);
+    };
+    s.onerror = function(){ if (btn) btn.textContent = 'Réessayer'; loading = false; };
+    document.body.appendChild(s);
+  }
+  var btn = document.getElementById('analyzeBtn');
+  if (btn) btn.addEventListener('click', function(e){
+    if (!window.RDB_BOOT) { e.preventDefault(); e.stopImmediatePropagation(); start(); }
+  }, true);
+})();
+</script>
 
 </body>
 </html>
