@@ -2977,23 +2977,22 @@ document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySe
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderPlayers(b.dataset.prop)});
   document.querySelectorAll(".day-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".day-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");schedule(Number(b.dataset.days))});
   $("applyPromoHint")&&($("applyPromoHint").onclick=()=>alert("Code parrainage BETZONE\n\n• Le filleul saisit le code (ex. MEUTE5) avant de payer.\n• Réduction : −5 € (15 € au lieu de 20 €).\n• Les codes se créent dans Stripe → Produits → Coupons / Codes promo.\n• Tu peux aussi saisir le code directement sur la page de paiement Stripe."));$("shareAnalysisBtn")&&($("shareAnalysisBtn").onclick=()=>shareAnalysis());$("copyAnalysisBtn")&&($("copyAnalysisBtn").onclick=()=>copyAnalysis());$("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshInjuries")&&($("refreshInjuries").onclick=()=>loadInjuries(true));document.querySelectorAll(".injury-filter").forEach(b=>b.onclick=()=>{document.querySelectorAll(".injury-filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");INJURY_FILTER=b.dataset.filter;renderInjuries()});$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
+  window.RDB_RUN = function(){
   $("clearHistory").onclick=clearHistory;
   renderHistory();
   setupAuthUI();
   $("apiStatus").textContent="NHL • prêt";
-  // Chargement non bloquant (mobile)
   setTimeout(()=>{
     Promise.race([
       getTeams(),
       new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 8000))
     ]).then(t=>{$("apiStatus").textContent=`NHL • ${Object.keys(t).length} équipes`}).catch(()=>{$("apiStatus").textContent='NHL • hors ligne'});
   }, 400);
+  };
 function boot(){
   try{ setup(); }catch(e){ console.error(e); }
 }
 window.RDB_BOOT = boot;
-if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot);
-else boot();
 // unregister vieux SW cassés une fois
 if("serviceWorker" in navigator){
   navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
