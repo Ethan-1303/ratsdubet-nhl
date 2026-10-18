@@ -667,29 +667,55 @@ function setLoadMsg(msg){
 function yieldUI(){return new Promise(r=>setTimeout(r,30));}
 async function analyze(home,away){
   if(home===away)throw new Error("Sélectionne deux équipes différentes.");
-  setLoadMsg("Chargement rapide…");
-  const withTimeout=(p,ms)=>Promise.race([p, new Promise(r=>setTimeout(()=>r(null),ms))]);
-  const [teams,rh,ra]=await Promise.all([
-    withTimeout(getTeams().catch(()=>null), 6000),
-    withTimeout(getRoster(home).catch(()=>null), 4000),
-    withTimeout(getRoster(away).catch(()=>null), 4000)
+  setLoadMsg("Stats et calendrier…");
+  const cap=(p,ms)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(null),ms))]);
+  async function formOf(team){
+    try{
+      const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/20252026`);
+      const games=(j.games||[]).filter(g=>g.gameType===2 && Number.isFinite(g.homeTeam?.score));
+      games.sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
+      return games.slice(0,5).map(g=>{
+        const homeG=(g.homeTeam?.abbrev)===team;
+        const us=homeG?g.homeTeam:g.awayTeam, them=homeG?g.awayTeam:g.homeTeam;
+        const gf=+us.score, ga=+them.score;
+        return {win:gf>ga,gf,ga,opp:them.abbrev,home:homeG,date:g.startTimeUTC,label:homeG?`vs ${them.abbrev}`:`@ ${them.abbrev}`};
+      });
+    }catch(e){return []}
+  }
+  const [teams,rh,ra,fh,fa]=await Promise.all([
+    cap(getTeams().catch(()=>null),7000),
+    cap(getRoster(home).catch(()=>null),4000),
+    cap(getRoster(away).catch(()=>null),4000),
+    cap(formOf(home),5000),
+    cap(formOf(away),5000)
   ]);
-  await yieldUI();
-  const l=teams?leagueFrom(teams):{valid:false};
-  const h=(teams&&teams[home])||{gf:3.1,ga:3.1,sat:.5,pp:.2,pk:.8};
-  const a=(teams&&teams[away])||{gf:3.1,ga:3.1,sat:.5,pp:.2,pk:.8};
-  const x=teams&&l.valid?expectedFrom(h,a,l,[],[],{},{},{}):{home:3.05,away:3.05,total:6.1,shotsHome:30,shotsAway:30};
+  const l=teams?leagueFrom(teams):{valid:false,gf:3.1};
+  const h=(teams&&teams[home])||{gf:3.05,ga:3.05,sat:.5,pp:.2,pk:.79};
+  const a=(teams&&teams[away])||{gf:3.05,ga:3.05,sat:.5,pp:.2,pk:.79};
+  const x=teams&&l.valid?expectedFrom(h,a,l,fh||[],fa||[],{},{},{}):{home:3.0,away:3.0,total:6.0,shotsHome:29,shotsAway:29};
+  // forme récente : léger bonus
+  const hw=(fh||[]).filter(g=>g.win).length, aw=(fa||[]).filter(g=>g.win).length;
+  if((fh||[]).length){ x.home*=1+((hw/(fh.length))-0.5)*0.06; }
+  if((fa||[]).length){ x.away*=1+((aw/(fa.length))-0.5)*0.06; }
+  x.total=x.home+x.away;
   const m=markets(x.home,x.away);
-  function light(roster,tm){
-    return ((roster&&roster.players)||[]).slice(0,10).map(p=>{
-      const role=p.position==="D"?0.7:1, g=0.2*role, as=0.3*role;
-      return {id:p.id,name:p.name,team:tm,position:p.position,gp:1,toi:0,lg:g,la:as,lp:g+as,ls:1.6,pg:1-Math.exp(-g),pa:1-Math.exp(-as),pp:1-Math.exp(-(g+as)),ps:0.5};
+  function props(roster,tm,xg){
+    const list=((roster&&roster.players)||[]).filter(p=>p.position!=="G").slice(0,12);
+    const n=Math.max(list.length,1);
+    return list.map((p,i)=>{
+      const w=p.position==="D"?0.55:p.position==="C"?1.15:1;
+      const share=(w/(n*0.7))*(1-i*0.04);
+      const g=Math.max(0.04,xg*0.22*share*3.2);
+      const as=g*1.35;
+      return {id:p.id,name:p.name,team:tm,position:p.position,gp:1,toi:16*60,lg:g,la:as,lp:g+as,ls:2.2*w,pg:1-Math.exp(-g),pa:1-Math.exp(-as),pp:1-Math.exp(-(g+as)),ps:1-Math.exp(-2.2*w)};
     });
   }
-  const players={dataCount:((rh&&rh.players)||[]).length+((ra&&ra.players)||[]).length, players:light(rh,home).concat(light(ra,away))};
-  const gh={name:(rh&&rh.goalies&&rh.goalies[0]&&rh.goalies[0].name)||"Titulaire",sv:.905};
-  const ga={name:(ra&&ra.goalies&&ra.goalies[0]&&ra.goalies[0].name)||"Titulaire",sv:.905};
-  return {home,away,h,a,l,fh:[],fa:[],bh:{},ba:{},gf:{},x,m,players,gh,ga,c:teams?72:55,status:teams?"SURVEILLER":"NO BET",best:projectedScore(x.home,x.away),gameId:null,travel:{home:{},away:{}},h2h:[]};
+  const players={dataCount:1,players:props(rh,home,x.home).concat(props(ra,away,x.away))};
+  const gh={name:(rh&&rh.goalies&&rh.goalies[0]&&rh.goalies[0].name)||"Titulaire"};
+  const ga={name:(ra&&ra.goalies&&ra.goalies[0]&&ra.goalies[0].name)||"Titulaire"};
+  const h2h=(fh||[]).filter(g=>g.opp===away).concat((fa||[]).filter(g=>g.opp===home)).slice(0,5);
+  const c=Math.round(55+(teams?12:0)+((fh||[]).length>=3?5:0)+((fa||[]).length>=3?5:0));
+  return {home,away,h,a,l,fh:fh||[],fa:fa||[],bh:{},ba:{},gf:{},x,m,players,gh,ga,c:Math.min(c,88),status:"SURVEILLER",best:projectedScore(x.home,x.away),gameId:null,travel:{home:{},away:{}},h2h};
 }
 let CURRENT_ANALYSIS=null, CURRENT_PROP="pg", LAST_HISTORY_KEY="";
 
@@ -1194,49 +1220,62 @@ function renderAnalysis(d){
     $("emptyState").classList.add("hidden");
     $("analysis").classList.remove("hidden");
     $("loading").classList.add("hidden");
-    $("aHomeCode").textContent=d.home;
     $("aHomeName").textContent=(TEAMS[d.home]&&TEAMS[d.home][0])||d.home;
-    $("aAwayCode").textContent=d.away;
     $("aAwayName").textContent=(TEAMS[d.away]&&TEAMS[d.away][0])||d.away;
+    $("aHomeCode").textContent=d.home;
+    $("aAwayCode").textContent=d.away;
     $("xgHome").textContent=fmt(d.x.home);
     $("xgAway").textContent=fmt(d.x.away);
     $("scoreProb").textContent=d.best?`${d.best[0]}–${d.best[1]}`:"—";
     $("confidence").textContent=pct((d.c||50)/100);
     if($("confidenceBar")) $("confidenceBar").style.width=`${d.c||50}%`;
-    const k=[["TOTAL BUTS",fmt(d.x.total)],["HOME OT",pct(d.m.home)],["AWAY OT",pct(d.m.away)],["OVER 5.5",pct(d.m.o55)],["BTTS",pct(d.m.btts)],["CONFIANCE",pct((d.c||50)/100)]];
-    $("kpis").innerHTML=k.map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join("");
-    const mk=[["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["BTTS",d.m.btts]];
-    if($("markets")) $("markets").innerHTML=mk.map(x=>`<div class="market"><span>${x[0]}</span><b>${pct(x[1])}</b></div>`).join("");
     const fav=d.m.home>=d.m.away?d.home:d.away;
     const favP=Math.max(d.m.home,d.m.away);
+    const k=[["TOTAL BUTS",fmt(d.x.total)],["HOME OT",pct(d.m.home)],["AWAY OT",pct(d.m.away)],["OVER 5.5",pct(d.m.o55)],["BTTS",pct(d.m.btts)],["CONFIANCE",pct((d.c||50)/100)]];
+    $("kpis").innerHTML=k.map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join("");
+    if($("markets")) $("markets").innerHTML=[
+      ["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],
+      ["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["BTTS",d.m.btts]
+    ].map(x=>`<div class="market"><span>${x[0]}</span><b>${pct(x[1])}</b></div>`).join("");
     if($("decisionVerdict")) $("decisionVerdict").textContent=`${fav} favori · ${pct(favP)}`;
     if($("decisionStatus")) $("decisionStatus").textContent=d.status||"SURVEILLER";
     if($("decisionNote")) $("decisionNote").textContent=`Total ${fmt(d.x.total)} buts · score probable ${d.best?d.best[0]+"–"+d.best[1]:"—"}.`;
+    if($("decisionGrid")) $("decisionGrid").innerHTML=`<div class="dec">Buts ${fmt(d.x.total)}</div><div class="dec">${d.m.o55>=0.5?"Over":"Under"} 5.5</div><div class="dec">BTTS ${pct(d.m.btts)}</div>`;
     if($("analysisSummary")) $("analysisSummary").textContent=`${d.home} ${fmt(d.x.home)} – ${fmt(d.x.away)} ${d.away}. ${fav} devant à ${pct(favP)}.`;
-    function formHtml(code,games){
-      const g=games||[];
-      const dots=g.slice(0,5).map(x=>`<i class="form-dot ${x.win?"win":"loss"}"></i>`).join("")||"—";
-      const w=g.filter(x=>x.win).length;
-      return `<div class="form-team"><b>${code}</b> ${w}V-${g.length-w}D <span class="form-dots">${dots}</span></div>`;
+    if($("modelNotes")) $("modelNotes").innerHTML=`<p>${fav} est devant (${pct(favP)}) sur la base des buts pour/contre 2025-26${(d.fh.length||d.fa.length)?" et de la forme récente":""}.</p><p class="muted">Total projeté ${fmt(d.x.total)}. ${d.m.o55>=0.52?"Le match penche over 5.5.":"Le total est neutre à bas."}</p>`;
+    function formCard(code,games){
+      const g=games||[], w=g.filter(x=>x.win).length;
+      const dots=g.map(x=>`<i class="form-dot ${x.win?"win":"loss"}" title="${x.label||""}"></i>`).join("");
+      const last=g[0]?`${g[0].label} ${g[0].gf}-${g[0].ga}`:"pas de match récent";
+      return `<div class="form-team card-inner"><h3>${code} <span class="form-record">${w}V – ${g.length-w}D</span></h3><div class="form-dots">${dots||"—"}</div><p class="muted">${last}</p></div>`;
     }
-    if($("form")) $("form").innerHTML=formHtml(d.home,d.fh)+formHtml(d.away,d.fa);
-    if($("goalies")) $("goalies").innerHTML=`<div>${d.home} : ${(d.gh&&d.gh.name)||"—"}</div><div>${d.away} : ${(d.ga&&d.ga.name)||"—"}</div>`;
-    if($("h2hBox")) $("h2hBox").innerHTML=`<p class="muted">H2H détaillé désactivé pour garder la page fluide.</p>`;
-    if($("advancedStats")&&d.h&&d.a){
+    if($("form")) $("form").innerHTML=formCard(d.home,d.fh)+formCard(d.away,d.fa);
+    if($("goalies")) $("goalies").innerHTML=`<div class="goalie"><b>${d.home}</b><span>${d.gh.name}</span></div><div class="goalie"><b>${d.away}</b><span>${d.ga.name}</span></div>`;
+    if($("compareTable")){
+      const rows=[["Buts pour",d.h.gf,d.a.gf],["Buts contre",d.h.ga,d.a.ga],["SAT%",d.h.sat,d.a.sat],["PP%",d.h.pp,d.a.pp],["PK%",d.h.pk,d.a.pk]];
+      $("compareTable").innerHTML=`<table class="props-table"><thead><tr><th></th><th>${d.home}</th><th>${d.away}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td><b>${fmt(r[1])}</b></td><td><b>${fmt(r[2])}</b></td></tr>`).join("")}</tbody></table>`;
+    }
+    if($("h2hBox")){
+      const rows=d.h2h||[];
+      $("h2hBox").innerHTML=rows.length?rows.map(g=>`<div class="h2h-row">${g.label||""} ${g.gf}-${g.ga}</div>`).join(""):`<p class="muted">Pas de face-à-face récent dans les 5 derniers matchs.</p>`;
+    }
+    if($("advancedStats")){
       const rows=[["SAT%",d.h.sat,d.a.sat],["PP%",d.h.pp,d.a.pp],["PK%",d.h.pk,d.a.pk],["GF",d.h.gf,d.a.gf],["GA",d.h.ga,d.a.ga]];
-      $("advancedStats").innerHTML=rows.map(r=>`<div class="adv-row"><span>${r[0]}</span><b>${fmt(r[1])}</b><b>${fmt(r[2])}</b></div>`).join("");
+      $("advancedStats").innerHTML=`<div class="adv-grid">${rows.map(r=>`<div class="adv-row"><span>${r[0]}</span><b>${fmt(r[1])}</b><b>${fmt(r[2])}</b></div>`).join("")}</div>`;
     }
-    const plist=(d.players&&d.players.players)||[];
+    const all=(d.players&&d.players.players)||[];
     if($("playerTables")){
-      const top=plist.slice().sort((a,b)=>(b.pp||0)-(a.pp||0)).slice(0,6);
-      $("playerTables").innerHTML=top.map(p=>`<div class="player"><span class="name">${p.name} · ${p.team}</span><span class="prob">${pct(p.pp||0)}</span></div>`).join("")||`<p class="muted">Props simplifiés.</p>`;
+      const top=(key)=>all.filter(p=>p.team).sort((a,b)=>(b[key]||0)-(a[key]||0));
+      const box=(team,arr,key,label)=>`<div class="player-box"><h3>${team} — ${label}</h3>${arr.filter(p=>p.team===team).slice(0,3).map((p,i)=>`<div class="player"><span class="rank">#${i+1}</span><span class="name">${p.name}<small>${p.position||""}</small></span><span class="prob">${pct(p[key]||0)}</span></div>`).join("")}</div>`;
+      $("playerTables").innerHTML=box(d.home,all,"pp","points")+box(d.away,all,"pp","points");
     }
-    if($("audit")) $("audit").innerHTML=`<p class="muted">Analyse allégée : marchés et xG actifs. Props, H2H complet et compositions restent en mode simple pour éviter le blocage.</p>`;
-    if($("lineupsBox")) $("lineupsBox").innerHTML=`<p class="muted">Compositions : ouvre l'onglet après une analyse, données non rechargées ici.</p>`;
-    if($("matchInjuriesBox")) $("matchInjuriesBox").innerHTML=`<p class="muted">Blessures : voir l'onglet Blessures.</p>`;
+    if($("audit")) $("audit").innerHTML=`<p class="muted">Source : stats équipes NHL 2025-26, calendrier (forme), effectif courant. Props estimés depuis les xG du match, pas une ligne bookmaker.</p>`;
+    if($("lineupsBox")) $("lineupsBox").innerHTML=`<p class="muted">Compositions détaillées non chargées (évite le blocage). Effectif utilisé pour les props.</p>`;
+    if($("matchInjuriesBox")) $("matchInjuriesBox").innerHTML=`<p class="muted">Blessures : onglet Blessures.</p>`;
   }catch(e){
+    console.error(e);
     $("emptyState").classList.remove("hidden");
-    $("emptyState").innerHTML=`<div class="empty-icon">⚠️</div><h2>Affichage impossible</h2><p>${e.message||e}</p>`;
+    $("emptyState").innerHTML=`<h2>Affichage impossible</h2><p>${e.message||e}</p>`;
   }
 }
 
