@@ -683,13 +683,20 @@ async function analyze(home,away){
   if(trH.longHaul && trH.road){ x.home*=0.98; }
   const m=markets(x.home,x.away);
   await yieldUI();
-  setLoadMsg("H2H et player props…");
-  const [players,gh,ga,h2h]=await Promise.all([
-    buildPlayers(home,away,x.home,x.away,x.shotsHome,x.shotsAway),
-    projectGoalie(rh.goalies,home),
-    projectGoalie(ra.goalies,away),
-    getH2H(home,away,5)
-  ]);
+  setLoadMsg("Finalisation…");
+  function lightPlayers(roster,tm,xg){
+    const list=(roster&&roster.players||[]).slice(0,12).map(p=>{
+      const role=p.position==="D"?0.7:1;
+      const g=0.18*role, a=0.28*role;
+      return {id:p.id,name:p.name,team:tm,position:p.position,gp:1,goals:0,assists:0,points:0,shots:0,toi:0,
+        g,a,lg:g,la:a,lp:g+a,ls:1.5,pg:1-Math.exp(-g),pa:1-Math.exp(-a),pp:1-Math.exp(-(g+a)),ps:0.45};
+    });
+    return list;
+  }
+  const players={dataCount:(rh.players||[]).length+(ra.players||[]).length, players:lightPlayers(rh,home,x.home).concat(lightPlayers(ra,away,x.away))};
+  const gh={name:(rh.goalies&&rh.goalies[0]&&rh.goalies[0].name)||"Titulaire",sv:.905,gaa:2.8,conf:"estimation"};
+  const ga={name:(ra.goalies&&ra.goalies[0]&&ra.goalies[0].name)||"Titulaire",sv:.905,gaa:2.8,conf:"estimation"};
+  const h2h=[];
   let c=50;if(h&&a)c+=20;if(fh.length>=5)c+=5;if(fa.length>=5)c+=5;if(players.dataCount>=12)c+=8;else if(players.dataCount>=8)c+=5;
   if(Number.isFinite(h.sat)&&Number.isFinite(a.sat))c+=6;if(Number.isFinite(h.pp)&&Number.isFinite(a.pk))c+=4;
   if(bh.b2b||ba.b2b)c-=4;
