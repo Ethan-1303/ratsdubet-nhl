@@ -100,7 +100,7 @@ function updateTeamMeta(){
 }
 async function teamReport(report){
   const expr=`seasonId=${BASE} and gameTypeId=2`;
-  const j=await api(`stats/rest/en/team/${report}`,{isAggregate:"false",isGame:"false",start:0,limit:-1,cayenneExp:expr});
+  const j=await api(`stats/rest/en/team/${report}`,{isAggregate:"false",isGame:"false",start:0,limit:300,cayenneExp:expr});
   return j.data||[];
 }
 function teamCodeRow(r){
@@ -319,7 +319,7 @@ async function getB2B(team){
 }
 async function getGoalieFactors(){
   const expr=`seasonId=${BASE} and gameTypeId=2`;
-  const j=await api("stats/rest/en/goalie/summary",{limit:-1,sort:"wins",cayenneExp:expr});
+  const j=await api("stats/rest/en/goalie/summary",{limit:300,sort:"wins",cayenneExp:expr});
   const map={},all=[];
   for(const x of j.data||[]){
     const tm=String(x.teamAbbrev||x.teamAbbreviation||x.teamCode||"").toUpperCase(),gp=n(x.gamesPlayed),sv=n(x.savePct);
@@ -334,11 +334,12 @@ async function getSkaters(){
   // Fusionne saison courante + base 2025-26 (début de saison = peu de MJ)
   async function fetchSeason(seasonId){
     try{
-      const j=await api("stats/rest/en/skater/summary",{limit:-1,sort:"points",cayenneExp:`seasonId=${seasonId} and gameTypeId=2`});
+      const j=await api("stats/rest/en/skater/summary",{limit:300,sort:"points",cayenneExp:`seasonId=${seasonId} and gameTypeId=2`});
       return j.data||[];
     }catch(_){ return []; }
   }
-  const [cur, base] = await Promise.all([fetchSeason(CURRENT), fetchSeason(BASE)]);
+  const cur = await fetchSeason(CURRENT);
+  const base = cur.length>=80 ? [] : await fetchSeason(BASE);
   // Préfère stats CURRENT si le joueur a déjà joué, sinon BASE
   const byKey={};
   function ingest(list, seasonTag){
@@ -543,7 +544,7 @@ async function renderMatchLineups(home, away, gameId){
 
 async function getGoalies(){
   const expr=`seasonId=${BASE} and gameTypeId=2`;
-  const j=await api("stats/rest/en/goalie/summary",{limit:-1,sort:"wins",cayenneExp:expr});
+  const j=await api("stats/rest/en/goalie/summary",{limit:300,sort:"wins",cayenneExp:expr});
   const byId={},rows=[];
   for(const x of j.data||[]){
     const id=String(x.playerId||x.id||""),tm=String(x.teamAbbrev||x.teamAbbreviation||x.teamCode||"").toUpperCase();
@@ -663,6 +664,7 @@ function setLoadMsg(msg){
   const el=$("loading"); if(!el)return;
   const s=el.querySelector("small"); if(s)s.textContent=msg;
 }
+function yieldUI(){return new Promise(r=>setTimeout(r,30));}
 async function analyze(home,away){
   if(home===away)throw new Error("Sélectionne deux équipes différentes.");
   setLoadMsg("Équipes, forme, trajet et gardiens…");
@@ -680,6 +682,7 @@ async function analyze(home,away){
   if(trA.longHaul){ x.away*=0.97; x.home*=1.01; x.total=x.home+x.away; }
   if(trH.longHaul && trH.road){ x.home*=0.98; }
   const m=markets(x.home,x.away);
+  await yieldUI();
   setLoadMsg("H2H et player props…");
   const [players,gh,ga,h2h]=await Promise.all([
     buildPlayers(home,away,x.home,x.away,x.shotsHome,x.shotsAway),
@@ -1651,7 +1654,9 @@ async function runAnalysis(){
   $("loading").classList.remove("hidden");$("analysis").classList.add("hidden");$("emptyState").classList.add("hidden");
   setLoadMsg("Connexion NHL…");
   try{
-    renderAnalysis(await analyze(home,away)); setAnalysisDeepLink(home,away);
+    const result=await analyze(home,away);
+    await yieldUI();
+    renderAnalysis(result); setAnalysisDeepLink(home,away);
     $("lastUpdate").textContent="Dernière analyse : "+new Date().toLocaleTimeString("fr-FR");
   }catch(e){
     $("emptyState").classList.remove("hidden");
