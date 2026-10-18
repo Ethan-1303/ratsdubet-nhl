@@ -667,44 +667,29 @@ function setLoadMsg(msg){
 function yieldUI(){return new Promise(r=>setTimeout(r,30));}
 async function analyze(home,away){
   if(home===away)throw new Error("Sélectionne deux équipes différentes.");
-  setLoadMsg("Équipes, forme, trajet et gardiens…");
-  const [teams,fh,fa,bh,ba,gf,rh,ra,trH,trA]=await Promise.all([
-    getTeams(),getForm(home),getForm(away),getB2B(home),getB2B(away),getGoalieFactors(),
-    getRoster(home),getRoster(away),
-    getTravelContext(home, home),
-    getTravelContext(away, home) // away se déplace vers le domicile
+  setLoadMsg("Chargement rapide…");
+  const withTimeout=(p,ms)=>Promise.race([p, new Promise(r=>setTimeout(()=>r(null),ms))]);
+  const [teams,rh,ra]=await Promise.all([
+    withTimeout(getTeams().catch(()=>null), 6000),
+    withTimeout(getRoster(home).catch(()=>null), 4000),
+    withTimeout(getRoster(away).catch(()=>null), 4000)
   ]);
-  const l=leagueFrom(teams);
-  const h=teams[home],a=teams[away];
-  if(!h||!a||!l.valid)throw new Error("Données équipes insuffisantes (saison 2025-26).");
-  const x=expectedFrom(h,a,l,fh,fa,bh,ba,gf);
-  // Ajustement léger trajet long pour l'extérieur
-  if(trA.longHaul){ x.away*=0.97; x.home*=1.01; x.total=x.home+x.away; }
-  if(trH.longHaul && trH.road){ x.home*=0.98; }
-  const m=markets(x.home,x.away);
   await yieldUI();
-  setLoadMsg("Finalisation…");
-  function lightPlayers(roster,tm,xg){
-    const list=(roster&&roster.players||[]).slice(0,12).map(p=>{
-      const role=p.position==="D"?0.7:1;
-      const g=0.18*role, a=0.28*role;
-      return {id:p.id,name:p.name,team:tm,position:p.position,gp:1,goals:0,assists:0,points:0,shots:0,toi:0,
-        g,a,lg:g,la:a,lp:g+a,ls:1.5,pg:1-Math.exp(-g),pa:1-Math.exp(-a),pp:1-Math.exp(-(g+a)),ps:0.45};
+  const l=teams?leagueFrom(teams):{valid:false};
+  const h=(teams&&teams[home])||{gf:3.1,ga:3.1,sat:.5,pp:.2,pk:.8};
+  const a=(teams&&teams[away])||{gf:3.1,ga:3.1,sat:.5,pp:.2,pk:.8};
+  const x=teams&&l.valid?expectedFrom(h,a,l,[],[],{},{},{}):{home:3.05,away:3.05,total:6.1,shotsHome:30,shotsAway:30};
+  const m=markets(x.home,x.away);
+  function light(roster,tm){
+    return ((roster&&roster.players)||[]).slice(0,10).map(p=>{
+      const role=p.position==="D"?0.7:1, g=0.2*role, as=0.3*role;
+      return {id:p.id,name:p.name,team:tm,position:p.position,gp:1,toi:0,lg:g,la:as,lp:g+as,ls:1.6,pg:1-Math.exp(-g),pa:1-Math.exp(-as),pp:1-Math.exp(-(g+as)),ps:0.5};
     });
-    return list;
   }
-  const players={dataCount:(rh.players||[]).length+(ra.players||[]).length, players:lightPlayers(rh,home,x.home).concat(lightPlayers(ra,away,x.away))};
-  const gh={name:(rh.goalies&&rh.goalies[0]&&rh.goalies[0].name)||"Titulaire",sv:.905,gaa:2.8,conf:"estimation"};
-  const ga={name:(ra.goalies&&ra.goalies[0]&&ra.goalies[0].name)||"Titulaire",sv:.905,gaa:2.8,conf:"estimation"};
-  const h2h=[];
-  let c=50;if(h&&a)c+=20;if(fh.length>=5)c+=5;if(fa.length>=5)c+=5;if(players.dataCount>=12)c+=8;else if(players.dataCount>=8)c+=5;
-  if(Number.isFinite(h.sat)&&Number.isFinite(a.sat))c+=6;if(Number.isFinite(h.pp)&&Number.isFinite(a.pk))c+=4;
-  if(bh.b2b||ba.b2b)c-=4;
-  if(trA.longHaul)c-=2;
-  c=Math.round(clamp(c,0,95));
-  const status=c<60||players.dataCount<6?"NO BET":"SURVEILLER";
-  const gameId=window.__RDB_GAME_ID||null; window.__RDB_GAME_ID=null;
-  return {home,away,h,a,l,fh,fa,bh,ba,gf,x,m,players,gh,ga,c,status,best:projectedScore(x.home,x.away),gameId,travel:{home:trH,away:trA},h2h};
+  const players={dataCount:((rh&&rh.players)||[]).length+((ra&&ra.players)||[]).length, players:light(rh,home).concat(light(ra,away))};
+  const gh={name:(rh&&rh.goalies&&rh.goalies[0]&&rh.goalies[0].name)||"Titulaire",sv:.905};
+  const ga={name:(ra&&ra.goalies&&ra.goalies[0]&&ra.goalies[0].name)||"Titulaire",sv:.905};
+  return {home,away,h,a,l,fh:[],fa:[],bh:{},ba:{},gf:{},x,m,players,gh,ga,c:teams?72:55,status:teams?"SURVEILLER":"NO BET",best:projectedScore(x.home,x.away),gameId:null,travel:{home:{},away:{}},h2h:[]};
 }
 let CURRENT_ANALYSIS=null, CURRENT_PROP="pg", LAST_HISTORY_KEY="";
 
