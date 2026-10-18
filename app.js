@@ -619,7 +619,7 @@ async function buildPlayers(home,away,xh,xa,sh,sa){
         .filter(s=>{
           if(s.team===tm) return true;
           // si team vide côté stats, match par nom roster
-          if(!s.team && (roster.players||[]).some(p=>norm(p.name)===norm(s.name))) return true;
+          if(!s.team && (r.players||[]).some(p=>norm(p.name)===norm(s.name))) return true;
           return false;
         })
         .sort((a,b)=>b.points-a.points)
