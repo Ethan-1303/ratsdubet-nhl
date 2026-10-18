@@ -1204,206 +1204,30 @@ function renderCompare(d){
 }
 
 function renderAnalysis(d){
-  CURRENT_ANALYSIS=d;
-  const access=window.RDB_AUTH?.canAnalyzeFull?.()||{ok:true};
-  const full=!!access.ok;
-  if(full) window.RDB_AUTH?.consumeAnalysis?.();
-  saveHistory(d);
-  $("emptyState").classList.add("hidden");$("analysis").classList.remove("hidden");
-  $("aHomeCode").innerHTML=logoHTML(d.home,"team-logo-lg")+` <span>${d.home}</span>`;$("aHomeName").textContent=TEAMS[d.home][0];$("aAwayCode").innerHTML=logoHTML(d.away,"team-logo-lg")+` <span>${d.away}</span>`;$("aAwayName").textContent=TEAMS[d.away][0];
-  $("xgHome").textContent=fmt(d.x.home);$("xgAway").textContent=fmt(d.x.away);$("scoreProb").textContent=`${d.best[0]}–${d.best[1]}`;
-  $("confidence").textContent=pct(d.c/100);$("confidenceBar").style.width=`${d.c}%`;
-  const k=full
-    ?[["TOTAL BUTS",fmt(d.x.total)],["TOTAL TIRS",fmt(d.x.shotsHome+d.x.shotsAway)],["HOME OT",pct(d.m.home)],["AWAY OT",pct(d.m.away)],["OVER 5.5",pct(d.m.o55)],["BTTS",pct(d.m.btts)]]
-    :[["TOTAL BUTS",fmt(d.x.total)],["SCORE",`${d.best[0]}–${d.best[1]}`],["CONFIANCE",pct(d.c/100)],["STATUT",d.status],["🔒 PREMIUM","requis"],["PRIX","20 € à vie"]];
-  $("kpis").innerHTML=k.map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join("");
-  try{ renderDecisionBoard(d); }catch(_){}
-  try{ renderCompare(d); }catch(_){}
-  try{ renderMiniHitRate(); }catch(_){}
-  applyPaywall(full);
-  // Blessures des 2 équipes sur la dashboard analyse
-  ensureInjuryCache().then(()=>renderMatchInjuries(d.home,d.away)).catch(()=>{});
-  const mk=[["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],["Domicile 60 min",d.m.home60],["Extérieur 60 min",d.m.away60],["Nul 60 min",d.m.tie60],["Over 4.5",d.m.o45],["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["Over 6.5",d.m.o65],["Under 6.5",d.m.u65],["BTTS",d.m.btts]];
-  const valFlags=marketValueFlags(d.m,{confidence:d.c,status:d.status});
-  const shortFlags = valFlags._short || {};
-  const qMap = valFlags._quality || {};
-  $("markets").innerHTML=mk.map(x=>{
-    const isVal=!!valFlags[x[0]];
-    const isShort=!!shortFlags[x[0]];
-    const q = qMap[x[0]]||0;
-    let tag="", cls="", edgeTxt=`Cote juste ${fair(x[1])}`;
-    if(isVal){
-      const stars = q>=85?"★★★":q>=70?"★★":"★";
-      tag=` <span class="value-tag">VALUE ${stars}</span>`;
-      cls=" value";
-      edgeTxt=`Qualité ${q}/100 · zone 1,45–2,60 · ${fair(x[1])}`;
-    } else if(isShort){
-      tag=` <span class="short-tag">TROP COURT</span>`;
-      cls=" short";
-      edgeTxt=`Cote juste ${fair(x[1])} — inutilisable en value bankroll`;
-    }
-    return `<div class="market odds-chip${cls}" title="${isVal?`Value qualité ${q}`:(isShort?"Trop court":"")}">
-      <div class="label">${x[0]}${tag}</div>
-      <div class="value"><b class="odds-dec">${fair(x[1])}</b><span class="odds-prob">${pct(x[1])}</span></div>
-      <span class="edge-tag">${edgeTxt}</span>
-    </div>`;
-  }).join("");
-
-  // Cotes book en live sur marchés (async, non bloquant)
-  (async()=>{
-    try{
-      const book = await getBookOddsForMatch(d.home, d.away);
-      d.bookOdds = book;
-      if(book && $("markets")){
-        // re-render markets with book
-        const mk=[["Victoire domicile OT",d.m.home,"h2hHome"],["Victoire extérieur OT",d.m.away,"h2hAway"],["Domicile 60 min",d.m.home60,null],["Extérieur 60 min",d.m.away60,null],["Nul 60 min",d.m.tie60,null],["Over 4.5",d.m.o45,null],["Over 5.5",d.m.o55,"over55"],["Under 5.5",d.m.u55,"under55"],["Over 6.5",d.m.o65,null],["Under 6.5",d.m.u65,null],["BTTS",d.m.btts,null]];
-        const valFlags=marketValueFlags(d.m,{confidence:d.c,status:d.status});
-        const shortFlags=valFlags._short||{};
-        const qMap=valFlags._quality||{};
-        $("markets").innerHTML=mk.map(x=>{
-          const isVal=!!valFlags[x[0]];
-          const isShort=!!shortFlags[x[0]];
-          const q=qMap[x[0]]||0;
-          const bookPrice = x[2] && book ? book[x[2]] : null;
-          const ed = bookPrice ? edgeVsBook(x[1], bookPrice) : null;
-          let tag="", cls="", edgeTxt=`Cote juste ${fair(x[1])}`;
-          if(isVal){
-            const stars=q>=88?"★★★":q>=75?"★★":"★";
-            tag=` <span class="value-tag">VALUE ${stars}</span>`;
-            cls=" value";
-            edgeTxt=`Qualité ${q}/100 · juste ${fair(x[1])}`;
-          } else if(isShort){
-            tag=` <span class="short-tag">TROP COURT</span>`;
-            cls=" short";
-            edgeTxt=`Cote juste ${fair(x[1])} — trop court`;
-          }
-          let bookHtml="";
-          if(bookPrice){
-            const edgeOk = ed && ed.edge >= 0.03;
-            const edgeBad = ed && ed.edge < -0.02;
-            bookHtml=`<div class="book-line ${edgeOk?"book-edge":""}${edgeBad?" book-noedge":""}">
-              <span>Book ${book.book||""}</span>
-              <b>${Number(bookPrice).toFixed(2)}</b>
-              ${ed?`<em>edge ${ed.edgePct>=0?"+":""}${ed.edgePct.toFixed(1)} pts</em>`:""}
-            </div>`;
-            // VALUE réelle vs book : edge >= 3 pts
-            if(edgeOk && isVal) tag=` <span class="value-tag">VALUE BOOK</span>`;
-            else if(edgeOk && !isVal) { tag=` <span class="value-tag">EDGE BOOK</span>`; cls+=" value"; }
-          }
-          return `<div class="market odds-chip${cls}">
-            <div class="label">${x[0]}${tag}</div>
-            <div class="value"><b class="odds-dec">${bookPrice?Number(bookPrice).toFixed(2):fair(x[1])}</b><span class="odds-prob">${pct(x[1])}${bookPrice?" · juste "+fair(x[1]):""}</span></div>
-            <span class="edge-tag">${edgeTxt}</span>
-            ${bookHtml}
-          </div>`;
-        }).join("");
-      }
-    }catch(_){}
-  })();
-
-  const sumEl=$("analysisSummary");
-  if(sumEl){
-    const fav = d.m.home >= d.m.away ? d.home : d.away;
-    const favP = Math.max(d.m.home, d.m.away);
-    const total = d.x.total;
-    const totalLbl = total>=6.2?"Total haut":total<=5.2?"Total bas":"Total moyen";
-    const conf = d.c>=75?"Élevée":d.c>=60?"Correcte":"Limitée";
-    sumEl.innerHTML=`<div class="summary-rich">
-      <p class="summary-text">${buildSummary(d)}</p>
-      <div class="summary-kpis">
-        <div><span>Favori OT</span><b>${fav} ${pct(favP)}</b></div>
-        <div><span>xG</span><b>${fmt(d.x.home)} – ${fmt(d.x.away)}</b></div>
-        <div><span>${totalLbl}</span><b>${fmt(total)}</b></div>
-        <div><span>Confiance</span><b class="${d.c>=60?"ok":"warn"}">${conf} (${d.c}%)</b></div>
-        <div><span>Statut</span><b class="${d.status==="NO BET"?"warn":"ok"}">${d.status}</b></div>
-      </div>
-    </div>`;
+  try{
+    CURRENT_ANALYSIS=d;
+    $("emptyState").classList.add("hidden");
+    $("analysis").classList.remove("hidden");
+    $("loading").classList.add("hidden");
+    $("aHomeCode").textContent=d.home;
+    $("aHomeName").textContent=(TEAMS[d.home]&&TEAMS[d.home][0])||d.home;
+    $("aAwayCode").textContent=d.away;
+    $("aAwayName").textContent=(TEAMS[d.away]&&TEAMS[d.away][0])||d.away;
+    $("xgHome").textContent=fmt(d.x.home);
+    $("xgAway").textContent=fmt(d.x.away);
+    $("scoreProb").textContent=d.best?`${d.best[0]}–${d.best[1]}`:"—";
+    $("confidence").textContent=pct((d.c||50)/100);
+    if($("confidenceBar")) $("confidenceBar").style.width=`${d.c||50}%`;
+    const k=[["TOTAL BUTS",fmt(d.x.total)],["HOME OT",pct(d.m.home)],["AWAY OT",pct(d.m.away)],["OVER 5.5",pct(d.m.o55)],["BTTS",pct(d.m.btts)],["CONFIANCE",pct((d.c||50)/100)]];
+    $("kpis").innerHTML=k.map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join("");
+    const mk=[["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["BTTS",d.m.btts]];
+    if($("markets")) $("markets").innerHTML=mk.map(x=>`<div class="market"><span>${x[0]}</span><b>${pct(x[1])}</b></div>`).join("");
+  }catch(e){
+    $("emptyState").classList.remove("hidden");
+    $("emptyState").innerHTML=`<div class="empty-icon">⚠️</div><h2>Affichage impossible</h2><p>${e.message||e}</p>`;
   }
-  const notes=[
-    {t:"VALUE",x:`Max 2 pistes. Cote juste 1,45–2,60, score qualité ≥ 62, 1 marché/famille, confiance ≥ 60 %. ★★★ = sweet spot ~1,75. Trop court = inutilisable (ex. 1,09).`},
-    {t:"Projection",x:`${d.home} ${fmt(d.x.home)} xG contre ${d.away} ${fmt(d.x.away)} xG. Total modèle : ${fmt(d.x.total)} buts.`},
-    {t:"Possession",x:`SAT% ${d.home} ${pct(d.h.sat)} vs ${d.away} ${pct(d.a.sat)} • USAT% ${pct(d.h.usat)} / ${pct(d.a.usat)}. Impact Corsi intégré aux xG.`},
-    {t:"Spécialités",x:`PP ${d.home} ${pct(d.h.pp)} vs PK ${d.away} ${pct(d.a.pk)} • PP ${d.away} ${pct(d.a.pp)} vs PK ${d.home} ${pct(d.h.pk)}.`},
-    {t:"Forme",x:`5 derniers matchs : ${d.home} ${d.fh.length}/5, ${d.away} ${d.fa.length}/5.`},
-    {t:"Fatigue",x:`B2B : ${d.home} ${d.bh.b2b?"OUI":"non"}${d.bh.restDays?` (${d.bh.restDays.toFixed(1)} j)`:``} • ${d.away} ${d.ba.b2b?"OUI":"non"}${d.ba.restDays?` (${d.ba.restDays.toFixed(1)} j)`:``}.`},
-    {t:"Trajet",x:`${d.home} : ${d.travel?.home?.label||"—"} · ${d.away} : ${d.travel?.away?.label||"—"}${d.travel?.away?.longHaul?" ⚠️ long haul extérieur":""}.`},
-    {t:"Statut",x:`${d.status} — confiance modèle ${pct(d.c/100)}.`}
-  ];
-  $("modelNotes").innerHTML=notes.map((x,i)=>`<div class="note ${(x.t==="Statut"&&d.status==="NO BET")?"warn":"good"}"><b>${x.t} :</b> ${x.x}</div>`).join("");
-  // H2H block
-  const h2hEl=$("h2hBox");
-  if(h2hEl){
-    const list=d.h2h||[];
-    if(!list.length){
-      h2hEl.innerHTML=`<div class="section-title" style="border:0;padding:0 0 8px"><span>⚔️</span> Confrontations directes</div><p class="muted">Pas de H2H récent disponible.</p>`;
-    }else{
-      let hw=0,aw=0;
-      for(const g of list){
-        if(g.winner===d.home) hw++; else if(g.winner===d.away) aw++;
-      }
-      h2hEl.innerHTML=`<div class="section-title" style="border:0;padding:0 0 10px"><span>⚔️</span> Derniers H2H
-        <small class="h2h-scoreline">${logoHTML(d.home,"team-logo-sm")} <b>${hw}</b> – <b>${aw}</b> ${logoHTML(d.away,"team-logo-sm")}</small>
-      </div>
-        <div class="h2h-list">${list.map(g=>{
-          const dt=g.date?new Date(g.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"";
-          const wHome=g.winner===g.home, wAway=g.winner===g.away;
-          return `<div class="h2h-card">
-            <div class="h2h-date">${dt}</div>
-            <div class="h2h-match">
-              <div class="h2h-side ${wAway?"winner":""}">${logoHTML(g.away,"team-logo-sm")}<span>${g.away}</span><b>${g.as}</b></div>
-              <span class="h2h-vs">–</span>
-              <div class="h2h-side ${wHome?"winner":""}"><b>${g.hs}</b><span>${g.home}</span>${logoHTML(g.home,"team-logo-sm")}</div>
-            </div>
-            <div class="h2h-result">${g.winner==="TIE"?"Match nul":`Victoire ${g.winner}`}</div>
-          </div>`;
-        }).join("")}</div>`;
-    }
-  }
-  $("goalies").innerHTML=[["home",d.home,d.gh],["away",d.away,d.ga]].map(x=>`<div class="goalie"><h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span style="color:#8ea4b8">• ${x[2].name}</span></h3><div class="stat-row"><span>SV%</span><b>${pct(x[2].sv)}</b></div><div class="stat-row"><span>GAA</span><b>${fmt(x[2].gaa)}</b></div><div class="stat-row"><span>Contexte</span><b>${x[2].conf}</b></div></div>`).join("");
-  $("form").innerHTML=[["home",d.home,d.fh,d.bh,d.travel?.home],["away",d.away,d.fa,d.ba,d.travel?.away]].map(x=>{
-    const games=x[2]||[];
-    const wins=games.filter(g=>g.win).length;
-    const losses=games.length-wins;
-    const gf=games.length?avg(games.map(g=>g.gf)):0;
-    const ga=games.length?avg(games.map(g=>g.ga)):0;
-    // plus récent à droite
-    const ordered=[...games].reverse();
-    const streakHtml = ordered.length
-      ? ordered.map(g=>{
-          const dt=g.date?new Date(g.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short"}):"";
-          const tip=`${g.win?"Victoire":"Défaite"} ${g.gf}-${g.ga} ${g.label||""} (${dt})`;
-          return `<span class="form-pill ${g.win?"win":"loss"}" title="${tip}">
-            <i class="form-pill-res">${g.win?"V":"D"}</i>
-            <span class="form-pill-score">${g.gf}-${g.ga}</span>
-            <span class="form-pill-opp">${g.label||""}</span>
-          </span>`;
-        }).join("")
-      : `<span class="muted">Pas encore de matchs recensés</span>`;
-    const tr=x[4]||{};
-    const restTxt = x[3]?.restDays!=null ? `${x[3].restDays.toFixed(1)} j depuis le dernier match` : "—";
-    const sampleNote = games.length<5
-      ? `<div class="form-note">Début de saison : ${games.length} match(s) (complété avec 2025-26 si besoin)</div>`
-      : "";
-    return `<div class="form-team card-inner">
-      <div class="form-team-head">
-        <h3>${logoHTML(x[1],"team-logo-sm")} ${x[1]} <span class="form-record">${wins}V – ${losses}D</span>${(()=>{let n=0,w=null;for(const g of games){if(w===null)w=g.win;if(g.win===w)n++;else break;}return n>=2?`<span class="form-streak ${w?"hot":"cold"}">${n}${w?"V":"D"} série</span>`:"";})()}</h3>
-        <div class="form-dots" title="Plus récent à droite">${ordered.map(g=>`<i class="form-dot ${g.win?"win":"loss"}"></i>`).join("")}</div>
-      </div>
-      <div class="form-pills">${streakHtml}</div>
-      ${sampleNote}
-      <div class="form-stats">
-        <div class="form-stat"><span>Buts / match</span><b><em class="ok">${fmt(gf)}</em> pour · <em class="bad">${fmt(ga)}</em> contre</b></div>
-        <div class="form-stat"><span>Repos</span><b>${x[3]?.b2b?"⚠️ Back-to-back":"Repos OK"}</b></div>
-        <div class="form-stat"><span>Repos (j)</span><b>${restTxt}</b></div>
-        <div class="form-stat"><span>Trajet</span><b class="${tr.longHaul?"warn":""}">${tr.label||"—"}${tr.longHaul?" · long haul":""}</b></div>
-      </div>
-    </div>`;
-  }).join("");
-  renderAdvanced(d);
-  renderPlayers(CURRENT_PROP);renderAllProps();renderAudit();
-  renderMatchLineups(d.home,d.away,d.gameId||null);
-  try{ setupAnalysisAccordion(); }catch(_){}
 }
+
 function renderAdvanced(d){
   const el=$("advancedStats"); if(!el)return;
   const rows=[
