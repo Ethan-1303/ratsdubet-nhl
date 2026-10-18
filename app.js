@@ -1222,6 +1222,33 @@ function renderAnalysis(d){
     $("kpis").innerHTML=k.map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join("");
     const mk=[["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["BTTS",d.m.btts]];
     if($("markets")) $("markets").innerHTML=mk.map(x=>`<div class="market"><span>${x[0]}</span><b>${pct(x[1])}</b></div>`).join("");
+    const fav=d.m.home>=d.m.away?d.home:d.away;
+    const favP=Math.max(d.m.home,d.m.away);
+    if($("decisionVerdict")) $("decisionVerdict").textContent=`${fav} favori · ${pct(favP)}`;
+    if($("decisionStatus")) $("decisionStatus").textContent=d.status||"SURVEILLER";
+    if($("decisionNote")) $("decisionNote").textContent=`Total ${fmt(d.x.total)} buts · score probable ${d.best?d.best[0]+"–"+d.best[1]:"—"}.`;
+    if($("analysisSummary")) $("analysisSummary").textContent=`${d.home} ${fmt(d.x.home)} – ${fmt(d.x.away)} ${d.away}. ${fav} devant à ${pct(favP)}.`;
+    function formHtml(code,games){
+      const g=games||[];
+      const dots=g.slice(0,5).map(x=>`<i class="form-dot ${x.win?"win":"loss"}"></i>`).join("")||"—";
+      const w=g.filter(x=>x.win).length;
+      return `<div class="form-team"><b>${code}</b> ${w}V-${g.length-w}D <span class="form-dots">${dots}</span></div>`;
+    }
+    if($("form")) $("form").innerHTML=formHtml(d.home,d.fh)+formHtml(d.away,d.fa);
+    if($("goalies")) $("goalies").innerHTML=`<div>${d.home} : ${(d.gh&&d.gh.name)||"—"}</div><div>${d.away} : ${(d.ga&&d.ga.name)||"—"}</div>`;
+    if($("h2hBox")) $("h2hBox").innerHTML=`<p class="muted">H2H détaillé désactivé pour garder la page fluide.</p>`;
+    if($("advancedStats")&&d.h&&d.a){
+      const rows=[["SAT%",d.h.sat,d.a.sat],["PP%",d.h.pp,d.a.pp],["PK%",d.h.pk,d.a.pk],["GF",d.h.gf,d.a.gf],["GA",d.h.ga,d.a.ga]];
+      $("advancedStats").innerHTML=rows.map(r=>`<div class="adv-row"><span>${r[0]}</span><b>${fmt(r[1])}</b><b>${fmt(r[2])}</b></div>`).join("");
+    }
+    const plist=(d.players&&d.players.players)||[];
+    if($("playerTables")){
+      const top=plist.slice().sort((a,b)=>(b.pp||0)-(a.pp||0)).slice(0,6);
+      $("playerTables").innerHTML=top.map(p=>`<div class="player"><span class="name">${p.name} · ${p.team}</span><span class="prob">${pct(p.pp||0)}</span></div>`).join("")||`<p class="muted">Props simplifiés.</p>`;
+    }
+    if($("audit")) $("audit").innerHTML=`<p class="muted">Analyse allégée : marchés et xG actifs. Props, H2H complet et compositions restent en mode simple pour éviter le blocage.</p>`;
+    if($("lineupsBox")) $("lineupsBox").innerHTML=`<p class="muted">Compositions : ouvre l'onglet après une analyse, données non rechargées ici.</p>`;
+    if($("matchInjuriesBox")) $("matchInjuriesBox").innerHTML=`<p class="muted">Blessures : voir l'onglet Blessures.</p>`;
   }catch(e){
     $("emptyState").classList.remove("hidden");
     $("emptyState").innerHTML=`<div class="empty-icon">⚠️</div><h2>Affichage impossible</h2><p>${e.message||e}</p>`;
