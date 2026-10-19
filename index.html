@@ -531,17 +531,17 @@
       <p class="muted">Joue responsable. 18+. Liens d’affiliation et de parrainage.</p>
       <div class="pricing-grid">
         <a class="price-card card" href="https://stake.com/?c=XJonaJ0m" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;text-align:center">
-          <img alt="Stake" src="https://logo.clearbit.com/stake.com" width="88" height="88" style="border-radius:16px;background:#0b0e11;object-fit:contain" onerror="this.style.display='none'">
+          <div class="book-logo stake">STAKE</div>
           <h3>Stake</h3><p class="muted">Affiliation</p>
           <span class="primary-btn" style="display:inline-block;margin-top:12px">Ouvrir Stake</span>
         </a>
         <a class="price-card card" href="https://betclic.onelink.me/2887093520/6c3132b8?af_sub5=FALCMHRU" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;text-align:center">
-          <img alt="Betclic" src="https://logo.clearbit.com/betclic.fr" width="88" height="88" style="border-radius:16px;background:#fff;object-fit:contain;padding:6px" onerror="this.style.display='none'">
+          <div class="book-logo betclic">betclic</div>
           <h3>Betclic</h3><p class="muted">Parrainage</p>
           <span class="primary-btn" style="display:inline-block;margin-top:12px">Ouvrir Betclic</span>
         </a>
         <a class="price-card card" href="https://www.winamax.fr/parrain?code=JOR81S" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;text-align:center">
-          <img alt="Winamax" src="https://logo.clearbit.com/winamax.fr" width="88" height="88" style="border-radius:16px;background:#111;object-fit:contain" onerror="this.style.display='none'">
+          <div class="book-logo winamax">WINAMAX</div>
           <h3>Winamax</h3><p class="muted">Code JOR81S</p>
           <span class="primary-btn" style="display:inline-block;margin-top:12px">Ouvrir Winamax</span>
         </a>
@@ -793,7 +793,7 @@
 
 
 <style id="click-fix-final">
-  .modal, #authModal, #onboardModal, .analyze-sticky, .bg-glow, .modal-backdrop { display:none !important; pointer-events:none !important; }
+  .onboardModal, .analyze-sticky, .bg-glow { }
   #mainNav { position:static !important; inset:auto !important; width:auto !important; height:auto !important; bottom:auto !important; z-index:3 !important; display:flex !important; pointer-events:auto !important; background:transparent !important; }
   button, a, select, .nav-btn, .primary-btn { pointer-events:auto !important; position:relative; z-index:5; }
 </style>
@@ -891,7 +891,7 @@
     var btn = document.getElementById('analyzeBtn');
     if (btn) btn.textContent = 'Chargement…';
     var s = document.createElement('script');
-    s.src = '/app.js?v=20261019i';
+    s.src = '/app.js?v=20261019j';
     s.onload = function(){
       setTimeout(function(){
         try { window.RDB_BOOT && window.RDB_BOOT(); } catch(e) {}
@@ -919,7 +919,7 @@
   function load(){
     if(window.RDB_BOOT){ bootTabs(); return; }
     var s=document.createElement('script');
-    s.src='/app.js?v=20261019i';
+    s.src='/app.js?v=20261019j';
     s.onload=function(){ setTimeout(bootTabs, 30); };
     document.body.appendChild(s);
   }
@@ -928,5 +928,14 @@
 })();
 </script>
 
+<script>
+document.addEventListener('click', function(e){
+  var b=e.target.closest && e.target.closest('#authChip');
+  if(!b) return;
+  if(window.openAuth){ window.openAuth('account'); return; }
+  var m=document.getElementById('authModal');
+  if(m) m.classList.remove('hidden');
+});
+</script>
 </body>
 </html>
