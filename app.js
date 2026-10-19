@@ -669,7 +669,7 @@ async function analyze(home,away){
   if(home===away)throw new Error("Sélectionne deux équipes différentes.");
   setLoadMsg("Stats, forme et H2H…");
   const cap=(p,ms)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(null),ms))]);
-  async function schedule(team){
+  async function teamSchedule(team){
     try{
       const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/20252026`);
       return (j.games||[]).filter(g=>g.gameType===2);
@@ -686,8 +686,8 @@ async function analyze(home,away){
     cap(getTeams().catch(()=>null),8000),
     cap(getRoster(home).catch(()=>null),5000),
     cap(getRoster(away).catch(()=>null),5000),
-    cap(schedule(home),6000),
-    cap(schedule(away),6000),
+    cap(teamSchedule(home),6000),
+    cap(teamSchedule(away),6000),
     cap(api("stats/rest/en/skater/summary",{limit:250,sort:"points",cayenneExp:"seasonId=20252026 and gameTypeId=2"}).catch(()=>null),6000),
     cap(api("api-web.nhle.com/v1/standings/now").catch(()=>null),5000)
   ]);
@@ -2912,6 +2912,7 @@ function boot(){
   try{ setup(); }catch(e){ console.error(e); }
 }
 window.RDB_BOOT = boot;
+window.RDB_TABS=function(){try{schedule(0);}catch(e){} try{renderStandings();}catch(e){}};
 // unregister vieux SW cassés une fois
 if("serviceWorker" in navigator){
   navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
