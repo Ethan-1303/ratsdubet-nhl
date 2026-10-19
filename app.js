@@ -99,7 +99,7 @@ function updateTeamMeta(){
   }
 }
 async function teamReport(report){
-  const expr=`seasonId=${BASE} and gameTypeId=2`;
+  const expr=`seasonId=${CURRENT} and gameTypeId=2`;
   const j=await api(`stats/rest/en/team/${report}`,{isAggregate:"false",isGame:"false",start:0,limit:300,cayenneExp:expr});
   return j.data||[];
 }
@@ -318,7 +318,7 @@ async function getB2B(team){
   }catch(e){return {b2b:false,restDays:null}}
 }
 async function getGoalieFactors(){
-  const expr=`seasonId=${BASE} and gameTypeId=2`;
+  const expr=`seasonId=${CURRENT} and gameTypeId=2`;
   const j=await api("stats/rest/en/goalie/summary",{limit:300,sort:"wins",cayenneExp:expr});
   const map={},all=[];
   for(const x of j.data||[]){
@@ -543,7 +543,7 @@ async function renderMatchLineups(home, away, gameId){
 }
 
 async function getGoalies(){
-  const expr=`seasonId=${BASE} and gameTypeId=2`;
+  const expr=`seasonId=${CURRENT} and gameTypeId=2`;
   const j=await api("stats/rest/en/goalie/summary",{limit:300,sort:"wins",cayenneExp:expr});
   const byId={},rows=[];
   for(const x of j.data||[]){
@@ -699,8 +699,15 @@ async function analyze(home,away){
     const gp=+r.gamesPlayed||0;
     if(ab&&gp) official[ab]={gf:+r.goalFor/gp,ga:+r.goalAgainst/gp,w:+r.wins||0,l:+r.losses||0,gp};
   }
+  async function prev(team){
+    try{ const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/20252026`); return (j.games||[]).filter(g=>g.gameType===2); }
+    catch(e){ return []; }
+  }
+  const [ph,pa]=await Promise.all([prev(home),prev(away)]);
   const homeGames=(sh||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
   const awayGames=(sa||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
+  const allHome=(sh||[]).concat(ph).filter(played);
+  const allAway=(sa||[]).concat(pa).filter(played);
   const fh=homeGames.slice(0,5).map(g=>row(g,home));
   const fa=awayGames.slice(0,5).map(g=>row(g,away));
   function b2bOf(games){
@@ -712,7 +719,7 @@ async function analyze(home,away){
   const bh=b2bOf(homeGames), ba=b2bOf(awayGames);
   const seen=new Set();
   const h2h=[];
-  for(const g of homeGames.concat(awayGames)){
+  for(const g of allHome.concat(allAway)){
     const pair=new Set([g.homeTeam?.abbrev,g.awayTeam?.abbrev]);
     if(pair.has(home)&&pair.has(away)&&!seen.has(g.id)){seen.add(g.id);h2h.push(row(g,home));}
   }
@@ -1297,7 +1304,7 @@ function renderAnalysis(d){
       const g=games||[];
       const w=g.filter(x=>x.win).length;
       const dots=g.slice().reverse().map(x=>'<i class="form-dot '+(x.win?"win":"loss")+'"></i>').join("");
-      const rows=g.map(x=>'<div class="form-game '+(x.win?"win":"loss")+'"><b>'+(x.win?"V":"D")+'</b> <span>'+x.gf+'-'+x.ga+'</span> <span>'+(x.label||"")+'</span></div>').join("");
+      const rows=g.map(x=>'<div class="form-game '+(x.win?"win":"loss")+'"><b>'+(x.win?"V":"D")+'</b><span>'+x.gf+'-'+x.ga+'</span><span>'+(x.home?"vs ":"@ ")+(x.opp||"")+'</span></div>').join("");
       const gf=g.length?(g.reduce((s,x)=>s+x.gf,0)/g.length):0;
       const ga=g.length?(g.reduce((s,x)=>s+x.ga,0)/g.length):0;
       return '<div class="form-team card-inner">'+
@@ -1935,6 +1942,16 @@ async function renderStandings(){
     </div>`;
     el.innerHTML=html;
     STANDINGS_CACHE=html; STANDINGS_CACHE_AT=Date.now();
+    el.onclick=(ev)=>{
+      const btn=ev.target.closest&&ev.target.closest(".standings-mode");
+      if(!btn) return;
+      el.querySelectorAll(".standings-mode").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      const mode=btn.dataset.mode;
+      const divV=el.querySelector("#standingsDivView"), legV=el.querySelector("#standingsLeagueView");
+      if(mode==="div"){divV&&divV.classList.remove("hidden");legV&&legV.classList.add("hidden");}
+      else {divV&&divV.classList.add("hidden");legV&&legV.classList.remove("hidden");}
+    };
     el.querySelectorAll(".standings-mode").forEach(btn=>{
       btn.onclick=()=>{
         el.querySelectorAll(".standings-mode").forEach(b=>b.classList.remove("active"));
@@ -2785,7 +2802,10 @@ async function loadLastLineups(home,away,ids){
       const j=await api('api-web.nhle.com/v1/gamecenter/'+id+'/boxscore');
       const side=(j.playerByGameStats&&((j.awayTeam&&j.awayTeam.abbrev===team)?j.playerByGameStats.awayTeam:j.playerByGameStats.homeTeam))||{};
       const names=arr=>(arr||[]).slice(0,6).map(p=>p.name&&p.name.default||"?").join(" · ");
-      return '<div class="lineup-col"><b>'+team+'</b><p>Attaquants : '+names(side.forwards)+'</p><p>Défense : '+names(side.defense)+'</p><p class="muted">Dernière composition utilisée</p></div>';
+      const fw=side.forwards||[], df=side.defense||[];
+      function line(arr){ return '<div class="ice-line">'+arr.map(p=>'<div class="ice-p"><span>#'+(p.sweaterNumber||"")+'</span><small>'+((p.name&&p.name.default)||"?").split(" ").slice(-1)+'</small></div>').join("")+'</div>'; }
+      const lines=[line(fw.slice(0,3)),line(fw.slice(3,6)),line(fw.slice(6,9)),line(df.slice(0,2)),line(df.slice(2,4))];
+      return '<div class="ice"><b>'+team+'</b>'+lines.join("")+'<p class="muted">Dernière composition</p></div>';
     }catch(e){ return '<div><b>'+team+'</b><p class="muted">Composition indisponible.</p></div>'; }
   }
   const [h,a]=await Promise.all([one(home,ids&&ids.home), one(away,ids&&ids.away)]);
