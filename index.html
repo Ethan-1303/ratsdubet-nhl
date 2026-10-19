@@ -885,7 +885,7 @@
     var btn = document.getElementById('analyzeBtn');
     if (btn) btn.textContent = 'Chargement…';
     var s = document.createElement('script');
-    s.src = '/app.js?v=20261019d';
+    s.src = '/app.js?v=20261019e';
     s.onload = function(){
       setTimeout(function(){
         try { window.RDB_BOOT && window.RDB_BOOT(); } catch(e) {}
@@ -900,6 +900,25 @@
   if (btn) btn.addEventListener('click', function(e){
     if (!window.RDB_BOOT) { e.preventDefault(); e.stopImmediatePropagation(); start(); }
   }, true);
+})();
+</script>
+
+
+<script>
+(function(){
+  function bootTabs(){
+    if(window.RDB_BOOT){ try{window.RDB_BOOT();}catch(e){} }
+    if(window.RDB_TABS){ try{window.RDB_TABS();}catch(e){} }
+  }
+  function load(){
+    if(window.RDB_BOOT){ bootTabs(); return; }
+    var s=document.createElement('script');
+    s.src='/app.js?v=20261019e';
+    s.onload=function(){ setTimeout(bootTabs, 30); };
+    document.body.appendChild(s);
+  }
+  if(document.readyState==='complete') setTimeout(load, 400);
+  else window.addEventListener('load', function(){ setTimeout(load, 400); });
 })();
 </script>
 
