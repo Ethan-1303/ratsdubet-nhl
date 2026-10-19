@@ -1856,3 +1856,11 @@ input, select, textarea{ font-size:16px; }
 .lineup-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .lineup-col{background:#07131d;border-radius:12px;padding:12px}
 @media(max-width:800px){.inj-row,.lineup-grid{grid-template-columns:1fr}}
+
+.form-game{display:flex;gap:8px;padding:6px 8px;border-radius:10px;margin:4px 0;background:#07131d;border:1px solid #17344a}
+.form-game.win{border-color:#14532d}
+.form-game.loss{border-color:#7f1d1d}
+.form-game b{min-width:16px}
+.val-badge{background:#14532d;color:#86efac;border-radius:999px;padding:2px 6px;font-size:10px;margin-left:6px}
+.market .fair{color:#8aa4b8;font-size:12px}
+.goalie .stat-row{display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid #17344a}
