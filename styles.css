@@ -1832,3 +1832,16 @@ input, select, textarea{ font-size:16px; }
 .form-dot{width:16px;height:16px}
 .form-dot.win{background:#22c55e}
 .form-dot.loss{background:#ef4444}
+
+/* analyse type app sport */
+.scoreboard{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:8px 4px 16px}
+.score-side{text-align:center}
+.score-side .code{font-size:42px;font-weight:800;letter-spacing:1px}
+.score-mid{text-align:center;min-width:180px}
+.score-mid .score{font-size:48px;font-weight:800;letter-spacing:2px}
+.xg{color:#3ddc97;font-size:22px;font-weight:700}
+.decision-board,.card{border-radius:16px}
+.market{border-radius:14px;background:linear-gradient(180deg,#0c2233,#07131d)}
+.market .value b{font-variant-numeric:tabular-nums}
+.kpi{border-radius:16px}
+.day-btn.active,.nav-btn.active{box-shadow:0 0 0 1px rgba(0,230,118,.35)}
