@@ -667,55 +667,79 @@ function setLoadMsg(msg){
 function yieldUI(){return new Promise(r=>setTimeout(r,30));}
 async function analyze(home,away){
   if(home===away)throw new Error("Sélectionne deux équipes différentes.");
-  setLoadMsg("Stats et calendrier…");
+  setLoadMsg("Stats, forme et H2H…");
   const cap=(p,ms)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(null),ms))]);
-  async function formOf(team){
+  async function schedule(team){
     try{
       const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/20252026`);
-      const games=(j.games||[]).filter(g=>g.gameType===2 && Number.isFinite(g.homeTeam?.score));
-      games.sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
-      return games.slice(0,5).map(g=>{
-        const homeG=(g.homeTeam?.abbrev)===team;
-        const us=homeG?g.homeTeam:g.awayTeam, them=homeG?g.awayTeam:g.homeTeam;
-        const gf=+us.score, ga=+them.score;
-        return {win:gf>ga,gf,ga,opp:them.abbrev,home:homeG,date:g.startTimeUTC,label:homeG?`vs ${them.abbrev}`:`@ ${them.abbrev}`};
-      });
+      return (j.games||[]).filter(g=>g.gameType===2);
     }catch(e){return []}
   }
-  const [teams,rh,ra,fh,fa]=await Promise.all([
-    cap(getTeams().catch(()=>null),7000),
-    cap(getRoster(home).catch(()=>null),4000),
-    cap(getRoster(away).catch(()=>null),4000),
-    cap(formOf(home),5000),
-    cap(formOf(away),5000)
+  function played(g){return Number.isFinite(+g?.homeTeam?.score)&&Number.isFinite(+g?.awayTeam?.score);}
+  function row(g,team){
+    const hs=g.homeTeam||{}, as=g.awayTeam||{};
+    const isH=hs.abbrev===team;
+    const us=isH?hs:as, them=isH?as:hs;
+    return {win:+us.score>+them.score,gf:+us.score,ga:+them.score,opp:them.abbrev,home:isH,date:(g.startTimeUTC||g.gameDate||"").slice(0,10),label:`${hs.abbrev} ${hs.score}–${as.score} ${as.abbrev}`};
+  }
+  const [teams,rh,ra,sh,sa,sk]=await Promise.all([
+    cap(getTeams().catch(()=>null),8000),
+    cap(getRoster(home).catch(()=>null),5000),
+    cap(getRoster(away).catch(()=>null),5000),
+    cap(schedule(home),6000),
+    cap(schedule(away),6000),
+    cap(api("stats/rest/en/skater/summary",{limit:250,sort:"points",cayenneExp:"seasonId=20252026 and gameTypeId=2"}).catch(()=>null),6000)
   ]);
-  const l=teams?leagueFrom(teams):{valid:false,gf:3.1};
+  const homeGames=(sh||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
+  const awayGames=(sa||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
+  const fh=homeGames.slice(0,5).map(g=>row(g,home));
+  const fa=awayGames.slice(0,5).map(g=>row(g,away));
+  const seen=new Set();
+  const h2h=[];
+  for(const g of homeGames.concat(awayGames)){
+    const pair=new Set([g.homeTeam?.abbrev,g.awayTeam?.abbrev]);
+    if(pair.has(home)&&pair.has(away)&&!seen.has(g.id)){seen.add(g.id);h2h.push(row(g,home));}
+  }
+  h2h.sort((a,b)=>b.date.localeCompare(a.date));
+  const l=teams?leagueFrom(teams):{valid:false};
   const h=(teams&&teams[home])||{gf:3.05,ga:3.05,sat:.5,pp:.2,pk:.79};
   const a=(teams&&teams[away])||{gf:3.05,ga:3.05,sat:.5,pp:.2,pk:.79};
-  const x=teams&&l.valid?expectedFrom(h,a,l,fh||[],fa||[],{},{},{}):{home:3.0,away:3.0,total:6.0,shotsHome:29,shotsAway:29};
-  // forme récente : léger bonus
-  const hw=(fh||[]).filter(g=>g.win).length, aw=(fa||[]).filter(g=>g.win).length;
-  if((fh||[]).length){ x.home*=1+((hw/(fh.length))-0.5)*0.06; }
-  if((fa||[]).length){ x.away*=1+((aw/(fa.length))-0.5)*0.06; }
-  x.total=x.home+x.away;
+  const x=teams&&l.valid?expectedFrom(h,a,l,fh,fa,{},{},{}):{home:3.0,away:3.0,total:6.0,shotsHome:29,shotsAway:29};
   const m=markets(x.home,x.away);
-  function props(roster,tm,xg){
-    const list=((roster&&roster.players)||[]).filter(p=>p.position!=="G").slice(0,12);
-    const n=Math.max(list.length,1);
-    return list.map((p,i)=>{
-      const w=p.position==="D"?0.55:p.position==="C"?1.15:1;
-      const share=(w/(n*0.7))*(1-i*0.04);
-      const g=Math.max(0.04,xg*0.22*share*3.2);
-      const as=g*1.35;
-      return {id:p.id,name:p.name,team:tm,position:p.position,gp:1,toi:16*60,lg:g,la:as,lp:g+as,ls:2.2*w,pg:1-Math.exp(-g),pa:1-Math.exp(-as),pp:1-Math.exp(-(g+as)),ps:1-Math.exp(-2.2*w)};
-    });
+  const byName={};
+  for(const s of (sk&&sk.data)||[]){
+    const name=String(s.skaterFullName||"").toLowerCase();
+    const teamsAb=String(s.teamAbbrevs||s.teamAbbrev||"").toUpperCase();
+    if(name) byName[name]=s;
+    if(teamsAb) byName[teamsAb+"|"+name]=s;
   }
-  const players={dataCount:1,players:props(rh,home,x.home).concat(props(ra,away,x.away))};
-  const gh={name:(rh&&rh.goalies&&rh.goalies[0]&&rh.goalies[0].name)||"Titulaire"};
-  const ga={name:(ra&&ra.goalies&&ra.goalies[0]&&ra.goalies[0].name)||"Titulaire"};
-  const h2h=(fh||[]).filter(g=>g.opp===away).concat((fa||[]).filter(g=>g.opp===home)).slice(0,5);
-  const c=Math.round(55+(teams?12:0)+((fh||[]).length>=3?5:0)+((fa||[]).length>=3?5:0));
-  return {home,away,h,a,l,fh:fh||[],fa:fa||[],bh:{},ba:{},gf:{},x,m,players,gh,ga,c:Math.min(c,88),status:"SURVEILLER",best:projectedScore(x.home,x.away),gameId:null,travel:{home:{},away:{}},h2h};
+  function realProps(roster,tm,xg){
+    const list=[...(roster?.forwards||[]),...(roster?.defensemen||[]),...(roster?.players||[])].filter(p=>p&&p.position!=="G"&&p.positionCode!=="G");
+    const uniq=[]; const ids=new Set();
+    for(const p of list){ if(ids.has(p.id)) continue; ids.add(p.id); uniq.push(p); }
+    return uniq.map(p=>{
+      const fn=(p.firstName&&p.firstName.default)||p.firstName||"";
+      const ln=(p.lastName&&p.lastName.default)||p.lastName||"";
+      const name=(fn+" "+ln).trim()||p.name||"?";
+      const st=byName[tm+"|"+name.toLowerCase()]||byName[name.toLowerCase()];
+      const gp=Math.max(1,+(st&&st.gamesPlayed)||1);
+      const gpg=st?+(st.goals||0)/gp:0.12;
+      const apg=st?+(st.assists||0)/gp:0.18;
+      const spg=st?+(st.shots||0)/gp:1.6;
+      const role=(p.positionCode||p.position)==="D"?0.8:1;
+      const lg=Math.max(0.02,gpg*role*(xg/3));
+      const la=Math.max(0.02,apg*role);
+      return {id:p.id,name,team:tm,position:p.positionCode||p.position,gp:st?st.gamesPlayed:0,toi:st?st.timeOnIcePerGame:0,lg,la,lp:lg+la,ls:spg,pg:1-Math.exp(-lg),pa:1-Math.exp(-la),pp:1-Math.exp(-(lg+la)),ps:1-Math.exp(-Math.min(spg,6)),goals:st?st.goals:0,assists:st?st.assists:0,points:st?st.points:0};
+    }).sort((a,b)=>b.pp-a.pp).slice(0,12);
+  }
+  const rhPlayers=rh?.forwards?{players:[...(rh.forwards||[]),...(rh.defensemen||[])],goalies:rh.goalies}:{players:rh?.players||[],goalies:rh?.goalies||[]};
+  const raPlayers=ra?.forwards?{players:[...(ra.forwards||[]),...(ra.defensemen||[])],goalies:ra.goalies}:{players:ra?.players||[],goalies:ra?.goalies||[]};
+  const players={dataCount:1,players:realProps(rh,home,x.home).concat(realProps(ra,away,x.away))};
+  const gname=g=>((g?.firstName?.default||"")+" "+(g?.lastName?.default||"")).trim()||g?.name||"Titulaire";
+  const gh={name:gname((rh?.goalies||[])[0])};
+  const ga={name:gname((ra?.goalies||[])[0])};
+  const c=Math.round(58+(teams?10:0)+(fh.length>=4?4:0)+(h2h.length?4:0));
+  return {home,away,h,a,l,fh,fa,bh:{},ba:{},gf:{},x,m,players,gh,ga,c:Math.min(c,86),status:"SURVEILLER",best:projectedScore(x.home,x.away),gameId:null,travel:{home:{},away:{}},h2h:h2h.slice(0,5)};
 }
 let CURRENT_ANALYSIS=null, CURRENT_PROP="pg", LAST_HISTORY_KEY="";
 
@@ -1267,7 +1291,8 @@ function renderAnalysis(d){
     if($("playerTables")){
       const top=(key)=>all.filter(p=>p.team).sort((a,b)=>(b[key]||0)-(a[key]||0));
       const box=(team,arr,key,label)=>`<div class="player-box"><h3>${team} — ${label}</h3>${arr.filter(p=>p.team===team).slice(0,3).map((p,i)=>`<div class="player"><span class="rank">#${i+1}</span><span class="name">${p.name}<small>${p.position||""}</small></span><span class="prob">${pct(p[key]||0)}</span></div>`).join("")}</div>`;
-      $("playerTables").innerHTML=box(d.home,all,"pp","points")+box(d.away,all,"pp","points");
+      const box2=(team,key,label)=>`<div class="player-box"><h3>${team} — ${label}</h3>${all.filter(p=>p.team===team).sort((a,b)=>(b[key]||0)-(a[key]||0)).slice(0,3).map((p,i)=>`<div class="player"><span class="rank">#${i+1}</span><span class="name">${p.name}<small>${p.position||""} · ${p.gp||0} MJ · ${p.points||0} pts</small></span><span class="prob">${pct(p[key]||0)}</span></div>`).join("")||"<p class=\"muted\">Pas de stats</p>"}</div>`;
+      $("playerTables").innerHTML=box2(d.home,"pp","points")+box2(d.away,"pp","points");
     }
     if($("audit")) $("audit").innerHTML=`<p class="muted">Source : stats équipes NHL 2025-26, calendrier (forme), effectif courant. Props estimés depuis les xG du match, pas une ligne bookmaker.</p>`;
     if($("lineupsBox")) $("lineupsBox").innerHTML=`<p class="muted">Compositions détaillées non chargées (évite le blocage). Effectif utilisé pour les props.</p>`;
