@@ -1845,3 +1845,14 @@ input, select, textarea{ font-size:16px; }
 .market .value b{font-variant-numeric:tabular-nums}
 .kpi{border-radius:16px}
 .day-btn.active,.nav-btn.active{box-shadow:0 0 0 1px rgba(0,230,118,.35)}
+
+.standings-wrap,.leaders-table,.props-table{width:100%;overflow-x:auto;display:block}
+.leaders-table th,.leaders-table td{white-space:nowrap;padding:8px 10px}
+.inj-team{background:#07131d;border:1px solid #17344a;border-radius:14px;padding:12px 14px;margin:10px 0}
+.inj-team h3{margin:0 0 8px}
+.inj-row{display:grid;grid-template-columns:1.4fr .8fr 1fr;gap:8px;padding:8px 0;border-top:1px solid #17344a;align-items:center}
+.inj-row small{display:block;color:#8aa4b8}
+.inj-st{color:#f5c16c;font-weight:600}
+.lineup-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.lineup-col{background:#07131d;border-radius:12px;padding:12px}
+@media(max-width:800px){.inj-row,.lineup-grid{grid-template-columns:1fr}}
