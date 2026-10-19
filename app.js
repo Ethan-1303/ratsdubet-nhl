@@ -682,8 +682,9 @@ async function analyze(home,away){
     const us=isH?hs:as, them=isH?as:hs;
     return {win:+us.score>+them.score,gf:+us.score,ga:+them.score,opp:them.abbrev,home:isH,date:(g.startTimeUTC||g.gameDate||"").slice(0,10),label:`${hs.abbrev} ${hs.score}–${as.score} ${as.abbrev}`};
   }
+  await new Promise(r=>setTimeout(r,0));
   const [teams,rh,ra,sh,sa,skH,skA,stand,gl]=await Promise.all([
-    cap(getTeams().catch(()=>null),8000),
+    Promise.resolve(null),
     cap(getRoster(home).catch(()=>null),5000),
     cap(getRoster(away).catch(()=>null),5000),
     cap(teamSchedule(home),6000),
@@ -699,15 +700,9 @@ async function analyze(home,away){
     const gp=+r.gamesPlayed||0;
     if(ab&&gp) official[ab]={gf:+r.goalFor/gp,ga:+r.goalAgainst/gp,w:+r.wins||0,l:+r.losses||0,gp};
   }
-  async function prev(team){
-    try{ const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/20252026`); return (j.games||[]).filter(g=>g.gameType===2); }
-    catch(e){ return []; }
-  }
-  const [ph,pa]=await Promise.all([prev(home),prev(away)]);
   const homeGames=(sh||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
   const awayGames=(sa||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
-  const allHome=(sh||[]).concat(ph).filter(played);
-  const allAway=(sa||[]).concat(pa).filter(played);
+  const allHome=homeGames, allAway=awayGames;
   const fh=homeGames.slice(0,5).map(g=>row(g,home));
   const fa=awayGames.slice(0,5).map(g=>row(g,away));
   function b2bOf(games){
@@ -1325,7 +1320,7 @@ function renderAnalysis(d){
       $("h2hBox").innerHTML='<div class="section-title"><span>⚔️</span> Derniers H2H</div>'+(rows.length?rows.map(g=>'<div class="h2h-row"><b>'+g.date+'</b><span>'+g.label+'</span><span>'+(g.win?"Victoire "+d.home:"Victoire "+d.away)+'</span></div>').join(""):'<p class="muted">Aucun face-à-face cette saison.</p>');
     }
     try{ renderPlayers("pg"); }catch(e){}
-    if($("lineupsBox")) loadLastLineups(d.home,d.away,d.lastIds);
+    if($("lineupsBox")) setTimeout(()=>loadLastLineups(d.home,d.away,d.lastIds),400);
     if($("audit")) $("audit").innerHTML='<p class="muted">Saison 2026-27. Props = taux réel buts/passes/tirs, ajusté au xG du match.</p>';
   }catch(e){ console.error(e); }
 }
