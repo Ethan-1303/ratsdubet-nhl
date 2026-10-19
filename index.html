@@ -530,16 +530,19 @@
       <div class="page-title"><div><div class="eyebrow">PARTENAIRES</div><h2>Affiliation</h2></div></div>
       <p class="muted">Joue responsable. 18+. Liens d’affiliation et de parrainage.</p>
       <div class="pricing-grid">
-        <a class="price-card card" href="https://stake.com/?c=XJonaJ0m" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
-          <div class="price-tag">STAKE</div><h3>Stake</h3><p class="muted">Affiliation</p>
+        <a class="price-card card" href="https://stake.com/?c=XJonaJ0m" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;text-align:center">
+          <img alt="Stake" src="https://logo.clearbit.com/stake.com" width="88" height="88" style="border-radius:16px;background:#0b0e11;object-fit:contain" onerror="this.style.display='none'">
+          <h3>Stake</h3><p class="muted">Affiliation</p>
           <span class="primary-btn" style="display:inline-block;margin-top:12px">Ouvrir Stake</span>
         </a>
-        <a class="price-card card" href="https://betclic.onelink.me/2887093520/6c3132b8?af_sub5=FALCMHRU" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
-          <div class="price-tag">BETCLIC</div><h3>Betclic</h3><p class="muted">Parrainage</p>
+        <a class="price-card card" href="https://betclic.onelink.me/2887093520/6c3132b8?af_sub5=FALCMHRU" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;text-align:center">
+          <img alt="Betclic" src="https://logo.clearbit.com/betclic.fr" width="88" height="88" style="border-radius:16px;background:#fff;object-fit:contain;padding:6px" onerror="this.style.display='none'">
+          <h3>Betclic</h3><p class="muted">Parrainage</p>
           <span class="primary-btn" style="display:inline-block;margin-top:12px">Ouvrir Betclic</span>
         </a>
-        <a class="price-card card" href="https://www.winamax.fr/parrain?code=JOR81S" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
-          <div class="price-tag">WINAMAX</div><h3>Winamax</h3><p class="muted">Code JOR81S</p>
+        <a class="price-card card" href="https://www.winamax.fr/parrain?code=JOR81S" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;text-align:center">
+          <img alt="Winamax" src="https://logo.clearbit.com/winamax.fr" width="88" height="88" style="border-radius:16px;background:#111;object-fit:contain" onerror="this.style.display='none'">
+          <h3>Winamax</h3><p class="muted">Code JOR81S</p>
           <span class="primary-btn" style="display:inline-block;margin-top:12px">Ouvrir Winamax</span>
         </a>
       </div>
@@ -747,7 +750,10 @@
   function show(view){
     document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.view===view); });
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id==='view-'+view); });
+    if(view==='leaders' && window.renderLeaders) window.renderLeaders('points');
+    if(view==='blessures' && window.loadInjuries) window.loadInjuries();
   }
+  window.BZ=window.BZ||{}; window.BZ.show=show;
   document.addEventListener('click', function(e){
     var b = e.target.closest && e.target.closest('.nav-btn[data-view]');
     if(!b) return;
@@ -885,7 +891,7 @@
     var btn = document.getElementById('analyzeBtn');
     if (btn) btn.textContent = 'Chargement…';
     var s = document.createElement('script');
-    s.src = '/app.js?v=20261019e';
+    s.src = '/app.js?v=20261019f';
     s.onload = function(){
       setTimeout(function(){
         try { window.RDB_BOOT && window.RDB_BOOT(); } catch(e) {}
@@ -913,7 +919,7 @@
   function load(){
     if(window.RDB_BOOT){ bootTabs(); return; }
     var s=document.createElement('script');
-    s.src='/app.js?v=20261019e';
+    s.src='/app.js?v=20261019f';
     s.onload=function(){ setTimeout(bootTabs, 30); };
     document.body.appendChild(s);
   }
