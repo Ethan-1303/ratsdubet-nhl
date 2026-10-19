@@ -1875,3 +1875,10 @@ input, select, textarea{ font-size:16px; }
 .ice-p span{display:inline-flex;width:36px;height:36px;border-radius:50%;border:2px solid #38bdf8;align-items:center;justify-content:center}
 .ice-p small{display:block;margin-top:4px;color:#c5d4e0}
 @media(max-width:900px){.standings-div-grid{grid-template-columns:1fr}}
+
+.book-logo{height:72px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:800;letter-spacing:1px;margin:0 auto 10px}
+.book-logo.stake{background:#0b0e11;color:#fff;border:1px solid #1f8a4c}
+.book-logo.betclic{background:#e10600;color:#fff}
+.book-logo.winamax{background:#111;color:#e10600;border:1px solid #e10600}
+#authModal{display:flex}
+#authModal.hidden{display:none}
