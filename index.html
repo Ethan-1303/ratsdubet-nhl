@@ -891,7 +891,7 @@
     var btn = document.getElementById('analyzeBtn');
     if (btn) btn.textContent = 'Chargement…';
     var s = document.createElement('script');
-    s.src = '/app.js?v=20261019j';
+    s.src = '/app.js?v=20261019k';
     s.onload = function(){
       setTimeout(function(){
         try { window.RDB_BOOT && window.RDB_BOOT(); } catch(e) {}
@@ -919,7 +919,7 @@
   function load(){
     if(window.RDB_BOOT){ bootTabs(); return; }
     var s=document.createElement('script');
-    s.src='/app.js?v=20261019j';
+    s.src='/app.js?v=20261019k';
     s.onload=function(){ setTimeout(bootTabs, 30); };
     document.body.appendChild(s);
   }
@@ -937,5 +937,20 @@ document.addEventListener('click', function(e){
   if(m) m.classList.remove('hidden');
 });
 </script>
+
+<script>
+document.addEventListener('click', function(e){
+  var close=e.target.closest && e.target.closest('[data-close="auth"]');
+  if(close){ var m=document.getElementById('authModal'); if(m) m.classList.add('hidden'); }
+  var chip=e.target.closest && e.target.closest('#authChip');
+  if(chip){
+    if(window.openAuth) window.openAuth('login');
+    else { var m=document.getElementById('authModal'); if(m) m.classList.remove('hidden'); }
+  }
+  var tab=e.target.closest && e.target.closest('.auth-tab');
+  if(tab && window.openAuth) window.openAuth(tab.getAttribute('data-auth')||'login');
+});
+</script>
+
 </body>
 </html>
