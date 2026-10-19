@@ -881,17 +881,13 @@
 (function(){
   var loading = false;
   function start(){
-    if (window.RDB_BOOT) {
-      try { window.RDB_BOOT(); } catch(e) {}
-      if (window.RDB_RUN) window.RDB_RUN();
-      return;
-    }
+    if (window.lightAnalyze) { window.lightAnalyze(); return; }
     if (loading) return;
     loading = true;
     var btn = document.getElementById('analyzeBtn');
     if (btn) btn.textContent = 'Chargement…';
     var s = document.createElement('script');
-    s.src = '/app.js?v=20261019m';
+    s.src = ''; /* moteur lourd désactivé */
     s.onload = function(){
       setTimeout(function(){
         try { window.RDB_BOOT && window.RDB_BOOT(); } catch(e) {}
@@ -934,6 +930,71 @@ document.addEventListener('click', function(e){
   var tab=e.target.closest && e.target.closest('.auth-tab');
   if(tab && window.openAuth) window.openAuth(tab.getAttribute('data-auth')||'login');
 });
+</script>
+
+
+<script>
+window.BZ=window.BZ||{};
+window.BZ.show=function(view){
+  document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.view===view); });
+  document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id==='view-'+view); });
+};
+async function nhl(path){
+  const r=await fetch('https://api-web.nhle.com/v1/'+path);
+  if(!r.ok) throw new Error('NHL');
+  return r.json();
+}
+async function lightAnalyze(){
+  const home=document.getElementById('homeTeam').value;
+  const away=document.getElementById('awayTeam').value;
+  if(!home||!away||home===away){ alert('Choisis deux équipes différentes.'); return; }
+  const loading=document.getElementById('loading');
+  const analysis=document.getElementById('analysis');
+  const empty=document.getElementById('emptyState');
+  if(loading) loading.classList.remove('hidden');
+  if(analysis) analysis.classList.add('hidden');
+  if(empty) empty.classList.add('hidden');
+  try{
+    const [sh,sa,st]=await Promise.all([
+      nhl('club-schedule-season/'+home+'/20262027'),
+      nhl('club-schedule-season/'+away+'/20262027'),
+      nhl('standings/now')
+    ]);
+    function played(g){ return g.homeTeam&&g.homeTeam.score!=null&&g.awayTeam&&g.awayTeam.score!=null; }
+    function form(games,team){
+      return (games||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC)).slice(0,5).map(g=>{
+        const isH=g.homeTeam.abbrev===team;
+        const us=isH?g.homeTeam:g.awayTeam, them=isH?g.awayTeam:g.homeTeam;
+        return {win:+us.score>+them.score, gf:+us.score, ga:+them.score, opp:them.abbrev, home:isH};
+      });
+    }
+    const fh=form(sh.games,home), fa=form(sa.games,away);
+    const rows=(st.standings||[]);
+    const rec=c=>rows.find(x=>(x.teamAbbrev&&(x.teamAbbrev.default||x.teamAbbrev))===c)||{};
+    const rh=rec(home), ra=rec(away);
+    const gf=x=>+(x.goalFor||x.goalsFor||0)/(+x.gamesPlayed||1);
+    const ga=x=>+(x.goalAgainst||x.goalsAgainst||0)/(+x.gamesPlayed||1);
+    const xh=Math.max(1.6, Math.min(4.2, (gf(rh)+ga(ra))/2));
+    const xa=Math.max(1.6, Math.min(4.2, (gf(ra)+ga(rh))/2));
+    function card(code,f){
+      const w=f.filter(x=>x.win).length;
+      return '<div class="form-team card-inner"><h3>'+code+' '+w+'V-'+(f.length-w)+'D</h3>'+
+        f.map(x=>'<div class="form-game '+(x.win?'win':'loss')+'"><b>'+(x.win?'V':'D')+'</b> '+x.gf+'-'+x.ga+' '+(x.home?'vs ':'@ ')+x.opp+'</div>').join('')+
+        '</div>';
+    }
+    const box=document.getElementById('analysis');
+    if(box){
+      box.innerHTML='<section class="card"><div class="section-title">Résultat</div><h2>'+home+' '+xh.toFixed(2)+' – '+xa.toFixed(2)+' '+away+'</h2><p>Score le plus probable : '+Math.round(xh)+'-'+Math.round(xa)+'</p></section>'+
+        '<section class="card"><div class="section-title">Forme</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+card(home,fh)+card(away,fa)+'</div></section>';
+      box.classList.remove('hidden');
+    }
+    if(loading) loading.classList.add('hidden');
+  }catch(e){
+    if(loading) loading.classList.add('hidden');
+    alert('Analyse indisponible pour le moment.');
+  }
+}
+document.getElementById('analyzeBtn')&&(document.getElementById('analyzeBtn').onclick=lightAnalyze);
 </script>
 
 </body>
