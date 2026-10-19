@@ -940,7 +940,7 @@ window.BZ.show=function(view){
   document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id==='view-'+view); });
 };
 async function nhl(path){
-  const r=await fetch('https://api-web.nhle.com/v1/'+path);
+  const r=await fetch('/api?path='+encodeURIComponent('api-web.nhle.com/v1/'+path));
   if(!r.ok) throw new Error('NHL');
   return r.json();
 }
