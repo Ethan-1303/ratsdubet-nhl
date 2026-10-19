@@ -112,7 +112,7 @@
         </a>
       </div>
       <button type="button" class="nav-btn nav-admin" id="navAdmin" data-view="admin" title="Dashboard admin">Admin</button>
-      <button type="button" class="nav-btn nav-premium" id="navPremium" data-view="premium">Premium</button>
+      <button type="button" class="nav-btn" data-view="affiliation" onclick="window.BZ.show('affiliation');return false;">Affiliation</button>
       <button type="button" class="auth-chip" id="authChip">Compte</button>
     <button type="button" class="nav-menu-btn" id="navMenuBtn" aria-label="Menu" aria-expanded="false">
           <span></span><span></span><span></span>
@@ -139,10 +139,7 @@
           </div>
         </div>
         <div class="hero-side">
-          <div class="hero-badge" id="planBadge">
-            <strong>FREE</strong>
-            <span>Essai 48h à l’inscription</span>
-          </div>
+          <div class="hero-badge" id="planBadge"><strong>GRATUIT</strong><span>Toutes les analyses, sans Premium</span></div>
         </div>
       </div>
 
@@ -529,55 +526,25 @@
     </section>
 
     <!-- PREMIUM -->
-    <section id="view-premium" class="view">
-      <div class="page-title"><div><div class="eyebrow">ACCÈS COMPLET</div><h2>Premium à vie</h2></div></div>
+    <section id="view-affiliation" class="view">
+      <div class="page-title"><div><div class="eyebrow">PARTENAIRES</div><h2>Affiliation</h2></div></div>
+      <p class="muted">Joue responsable. 18+. Liens d’affiliation et de parrainage.</p>
       <div class="pricing-grid">
-        <div class="price-card card">
-          <div class="price-tag">FREE</div>
-          <h3>Découverte</h3>
-          <div class="price-amount">0 €</div>
-          <ul class="price-list">
-            <li>1 analyse résumé / jour</li>
-            <li>xG + score probable</li>
-            <li>Calendrier & équipes</li>
-            <li class="off">Marchés & cotes justes</li>
-            <li class="off">Stats avancées</li>
-            <li class="off">Player props complets</li>
-          </ul>
-          <button type="button" class="ghost-btn" id="freeAccountBtn">Créer un compte gratuit</button>
-        </div>
-        <div class="price-card card featured">
-          <div class="price-tag hot">À VIE</div>
-          <h3>Meute Premium</h3>
-          <div class="price-amount">20 €<small>paiement unique</small></div>
-          <ul class="price-list">
-            <li>Analyses illimitées</li>
-            <li>Tous les marchés RDB + VALUE</li>
-            <li>SAT% · USAT% · PP/PK · PDO</li>
-            <li>Gardiens + forme (ronds V/D) + B2B</li>
-            <li>Player props + TOI + blessures</li>
-            <li>Hit rate du modèle (suivi)</li>
-            <li>Accès à vie</li>
-          </ul>
-          <div class="promo-box">
-            <label for="promoCode">Code parrainage (−5 €)</label>
-            <div class="promo-row">
-              <input type="text" id="promoCode" placeholder="Ex. MEUTE5" autocomplete="off" spellcheck="false">
-              <button type="button" class="ghost-btn" id="applyPromoHint">Info</button>
-            </div>
-            <small class="muted">Parrainage : le filleul paie <b>15 €</b> au lieu de 20 € avec un code valide sur Stripe.</small>
-          </div>
-          <button type="button" class="primary-btn" id="buyPremiumBtn">Payer — accès à vie</button>
-          <a class="price-tg" href="https://t.me/RATS_DU_BET" target="_blank" rel="noopener">Support Telegram</a>
-        </div>
+        <a class="price-card card" href="https://stake.com/?c=XJonaJ0m" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+          <div class="price-tag">STAKE</div><h3>Stake</h3><p class="muted">Affiliation</p>
+          <span class="primary-btn" style="display:inline-block;margin-top:12px">Ouvrir Stake</span>
+        </a>
+        <a class="price-card card" href="https://betclic.onelink.me/2887093520/6c3132b8?af_sub5=FALCMHRU" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+          <div class="price-tag">BETCLIC</div><h3>Betclic</h3><p class="muted">Parrainage</p>
+          <span class="primary-btn" style="display:inline-block;margin-top:12px">Ouvrir Betclic</span>
+        </a>
+        <a class="price-card card" href="https://www.winamax.fr/parrain?code=JOR81S" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+          <div class="price-tag">WINAMAX</div><h3>Winamax</h3><p class="muted">Code JOR81S</p>
+          <span class="primary-btn" style="display:inline-block;margin-top:12px">Ouvrir Winamax</span>
+        </a>
       </div>
     </section>
-    <div class="analyze-sticky" id="analyzeSticky">
-    <button type="button" class="primary-btn" id="analyzeBtnSticky">ANALYSER LE MATCH →</button>
-  </div>
-</main>
 
-  
     <section id="view-admin" class="view">
       <div class="page-title">
         <div><div class="eyebrow">CHEF DE MEUTE</div><h2>Dashboard admin</h2></div>
@@ -918,7 +885,7 @@
     var btn = document.getElementById('analyzeBtn');
     if (btn) btn.textContent = 'Chargement…';
     var s = document.createElement('script');
-    s.src = '/app.js?v=20261019c';
+    s.src = '/app.js?v=20261019d';
     s.onload = function(){
       setTimeout(function(){
         try { window.RDB_BOOT && window.RDB_BOOT(); } catch(e) {}
