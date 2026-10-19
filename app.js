@@ -671,7 +671,7 @@ async function analyze(home,away){
   const cap=(p,ms)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(null),ms))]);
   async function teamSchedule(team){
     try{
-      const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/20252026`);
+      const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/${CURRENT}`);
       return (j.games||[]).filter(g=>g.gameType===2);
     }catch(e){return []}
   }
@@ -682,13 +682,14 @@ async function analyze(home,away){
     const us=isH?hs:as, them=isH?as:hs;
     return {win:+us.score>+them.score,gf:+us.score,ga:+them.score,opp:them.abbrev,home:isH,date:(g.startTimeUTC||g.gameDate||"").slice(0,10),label:`${hs.abbrev} ${hs.score}–${as.score} ${as.abbrev}`};
   }
-  const [teams,rh,ra,sh,sa,sk,stand]=await Promise.all([
+  const [teams,rh,ra,sh,sa,skH,skA,stand]=await Promise.all([
     cap(getTeams().catch(()=>null),8000),
     cap(getRoster(home).catch(()=>null),5000),
     cap(getRoster(away).catch(()=>null),5000),
     cap(teamSchedule(home),6000),
     cap(teamSchedule(away),6000),
-    cap(api("stats/rest/en/skater/summary",{limit:250,sort:"points",cayenneExp:"seasonId=20252026 and gameTypeId=2"}).catch(()=>null),6000),
+    cap(api("stats/rest/en/skater/summary",{limit:40,sort:"points",dir:"DESC",cayenneExp:`seasonId=20262027 and gameTypeId=2 and teamAbbrevs="${home}"`}).catch(()=>null),6000),
+    cap(api("stats/rest/en/skater/summary",{limit:40,sort:"points",dir:"DESC",cayenneExp:`seasonId=20262027 and gameTypeId=2 and teamAbbrevs="${away}"`}).catch(()=>null),6000),
     cap(api("api-web.nhle.com/v1/standings/now").catch(()=>null),5000)
   ]);
   const official={};
@@ -701,6 +702,13 @@ async function analyze(home,away){
   const awayGames=(sa||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
   const fh=homeGames.slice(0,5).map(g=>row(g,home));
   const fa=awayGames.slice(0,5).map(g=>row(g,away));
+  function b2bOf(games){
+    if(!games.length) return {b2b:false,rest:null};
+    const last=new Date(games[0].startTimeUTC||games[0].gameDate);
+    const rest=(Date.now()-last.getTime())/86400000;
+    return {b2b:rest<1.4, rest:Math.max(0,Math.round(rest*10)/10)};
+  }
+  const bh=b2bOf(homeGames), ba=b2bOf(awayGames);
   const seen=new Set();
   const h2h=[];
   for(const g of homeGames.concat(awayGames)){
@@ -714,7 +722,7 @@ async function analyze(home,away){
   const x=teams&&l.valid?expectedFrom(h,a,l,fh,fa,{},{},{}):{home:3.0,away:3.0,total:6.0,shotsHome:29,shotsAway:29};
   const m=markets(x.home,x.away);
   const byName={};
-  for(const s of (sk&&sk.data)||[]){
+  for(const s of [...((skH&&skH.data)||[]),...((skA&&skA.data)||[])]){
     const name=String(s.skaterFullName||"").toLowerCase();
     const teamsAb=String(s.teamAbbrevs||s.teamAbbrev||"").toUpperCase();
     if(name) byName[name]=s;
@@ -746,7 +754,7 @@ async function analyze(home,away){
   const gh={name:gname((rh?.goalies||[])[0])};
   const ga={name:gname((ra?.goalies||[])[0])};
   const c=Math.round(58+(teams?10:0)+(fh.length>=4?4:0)+(h2h.length?4:0));
-  return {home,away,h,a,l,fh,fa,bh:{},ba:{},gf:{},x,m,players,gh,ga,c:Math.min(c,86),status:"SURVEILLER",best:projectedScore(x.home,x.away),gameId:null,travel:{home:{},away:{}},h2h:h2h.slice(0,5)};
+  return {home,away,h,a,l,fh,fa,bh,ba,gf:{},x,m,players,gh,ga,c:Math.min(c,86),status:"SURVEILLER",best:projectedScore(x.home,x.away),gameId:null,travel:{home:{},away:{}},h2h:h2h.slice(0,5),lastIds:{home:(homeGames[0]||{}).id,away:(awayGames[0]||{}).id}};
 }
 let CURRENT_ANALYSIS=null, CURRENT_PROP="pg", LAST_HISTORY_KEY="";
 
@@ -1280,7 +1288,8 @@ function renderAnalysis(d){
       const last=g[0]?`${g[0].label} ${g[0].gf}-${g[0].ga}`:"pas de match récent";
       return `<div class="form-team card-inner"><h3>${code} <span class="form-record">${w}V – ${g.length-w}D</span></h3><div class="form-dots">${dots||"—"}</div><p class="muted">${last}</p></div>`;
     }
-    if($("form")) $("form").innerHTML=formCard(d.home,d.fh)+formCard(d.away,d.fa);
+    function fatigue(code,b){ if(!b) return ""; return `<div class="form-team card-inner"><b>${code}</b><p>${b.b2b?"Back-to-back":"Repos"} · ${b.rest!=null?b.rest+" j":"—"}</p></div>`; }
+    if($("form")) $("form").innerHTML=formCard(d.home,d.fh)+formCard(d.away,d.fa)+fatigue(d.home,d.bh)+fatigue(d.away,d.ba);
     if($("goalies")) $("goalies").innerHTML=`<div class="goalie"><b>${d.home}</b><span>${d.gh.name}</span></div><div class="goalie"><b>${d.away}</b><span>${d.ga.name}</span></div>`;
     if($("compareTable")){
       const rows=[["Buts pour",d.h.gf,d.a.gf],["Buts contre",d.h.ga,d.a.ga],["SAT%",d.h.sat,d.a.sat],["PP%",d.h.pp,d.a.pp],["PK%",d.h.pk,d.a.pk]];
@@ -1302,7 +1311,7 @@ function renderAnalysis(d){
       $("playerTables").innerHTML=box2(d.home,"pp","points")+box2(d.away,"pp","points");
     }
     if($("audit")) $("audit").innerHTML=`<p class="muted">Source : stats équipes NHL 2025-26, calendrier (forme), effectif courant. Props estimés depuis les xG du match, pas une ligne bookmaker.</p>`;
-    if($("lineupsBox")) $("lineupsBox").innerHTML=`<p class="muted">Compositions détaillées non chargées (évite le blocage). Effectif utilisé pour les props.</p>`;
+    if($("lineupsBox")) loadLastLineups(d.home,d.away,d.lastIds);
     if($("matchInjuriesBox")) $("matchInjuriesBox").innerHTML=`<p class="muted">Blessures : onglet Blessures.</p>`;
   }catch(e){
     console.error(e);
@@ -2010,38 +2019,36 @@ function streakDots(arr){
 async function renderLeaders(sortKey="points"){
   const el=$("leadersTable"); if(!el)return;
   el.innerHTML='<p class="muted" style="padding:12px">Chargement…</p>';
-  const key=sortKey||"points";
-  api("api-web.nhle.com/v1/skater-stats-leaders/current").then(d=>{
-    const rows=d[key]||d.points||[];
+  const map={points:"points",goals:"goals",assists:"assists",shots:"shots",toi:"timeOnIcePerGame"};
+  const key=map[sortKey]||"points";
+  const label={points:"Points",goals:"Buts",assists:"Passes",shots:"Tirs",toi:"TOI"};
+  api("stats/rest/en/skater/summary",{limit:25,sort:key,dir:"DESC",cayenneExp:"seasonId=20262027 and gameTypeId=2"}).then(d=>{
+    const rows=d.data||[];
     if(!rows.length){ el.innerHTML='<p class="muted" style="padding:12px">Classement indisponible.</p>'; return; }
-    el.innerHTML=`<table class="props-table"><thead><tr><th>#</th><th>Joueur</th><th>Équipe</th><th>${key==="goals"?"Buts":key==="assists"?"Passes":"Points"}</th></tr></thead><tbody>${
-      rows.slice(0,25).map((r,i)=>{
-        const name=((r.firstName&&r.firstName.default)||"")+" "+((r.lastName&&r.lastName.default)||"");
-        const team=r.teamAbbrev||"";
-        const logo=r.teamLogo?`<img src="${r.teamLogo}" alt="" width="18" height="18" style="vertical-align:-3px;margin-right:6px">`:"";
-        return `<tr><td>${i+1}</td><td class="pname">${name.trim()}</td><td>${logo}${team}</td><td><b>${r.value??"—"}</b></td></tr>`;
-      }).join("")
-    }</tbody></table>`;
-  }).catch(e=>{ el.innerHTML=`<p class="muted" style="padding:12px">Leaders indisponibles (${e.message||e}).</p>`; });
+    const toi=s=>{ const v=+s.timeOnIcePerGame||0; return Math.floor(v/60)+":"+String(Math.round(v%60)).padStart(2,"0"); };
+    el.innerHTML='<table class="props-table leaders-table"><thead><tr><th>#</th><th>Joueur</th><th>Équipe</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>TOI</th></tr></thead><tbody>'+
+      rows.map((s,i)=>'<tr><td>'+(i+1)+'</td><td class="pname">'+(s.skaterFullName||"")+'</td><td>'+(s.teamAbbrevs||"—")+'</td><td>'+(s.gamesPlayed||0)+'</td><td>'+(s.goals||0)+'</td><td>'+(s.assists||0)+'</td><td><b>'+(s.points||0)+'</b></td><td>'+toi(s)+'</td></tr>').join("")+
+      '</tbody></table>';
+  }).catch(e=>{ el.innerHTML='<p class="muted" style="padding:12px">Leaders indisponibles.</p>'; });
 }
-function loadInjuries(force=false){
+function loadInjuries(){
   const el=$("injuriesFeed"); if(!el)return;
   el.innerHTML='<p class="muted" style="padding:12px">Chargement des blessures…</p>';
+  const fr={ "Day-To-Day":"Au jour le jour", "Out":"Absent", "Injured Reserve":"Réserve blessés", "IR":"Réserve blessés", "Questionable":"Incertain" };
+  const typeFr={ "Upper Body":"Haut du corps", "Lower Body":"Bas du corps", "Undisclosed":"Non précisé", "Illness":"Maladie" };
   fetch("https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/injuries").then(r=>r.json()).then(d=>{
     const teams=d.injuries||[];
-    const blocks=teams.map(team=>{
-      const list=(team.injuries||[]).map(x=>{
-        const name=x.athlete&&x.athlete.displayName||"?";
-        const st=x.status||x.shortComment||"";
-        const back=x.details&&x.details.returnDate||"";
-        return `<div class="h2h-row"><b>${name}</b> <span>${st}</span> <span class="muted">${x.shortComment||""}</span></div>`;
+    el.innerHTML=teams.map(team=>{
+      const rows=(team.injuries||[]).map(x=>{
+        const name=(x.athlete&&x.athlete.displayName)||"?";
+        const st=fr[x.status]||x.status||"";
+        const typ=typeFr[(x.details&&x.details.type)||""]||(x.details&&x.details.type)||"";
+        const back=(x.details&&x.details.returnDate)||"";
+        return '<div class="inj-row"><div><b>'+name+'</b><small>'+typ+'</small></div><span class="inj-st">'+st+'</span><span class="muted">'+(back?("retour "+back):"")+'</span></div>';
       }).join("");
-      return '<div class="card" style="margin:10px 0"><h3 style="margin:0 0 8px">'+team.displayName+'</h3>'+(list||'<p class="muted">Aucune</p>')+'</div>';
-    }).join("");
-    el.innerHTML=blocks||'<p class="muted">Aucune blessure signalée.</p>';
-  }).catch(e=>{
-    el.innerHTML=`<p class="muted" style="padding:12px">Blessures indisponibles (${e.message||e}).</p>`;
-  });
+      return '<section class="inj-team"><h3>'+team.displayName+'</h3>'+rows+'</section>';
+    }).join("") || '<p class="muted">Aucune blessure signalée.</p>';
+  }).catch(()=>{ el.innerHTML='<p class="muted" style="padding:12px">Blessures indisponibles.</p>'; });
 }
 function renderInjuries(){
   const el=$("injuriesFeed"); if(!el||!INJURY_CACHE)return;
@@ -2765,3 +2772,19 @@ if("serviceWorker" in navigator){
 
 function show(view){document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.view===view));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+view));if(view==="leaders")renderLeaders("points");if(view==="blessures")loadInjuries();}
 window.BZ=window.BZ||{};window.BZ.show=show;
+
+async function loadLastLineups(home,away,ids){
+  const el=$("lineupsBox"); if(!el) return;
+  el.innerHTML='<p class="muted">Chargement des dernières compositions…</p>';
+  async function one(team,id){
+    if(!id) return '<div><b>'+team+'</b><p class="muted">Pas de match récent.</p></div>';
+    try{
+      const j=await api('api-web.nhle.com/v1/gamecenter/'+id+'/boxscore');
+      const side=(j.playerByGameStats&&((j.awayTeam&&j.awayTeam.abbrev===team)?j.playerByGameStats.awayTeam:j.playerByGameStats.homeTeam))||{};
+      const names=arr=>(arr||[]).slice(0,6).map(p=>p.name&&p.name.default||"?").join(" · ");
+      return '<div class="lineup-col"><b>'+team+'</b><p>Attaquants : '+names(side.forwards)+'</p><p>Défense : '+names(side.defense)+'</p><p class="muted">Dernière composition utilisée</p></div>';
+    }catch(e){ return '<div><b>'+team+'</b><p class="muted">Composition indisponible.</p></div>'; }
+  }
+  const [h,a]=await Promise.all([one(home,ids&&ids.home), one(away,ids&&ids.away)]);
+  el.innerHTML='<div class="lineup-grid">'+h+a+'</div>';
+}
