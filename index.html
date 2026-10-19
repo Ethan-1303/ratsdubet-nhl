@@ -881,13 +881,13 @@
 (function(){
   var loading = false;
   function start(){
-    if (window.lightAnalyze) { window.lightAnalyze(); return; }
+    if (window.RDB_ANALYZE) { window.RDB_ANALYZE(); return; }
     if (loading) return;
     loading = true;
     var btn = document.getElementById('analyzeBtn');
     if (btn) btn.textContent = 'Chargement…';
     var s = document.createElement('script');
-    s.src = ''; /* moteur lourd désactivé */
+    s.src = '/app.js?v=20261019p';
     s.onload = function(){
       setTimeout(function(){
         try { window.RDB_BOOT && window.RDB_BOOT(); } catch(e) {}
