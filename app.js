@@ -1724,6 +1724,7 @@ function openAuth(mode){
   $("authError")?.classList.add("hidden");
 }
 function closeAuth(){ $("authModal")?.classList.add("hidden"); }
+window.openAuth=openAuth;
 function setupAuthUI(){
   const A=window.RDB_AUTH; if(!A)return;
   A.checkUnlockParam?.();
