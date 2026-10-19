@@ -1864,3 +1864,14 @@ input, select, textarea{ font-size:16px; }
 .val-badge{background:#14532d;color:#86efac;border-radius:999px;padding:2px 6px;font-size:10px;margin-left:6px}
 .market .fair{color:#8aa4b8;font-size:12px}
 .goalie .stat-row{display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid #17344a}
+
+.standings-div-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.standings-div-grid .card,.div-card{overflow-x:auto}
+.standings-table{min-width:520px}
+.form-game{display:grid;grid-template-columns:22px 42px 1fr;align-items:center;gap:8px}
+.ice{background:#07131d;border:1px solid #17344a;border-radius:16px;padding:12px}
+.ice-line{display:flex;justify-content:center;gap:18px;margin:10px 0}
+.ice-p{width:64px;text-align:center}
+.ice-p span{display:inline-flex;width:36px;height:36px;border-radius:50%;border:2px solid #38bdf8;align-items:center;justify-content:center}
+.ice-p small{display:block;margin-top:4px;color:#c5d4e0}
+@media(max-width:900px){.standings-div-grid{grid-template-columns:1fr}}
