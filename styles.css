@@ -1815,3 +1815,20 @@ input, select, textarea{ font-size:16px; }
   body.show-analyze-sticky .container{ padding-bottom:calc(96px + env(safe-area-inset-bottom)); }
   .brand-logo img{ filter:none !important; }
 }
+
+/* lisibilité analyse */
+.market .label{font-size:12px;color:#9eb4c8;letter-spacing:.2px}
+.market .value b{font-size:22px;color:#e8f6ff}
+.market{min-height:72px;display:flex;flex-direction:column;justify-content:space-between}
+.player{grid-template-columns:28px 1fr auto;align-items:center;padding:10px 12px;gap:8px}
+.player .name{font-weight:600;line-height:1.25}
+.player .name small{display:block;color:#8aa4b8;font-weight:400;margin-top:2px}
+.player .prob{font-size:16px;color:#3ddc97;min-width:52px;text-align:right}
+.h2h-row{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid #17344a}
+.h2h-row b{color:#8aa4b8;min-width:92px;font-weight:500}
+.kpi b{font-size:20px}
+.compare-wrap table,.props-table{width:100%;border-collapse:collapse}
+.compare-wrap td,.props-table td{padding:8px 10px;border-bottom:1px solid #17344a}
+.form-dot{width:16px;height:16px}
+.form-dot.win{background:#22c55e}
+.form-dot.loss{background:#ef4444}
