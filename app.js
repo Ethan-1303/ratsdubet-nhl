@@ -1725,6 +1725,14 @@ function openAuth(mode){
 }
 function closeAuth(){ $("authModal")?.classList.add("hidden"); }
 window.openAuth=openAuth;
+function bindAuth(){
+  if(!window.RDB_AUTH) return false;
+  try{ setupAuthUI(); }catch(e){}
+  return true;
+}
+let authTries=0;
+const authTimer=setInterval(()=>{ if(bindAuth()||++authTries>20) clearInterval(authTimer); }, 300);
+
 function setupAuthUI(){
   const A=window.RDB_AUTH; if(!A)return;
   A.checkUnlockParam?.();
@@ -2043,13 +2051,21 @@ async function renderLeaders(sortKey="points"){
   const map={points:"points",goals:"goals",assists:"assists",shots:"shots",toi:"timeOnIcePerGame"};
   const key=map[sortKey]||"points";
   const label={points:"Points",goals:"Buts",assists:"Passes",shots:"Tirs",toi:"TOI"};
-  api("stats/rest/en/skater/summary",{limit:50,sort:key,dir:"DESC",cayenneExp:"seasonId=20262027 and gameTypeId=2"}).then(d=>{
+  api("stats/rest/en/skater/summary",{limit:50,sort:key,dir:"DESC",cayenneExp:"seasonId=20262027 and gameTypeId=2"}).then(async d=>{
     const rows=d.data||[];
     if(!rows.length){ el.innerHTML='<p class="muted" style="padding:12px">Classement indisponible.</p>'; return; }
     const toi=s=>{ const v=+s.timeOnIcePerGame||0; return Math.floor(v/60)+":"+String(Math.round(v%60)).padStart(2,"0"); };
-    el.innerHTML='<table class="props-table leaders-table"><thead><tr><th>#</th><th>Joueur</th><th>Équipe</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>TOI</th></tr></thead><tbody>'+
-      rows.map((s,i)=>'<tr><td>'+(i+1)+'</td><td class="pname">'+(s.skaterFullName||"")+'</td><td>'+(s.teamAbbrevs||"—")+'</td><td>'+(s.gamesPlayed||0)+'</td><td>'+(s.goals||0)+'</td><td>'+(s.assists||0)+'</td><td><b>'+(s.points||0)+'</b></td><td>'+toi(s)+'</td></tr>').join("")+
-      '</tbody></table>';
+    async function serie(id){
+      try{
+        const g=await api('api-web.nhle.com/v1/player/'+id+'/game-log/20262027/2');
+        const log=(g.gameLog||[]).slice(0,5).reverse();
+        return log.map(x=>'<i class="form-dot '+((+x.goals>0)?"win":"loss")+'" title="'+(x.gameDate||"")+'"></i>').join("")||"—";
+      }catch(e){ return "—"; }
+    }
+    const series=await Promise.all(rows.slice(0,25).map(s=>serie(s.playerId)));
+    el.innerHTML='<div style="overflow-x:auto"><table class="props-table leaders-table"><thead><tr><th>#</th><th>Joueur</th><th>Équipe</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>TOI</th><th>Série buts</th></tr></thead><tbody>'+
+      rows.map((s,i)=>'<tr><td>'+(i+1)+'</td><td class="pname">'+(s.skaterFullName||"")+'</td><td>'+(s.teamAbbrevs||"—")+'</td><td>'+(s.gamesPlayed||0)+'</td><td>'+(s.goals||0)+'</td><td>'+(s.assists||0)+'</td><td><b>'+(s.points||0)+'</b></td><td>'+toi(s)+'</td><td>'+(series[i]||"—")+'</td></tr>').join("")+
+      '</tbody></table></div>';
   }).catch(e=>{ el.innerHTML='<p class="muted" style="padding:12px">Leaders indisponibles.</p>'; });
 }
 function loadInjuries(){
