@@ -682,14 +682,21 @@ async function analyze(home,away){
     const us=isH?hs:as, them=isH?as:hs;
     return {win:+us.score>+them.score,gf:+us.score,ga:+them.score,opp:them.abbrev,home:isH,date:(g.startTimeUTC||g.gameDate||"").slice(0,10),label:`${hs.abbrev} ${hs.score}–${as.score} ${as.abbrev}`};
   }
-  const [teams,rh,ra,sh,sa,sk]=await Promise.all([
+  const [teams,rh,ra,sh,sa,sk,stand]=await Promise.all([
     cap(getTeams().catch(()=>null),8000),
     cap(getRoster(home).catch(()=>null),5000),
     cap(getRoster(away).catch(()=>null),5000),
     cap(schedule(home),6000),
     cap(schedule(away),6000),
-    cap(api("stats/rest/en/skater/summary",{limit:250,sort:"points",cayenneExp:"seasonId=20252026 and gameTypeId=2"}).catch(()=>null),6000)
+    cap(api("stats/rest/en/skater/summary",{limit:250,sort:"points",cayenneExp:"seasonId=20252026 and gameTypeId=2"}).catch(()=>null),6000),
+    cap(api("api-web.nhle.com/v1/standings/now").catch(()=>null),5000)
   ]);
+  const official={};
+  for(const r of (stand&&stand.standings)||[]){
+    const ab=(r.teamAbbrev&&r.teamAbbrev.default)||r.teamAbbrev;
+    const gp=+r.gamesPlayed||0;
+    if(ab&&gp) official[ab]={gf:+r.goalFor/gp,ga:+r.goalAgainst/gp,w:+r.wins||0,l:+r.losses||0,gp};
+  }
   const homeGames=(sh||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
   const awayGames=(sa||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
   const fh=homeGames.slice(0,5).map(g=>row(g,home));
@@ -702,8 +709,8 @@ async function analyze(home,away){
   }
   h2h.sort((a,b)=>b.date.localeCompare(a.date));
   const l=teams?leagueFrom(teams):{valid:false};
-  const h=(teams&&teams[home])||{gf:3.05,ga:3.05,sat:.5,pp:.2,pk:.79};
-  const a=(teams&&teams[away])||{gf:3.05,ga:3.05,sat:.5,pp:.2,pk:.79};
+  const h=Object.assign({},(teams&&teams[home])||{gf:3.05,ga:3.05,sat:.5,pp:.2,pk:.79}, official[home]||{});
+  const a=Object.assign({},(teams&&teams[away])||{gf:3.05,ga:3.05,sat:.5,pp:.2,pk:.79}, official[away]||{});
   const x=teams&&l.valid?expectedFrom(h,a,l,fh,fa,{},{},{}):{home:3.0,away:3.0,total:6.0,shotsHome:29,shotsAway:29};
   const m=markets(x.home,x.away);
   const byName={};
@@ -1258,9 +1265,9 @@ function renderAnalysis(d){
     const k=[["TOTAL BUTS",fmt(d.x.total)],["HOME OT",pct(d.m.home)],["AWAY OT",pct(d.m.away)],["OVER 5.5",pct(d.m.o55)],["BTTS",pct(d.m.btts)],["CONFIANCE",pct((d.c||50)/100)]];
     $("kpis").innerHTML=k.map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join("");
     if($("markets")) $("markets").innerHTML=[
-      ["Victoire domicile OT",d.m.home],["Victoire extérieur OT",d.m.away],
-      ["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["BTTS",d.m.btts]
-    ].map(x=>`<div class="market"><span>${x[0]}</span><b>${pct(x[1])}</b></div>`).join("");
+      ["Victoire domicile",d.m.home],["Victoire extérieur",d.m.away],
+      ["Over 5.5",d.m.o55],["Under 5.5",d.m.u55],["Les deux marquent",d.m.btts]
+    ].map(x=>`<div class="market"><div class="label">${x[0]}</div><div class="value"><b>${pct(x[1])}</b></div></div>`).join("");
     if($("decisionVerdict")) $("decisionVerdict").textContent=`${fav} favori · ${pct(favP)}`;
     if($("decisionStatus")) $("decisionStatus").textContent=d.status||"SURVEILLER";
     if($("decisionNote")) $("decisionNote").textContent=`Total ${fmt(d.x.total)} buts · score probable ${d.best?d.best[0]+"–"+d.best[1]:"—"}.`;
@@ -1281,7 +1288,7 @@ function renderAnalysis(d){
     }
     if($("h2hBox")){
       const rows=d.h2h||[];
-      $("h2hBox").innerHTML=rows.length?rows.map(g=>`<div class="h2h-row">${g.label||""} ${g.gf}-${g.ga}</div>`).join(""):`<p class="muted">Pas de face-à-face récent dans les 5 derniers matchs.</p>`;
+      $("h2hBox").innerHTML=rows.length?`<div class="section-title"><span>⚔️</span> Face-à-face cette saison</div>`+rows.map(g=>`<div class="h2h-row"><b>${g.date}</b> ${g.label}</div>`).join(""):`<p class="muted">Aucun face-à-face cette saison.</p>`;
     }
     if($("advancedStats")){
       const rows=[["SAT%",d.h.sat,d.a.sat],["PP%",d.h.pp,d.a.pp],["PK%",d.h.pk,d.a.pk],["GF",d.h.gf,d.a.gf],["GA",d.h.ga,d.a.ga]];
@@ -1291,7 +1298,7 @@ function renderAnalysis(d){
     if($("playerTables")){
       const top=(key)=>all.filter(p=>p.team).sort((a,b)=>(b[key]||0)-(a[key]||0));
       const box=(team,arr,key,label)=>`<div class="player-box"><h3>${team} — ${label}</h3>${arr.filter(p=>p.team===team).slice(0,3).map((p,i)=>`<div class="player"><span class="rank">#${i+1}</span><span class="name">${p.name}<small>${p.position||""}</small></span><span class="prob">${pct(p[key]||0)}</span></div>`).join("")}</div>`;
-      const box2=(team,key,label)=>`<div class="player-box"><h3>${team} — ${label}</h3>${all.filter(p=>p.team===team).sort((a,b)=>(b[key]||0)-(a[key]||0)).slice(0,3).map((p,i)=>`<div class="player"><span class="rank">#${i+1}</span><span class="name">${p.name}<small>${p.position||""} · ${p.gp||0} MJ · ${p.points||0} pts</small></span><span class="prob">${pct(p[key]||0)}</span></div>`).join("")||"<p class=\"muted\">Pas de stats</p>"}</div>`;
+      const box2=(team,key,label)=>`<div class="player-box"><h3>${team} — top ${label}</h3>${all.filter(p=>p.team===team).sort((a,b)=>(b[key]||0)-(a[key]||0)).slice(0,5).map((p,i)=>`<div class="player"><span class="rank">${i+1}</span><span class="name">${p.name}<small>${p.position||"—"} · ${p.gp||0} MJ · ${p.goals||0}B ${p.assists||0}A · ${p.points||0} pts</small></span><span class="prob">${pct(p[key]||0)}</span></div>`).join("")||"<p class=\"muted\">Stats joueur indisponibles</p>"}</div>`;
       $("playerTables").innerHTML=box2(d.home,"pp","points")+box2(d.away,"pp","points");
     }
     if($("audit")) $("audit").innerHTML=`<p class="muted">Source : stats équipes NHL 2025-26, calendrier (forme), effectif courant. Props estimés depuis les xG du match, pas une ligne bookmaker.</p>`;
