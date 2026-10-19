@@ -668,7 +668,6 @@ function yieldUI(){return new Promise(r=>setTimeout(r,30));}
 async function analyze(home,away){
   if(home===away)throw new Error("Sélectionne deux équipes différentes.");
   setLoadMsg("Stats, forme et H2H…");
-  await new Promise(r=>setTimeout(r,0));
   const cap=(p,ms)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(null),ms))]);
   async function teamSchedule(team){
     try{
@@ -683,9 +682,8 @@ async function analyze(home,away){
     const us=isH?hs:as, them=isH?as:hs;
     return {win:+us.score>+them.score,gf:+us.score,ga:+them.score,opp:them.abbrev,home:isH,date:(g.startTimeUTC||g.gameDate||"").slice(0,10),label:`${hs.abbrev} ${hs.score}–${as.score} ${as.abbrev}`};
   }
-  await new Promise(r=>setTimeout(r,0));
   const [teams,rh,ra,sh,sa,skH,skA,stand,gl]=await Promise.all([
-    Promise.resolve(null),
+    cap(getTeams().catch(()=>null),8000),
     cap(getRoster(home).catch(()=>null),5000),
     cap(getRoster(away).catch(()=>null),5000),
     cap(teamSchedule(home),6000),
@@ -701,9 +699,15 @@ async function analyze(home,away){
     const gp=+r.gamesPlayed||0;
     if(ab&&gp) official[ab]={gf:+r.goalFor/gp,ga:+r.goalAgainst/gp,w:+r.wins||0,l:+r.losses||0,gp};
   }
+  async function prev(team){
+    try{ const j=await api(`api-web.nhle.com/v1/club-schedule-season/${team}/20252026`); return (j.games||[]).filter(g=>g.gameType===2); }
+    catch(e){ return []; }
+  }
+  const [ph,pa]=await Promise.all([prev(home),prev(away)]);
   const homeGames=(sh||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
   const awayGames=(sa||[]).filter(played).sort((a,b)=>new Date(b.startTimeUTC)-new Date(a.startTimeUTC));
-  const allHome=homeGames, allAway=awayGames;
+  const allHome=(sh||[]).concat(ph).filter(played);
+  const allAway=(sa||[]).concat(pa).filter(played);
   const fh=homeGames.slice(0,5).map(g=>row(g,home));
   const fa=awayGames.slice(0,5).map(g=>row(g,away));
   function b2bOf(games){
@@ -1321,7 +1325,7 @@ function renderAnalysis(d){
       $("h2hBox").innerHTML='<div class="section-title"><span>⚔️</span> Derniers H2H</div>'+(rows.length?rows.map(g=>'<div class="h2h-row"><b>'+g.date+'</b><span>'+g.label+'</span><span>'+(g.win?"Victoire "+d.home:"Victoire "+d.away)+'</span></div>').join(""):'<p class="muted">Aucun face-à-face cette saison.</p>');
     }
     try{ renderPlayers("pg"); }catch(e){}
-    if($("lineupsBox")) setTimeout(()=>loadLastLineups(d.home,d.away,d.lastIds),400);
+    if($("lineupsBox")) loadLastLineups(d.home,d.away,d.lastIds);
     if($("audit")) $("audit").innerHTML='<p class="muted">Saison 2026-27. Props = taux réel buts/passes/tirs, ajusté au xG du match.</p>';
   }catch(e){ console.error(e); }
 }
@@ -1721,14 +1725,6 @@ function openAuth(mode){
 }
 function closeAuth(){ $("authModal")?.classList.add("hidden"); }
 window.openAuth=openAuth;
-function bindAuth(){
-  if(!window.RDB_AUTH) return false;
-  try{ setupAuthUI(); }catch(e){}
-  return true;
-}
-let authTries=0;
-const authTimer=setInterval(()=>{ if(bindAuth()||++authTries>20) clearInterval(authTimer); }, 300);
-
 function setupAuthUI(){
   const A=window.RDB_AUTH; if(!A)return;
   A.checkUnlockParam?.();
@@ -2047,21 +2043,13 @@ async function renderLeaders(sortKey="points"){
   const map={points:"points",goals:"goals",assists:"assists",shots:"shots",toi:"timeOnIcePerGame"};
   const key=map[sortKey]||"points";
   const label={points:"Points",goals:"Buts",assists:"Passes",shots:"Tirs",toi:"TOI"};
-  api("stats/rest/en/skater/summary",{limit:50,sort:key,dir:"DESC",cayenneExp:"seasonId=20262027 and gameTypeId=2"}).then(async d=>{
+  api("stats/rest/en/skater/summary",{limit:50,sort:key,dir:"DESC",cayenneExp:"seasonId=20262027 and gameTypeId=2"}).then(d=>{
     const rows=d.data||[];
     if(!rows.length){ el.innerHTML='<p class="muted" style="padding:12px">Classement indisponible.</p>'; return; }
     const toi=s=>{ const v=+s.timeOnIcePerGame||0; return Math.floor(v/60)+":"+String(Math.round(v%60)).padStart(2,"0"); };
-    async function serie(id){
-      try{
-        const g=await api('api-web.nhle.com/v1/player/'+id+'/game-log/20262027/2');
-        const log=(g.gameLog||[]).slice(0,5).reverse();
-        return log.map(x=>'<i class="form-dot '+((+x.goals>0)?"win":"loss")+'" title="'+(x.gameDate||"")+'"></i>').join("")||"—";
-      }catch(e){ return "—"; }
-    }
-    const series=await Promise.all(rows.slice(0,12).map(s=>serie(s.playerId)));
-    el.innerHTML='<div style="overflow-x:auto"><table class="props-table leaders-table"><thead><tr><th>#</th><th>Joueur</th><th>Équipe</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>TOI</th><th>Série buts</th></tr></thead><tbody>'+
-      rows.map((s,i)=>'<tr><td>'+(i+1)+'</td><td class="pname">'+(s.skaterFullName||"")+'</td><td>'+(s.teamAbbrevs||"—")+'</td><td>'+(s.gamesPlayed||0)+'</td><td>'+(s.goals||0)+'</td><td>'+(s.assists||0)+'</td><td><b>'+(s.points||0)+'</b></td><td>'+toi(s)+'</td><td>'+(series[i]||"—")+'</td></tr>').join("")+
-      '</tbody></table></div>';
+    el.innerHTML='<table class="props-table leaders-table"><thead><tr><th>#</th><th>Joueur</th><th>Équipe</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>TOI</th></tr></thead><tbody>'+
+      rows.map((s,i)=>'<tr><td>'+(i+1)+'</td><td class="pname">'+(s.skaterFullName||"")+'</td><td>'+(s.teamAbbrevs||"—")+'</td><td>'+(s.gamesPlayed||0)+'</td><td>'+(s.goals||0)+'</td><td>'+(s.assists||0)+'</td><td><b>'+(s.points||0)+'</b></td><td>'+toi(s)+'</td></tr>').join("")+
+      '</tbody></table>';
   }).catch(e=>{ el.innerHTML='<p class="muted" style="padding:12px">Leaders indisponibles.</p>'; });
 }
 function loadInjuries(){
@@ -2780,8 +2768,7 @@ document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{document.querySe
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderPlayers(b.dataset.prop)});
   document.querySelectorAll(".day-btn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".day-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");schedule(Number(b.dataset.days))});
   $("applyPromoHint")&&($("applyPromoHint").onclick=()=>alert("Code parrainage BETZONE\n\n• Le filleul saisit le code (ex. MEUTE5) avant de payer.\n• Réduction : −5 € (15 € au lieu de 20 €).\n• Les codes se créent dans Stripe → Produits → Coupons / Codes promo.\n• Tu peux aussi saisir le code directement sur la page de paiement Stripe."));$("shareAnalysisBtn")&&($("shareAnalysisBtn").onclick=()=>shareAnalysis());$("copyAnalysisBtn")&&($("copyAnalysisBtn").onclick=()=>copyAnalysis());$("refreshSchedule").onclick=()=>schedule(0);$("refreshNews")&&($("refreshNews").onclick=()=>loadNews());$("refreshStandings")&&($("refreshStandings").onclick=()=>renderStandings());$("refreshInjuries")&&($("refreshInjuries").onclick=()=>loadInjuries(true));document.querySelectorAll(".injury-filter").forEach(b=>b.onclick=()=>{document.querySelectorAll(".injury-filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");INJURY_FILTER=b.dataset.filter;renderInjuries()});$("refreshLeaders")&&($("refreshLeaders").onclick=()=>renderLeaders("points"));document.querySelectorAll(".leader-sort").forEach(b=>b.onclick=()=>{document.querySelectorAll(".leader-sort").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderLeaders(b.dataset.sort)});$("refreshTeams").onclick=()=>{TEAMS_CACHE=null;renderTeamTable()};
-  window.RDB_ANALYZE=runAnalysis;
-window.RDB_RUN = function(){
+  window.RDB_RUN = function(){
   $("clearHistory").onclick=clearHistory;
   renderHistory();
   setupAuthUI();
@@ -2797,7 +2784,7 @@ function boot(){
   try{ setup(); }catch(e){ console.error(e); }
 }
 window.RDB_BOOT = boot;
-window.RDB_TABS=function(){};
+window.RDB_TABS=function(){try{schedule(0);}catch(e){} try{renderStandings();}catch(e){}};
 // unregister vieux SW cassés une fois
 if("serviceWorker" in navigator){
   navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
