@@ -2009,195 +2009,39 @@ function streakDots(arr){
 
 async function renderLeaders(sortKey="points"){
   const el=$("leadersTable"); if(!el)return;
-  el.innerHTML=skeleton(5);
-  try{
-    if(!LEADERS_CACHE){
-      try{
-        const ls=JSON.parse(localStorage.getItem("rdb_leaders_v1")||"null");
-        if(ls && ls.at && Date.now()-ls.at < 30*60*1000 && ls.rows){
-          const byId={},byName={};
-          for(const r of ls.rows){ if(r.id) byId[r.id]=r; if(r.name) byName[norm(r.name)]=r; }
-          LEADERS_CACHE={rows:ls.rows,byId,byName};
-          LEADERS_CACHE_AT=ls.at;
-        }
-      }catch(_){}
-    }
-    let st = LEADERS_CACHE;
-    if(!st || !LEADERS_CACHE_AT || Date.now()-LEADERS_CACHE_AT > 30*60*1000){
-      st = await getSkaters();
-      LEADERS_CACHE = st;
-      LEADERS_CACHE_AT = Date.now();
-      try{ localStorage.setItem("rdb_leaders_v1", JSON.stringify({at:Date.now(), rows:st.rows?.slice?.(0,80)})); }catch(_){}
-    }
-    if(st.rows.some(r=>!r.team)) await enrichTeamsFromLeadersAPI(st.rows);
-
-    const keyMap={points:"points",goals:"goals",assists:"assists",shots:"shots",toi:"toi"};
-    const k=keyMap[sortKey]||"points";
-    const rows=[...st.rows].filter(x=>x.gp>=1).sort((a,b)=> (k==="toi"?toiMinutes(b.toi)-toiMinutes(a.toi):b[k]-a[k])).slice(0,50);
-
-    const needStreak = ["points","goals","assists"].includes(k);
-    const streakKey = k==="goals"?"goals":k==="assists"?"assists":"points";
-    const streakHeader = needStreak ? `<th>Série 5</th>` : "";
-    // Affiche d'abord le tableau (rapide), séries en lazy-load
-    el.innerHTML=`<table class="props-table leaders-table"><thead><tr>
-      <th>#</th><th>Joueur</th><th>Équipe</th><th>Pos</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>Tirs</th><th>TOI/M</th>${streakHeader}
-    </tr></thead><tbody>${rows.map((x,i)=>{
-      const tm=x.team||"";
-      const cached = needStreak ? LEADERS_STREAK[x.id]?.[streakKey] : null;
-      const dots = needStreak ? `<td class="streak-cell" data-pid="${x.id}">${cached?streakDots(cached):`<span class="streak-dots muted">…</span>`}</td>` : "";
-      return `<tr>
-      <td>${i+1}</td>
-      <td class="pname">${x.name}</td>
-      <td class="team-cell">${tm?logoHTML(tm,"team-logo-sm"):""} <span class="code">${tm||"—"}</span></td>
-      <td>${x.position||"—"}</td><td>${x.gp}</td>
-      <td>${x.goals}</td><td>${x.assists}</td><td><b>${x.points}</b></td>
-      <td>${x.shots}</td><td>${toiFmt(x.toi)}</td>${dots}
-    </tr>`;
-    }).join("")}</tbody></table>
-    ${needStreak?`<p class="muted" style="margin-top:10px;font-size:11px">Série 5 : <span style="color:#00e676">vert</span> = ≥1 ${k==="goals"?"but":k==="assists"?"passe":"point"} · <span style="color:#ff5263">rouge</span> = 0 (droite = plus récent).</p>`:""}`;
-
-    if(needStreak){
-      // Lazy : par paquets de 8 pour ne pas bloquer l'UI
-      const ids=rows.slice(0,40).map(r=>r.id).filter(Boolean);
-      (async()=>{
-        for(let i=0;i<ids.length;i+=8){
-          const chunk=ids.slice(i,i+8);
-          await Promise.all(chunk.map(async id=>{
-            const s=await fetchPlayerStreak(id);
-            const cell=el.querySelector(`.streak-cell[data-pid="${id}"]`);
-            if(cell) cell.innerHTML=streakDots(s?.[streakKey]);
-            const row=rows.find(r=>r.id===id);
-            if(row && s?.team && !row.team){
-              row.team=s.team;
-              const tc=cell?.parentElement?.querySelector(".team-cell");
-              if(tc) tc.innerHTML=`${logoHTML(s.team,"team-logo-sm")} <span class="code">${s.team}</span>`;
-            }
-          }));
-        }
-      })();
-    }
-  }catch(e){el.innerHTML=`<div class="empty-inline">Classement joueurs indisponible : ${e.message||e}</div>`; showApiError(e.message||e)}
+  el.innerHTML='<p class="muted" style="padding:12px">Chargement…</p>';
+  const key=sortKey||"points";
+  api("api-web.nhle.com/v1/skater-stats-leaders/current").then(d=>{
+    const rows=d[key]||d.points||[];
+    if(!rows.length){ el.innerHTML='<p class="muted" style="padding:12px">Classement indisponible.</p>'; return; }
+    el.innerHTML=`<table class="props-table"><thead><tr><th>#</th><th>Joueur</th><th>Équipe</th><th>${key==="goals"?"Buts":key==="assists"?"Passes":"Points"}</th></tr></thead><tbody>${
+      rows.slice(0,25).map((r,i)=>{
+        const name=((r.firstName&&r.firstName.default)||"")+" "+((r.lastName&&r.lastName.default)||"");
+        const team=r.teamAbbrev||"";
+        const logo=r.teamLogo?`<img src="${r.teamLogo}" alt="" width="18" height="18" style="vertical-align:-3px;margin-right:6px">`:"";
+        return `<tr><td>${i+1}</td><td class="pname">${name.trim()}</td><td>${logo}${team}</td><td><b>${r.value??"—"}</b></td></tr>`;
+      }).join("")
+    }</tbody></table>`;
+  }).catch(e=>{ el.innerHTML=`<p class="muted" style="padding:12px">Leaders indisponibles (${e.message||e}).</p>`; });
 }
-
-
-let INJURY_CACHE=null, INJURY_FILTER="all";
-
-async function ensureInjuryCache(){
-  if(INJURY_CACHE) return INJURY_CACHE;
-  try{
-    const r=await fetch("/api?injuries=1",{cache:"no-store"});
-    INJURY_CACHE=await r.json();
-  }catch(e){ INJURY_CACHE={teams:[],error:String(e)}; }
-  return INJURY_CACHE;
-}
-function injuriesForTeams(home, away){
-  const teams=INJURY_CACHE?.teams||[];
-  function matchTeam(abbr){
-    const a=String(abbr||"").toUpperCase();
-    const full=(TEAMS[a]?.[0]||"").toLowerCase();
-    return teams.filter(t=>{
-      const n=(t.name||"").toLowerCase();
-      const ab=(t.abbrev||t.abbreviation||"").toUpperCase();
-      if(ab===a) return true;
-      if(full && n.includes(full.split(" ").pop())) return true;
-      // ESPN often uses full name
-      if(a==="ANA" && n.includes("ducks")) return true;
-      if(a==="VGK" && (n.includes("golden")||n.includes("vegas"))) return true;
-      if(a==="UTA" && (n.includes("utah")||n.includes("mammoth"))) return true;
-      return false;
-    });
-  }
-  const out=[];
-  for(const side of [home, away]){
-    for(const t of matchTeam(side)){
-      for(const x of (t.injuries||[])){
-        out.push({team:side, teamName:t.name, ...x});
-      }
-    }
-  }
-  return out;
-}
-function frInjuryStatus(s){
-  const k=String(s||"").toLowerCase().trim();
-  const map={
-    "injured reserve":"Réserve blessés","ir":"Réserve blessés","ir-lt":"Réserve long terme",
-    "day-to-day":"Au jour le jour","day to day":"Au jour le jour","dtd":"Au jour le jour",
-    "out":"Absent","out for season":"Absent pour la saison","out indefinitely":"Absent (indéterminé)",
-    "doubtful":"Douteux","questionable":"Incertain","probable":"Probable",
-    "suspended":"Suspendu","personal":"Absent (personnel)","healthy scratch":"Écarté"
-  };
-  return map[k]||s||"—";
-}
-function frInjuryType(t){
-  const k=String(t||"").toLowerCase();
-  return k
-    .replace("upper body","Haut du corps").replace("lower body","Bas du corps")
-    .replace("undisclosed","Non communiqué").replace("personal","Personnel")
-    .replace("illness","Maladie").replace("knee","Genou").replace("ankle","Cheville")
-    .replace("shoulder","Épaule").replace("back","Dos").replace("hand","Main")
-    .replace("wrist","Poignet").replace("concussion","Commotion").replace("groin","Aine")
-    || t || "";
-}
-function frPosition(p){
-  const m={C:"Centre",LW:"AG",RW:"AD",D:"D",G:"G",F:"A"};
-  return m[String(p||"").toUpperCase()]||p||"";
-}
-function formatReturnDate(d){
-  if(!d) return "";
-  try{
-    const dt=new Date(d);
-    if(isNaN(dt)) return String(d);
-    return dt.toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"});
-  }catch(_){ return String(d); }
-}
-function renderMatchInjuries(home, away){
-  const el=$("matchInjuriesBox");
-  if(!el) return;
-  const list=injuriesForTeams(home, away);
-  if(!list.length){
-    el.innerHTML=`<div class="match-injuries empty-inline">Aucune blessure signalée pour ${home} / ${away} (source ESPN).</div>`;
-    return;
-  }
-  const by={};
-  for(const x of list){ (by[x.team]=by[x.team]||[]).push(x); }
-  let html=`<div class="section-title" style="border:0;padding:0 0 10px"><span>🏥</span> Blessures du match <small class="muted">${list.length}</small></div>`;
-  html+=`<div class="match-injuries-grid">`;
-  for(const side of [away, home]){
-    const rows=by[side]||[];
-    html+=`<div class="match-injury-side"><div class="match-injury-label">${logoHTML(side,"team-logo-sm")} ${side}</div>`;
-    if(!rows.length) html+=`<p class="muted" style="font-size:12px;margin:6px 0">Aucune signalée</p>`;
-    else html+=rows.map(x=>{
-      const ret=formatReturnDate(x.returnDate||x.date||x.return);
-      const pos=frPosition(x.position);
-      const typ=frInjuryType(x.type||x.detail||"");
-      const st=frInjuryStatus(x.status);
-      return `<div class="match-injury-row">
-        <div>
-          <b>${x.name}</b>
-          <small>${[pos,typ].filter(Boolean).join(" · ")}</small>
-          ${ret?`<small class="injury-return">Retour estimé : <b>${ret}</b></small>`:`<small class="injury-return muted">Retour : non communiqué</small>`}
-        </div>
-        <span class="injury-status status-${(x.status||"").toLowerCase().replace(/\s+/g,"-")}">${st}</span>
-      </div>`;
-    }).join("");
-    html+=`</div>`;
-  }
-  html+=`</div>`;
-  el.innerHTML=html;
-}
-
-async function loadInjuries(force=false){
+function loadInjuries(force=false){
   const el=$("injuriesFeed"); if(!el)return;
-  el.innerHTML=skeleton(4);
-  try{
-    if(!INJURY_CACHE || force){
-      const r=await fetch("/api?injuries=1",{cache:"no-store"});
-      INJURY_CACHE=await r.json();
-    }
-    renderInjuries();
-  }catch(e){
-    el.innerHTML=`<div class="empty-inline">Impossible de charger les blessures (${e.message||e}).</div>`;
-  }
+  el.innerHTML='<p class="muted" style="padding:12px">Chargement des blessures…</p>';
+  fetch("https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/injuries").then(r=>r.json()).then(d=>{
+    const teams=d.injuries||[];
+    const blocks=teams.map(team=>{
+      const list=(team.injuries||[]).map(x=>{
+        const name=x.athlete&&x.athlete.displayName||"?";
+        const st=x.status||x.shortComment||"";
+        const back=x.details&&x.details.returnDate||"";
+        return `<div class="h2h-row"><b>${name}</b> <span>${st}</span> <span class="muted">${x.shortComment||""}</span></div>`;
+      }).join("");
+      return '<div class="card" style="margin:10px 0"><h3 style="margin:0 0 8px">'+team.displayName+'</h3>'+(list||'<p class="muted">Aucune</p>')+'</div>';
+    }).join("");
+    el.innerHTML=blocks||'<p class="muted">Aucune blessure signalée.</p>';
+  }).catch(e=>{
+    el.innerHTML=`<p class="muted" style="padding:12px">Blessures indisponibles (${e.message||e}).</p>`;
+  });
 }
 function renderInjuries(){
   const el=$("injuriesFeed"); if(!el||!INJURY_CACHE)return;
@@ -2918,3 +2762,6 @@ if("serviceWorker" in navigator){
   navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
 }
 
+
+function show(view){document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.view===view));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+view));if(view==="leaders")renderLeaders("points");if(view==="blessures")loadInjuries();}
+window.BZ=window.BZ||{};window.BZ.show=show;
