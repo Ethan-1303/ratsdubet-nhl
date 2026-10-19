@@ -2062,7 +2062,7 @@ async function renderLeaders(sortKey="points"){
         return log.map(x=>'<i class="form-dot '+((+x.goals>0)?"win":"loss")+'" title="'+(x.gameDate||"")+'"></i>').join("")||"—";
       }catch(e){ return "—"; }
     }
-    const series=await Promise.all(rows.slice(0,25).map(s=>serie(s.playerId)));
+    const series=await Promise.all(rows.slice(0,12).map(s=>serie(s.playerId)));
     el.innerHTML='<div style="overflow-x:auto"><table class="props-table leaders-table"><thead><tr><th>#</th><th>Joueur</th><th>Équipe</th><th>MJ</th><th>B</th><th>A</th><th>Pts</th><th>TOI</th><th>Série buts</th></tr></thead><tbody>'+
       rows.map((s,i)=>'<tr><td>'+(i+1)+'</td><td class="pname">'+(s.skaterFullName||"")+'</td><td>'+(s.teamAbbrevs||"—")+'</td><td>'+(s.gamesPlayed||0)+'</td><td>'+(s.goals||0)+'</td><td>'+(s.assists||0)+'</td><td><b>'+(s.points||0)+'</b></td><td>'+toi(s)+'</td><td>'+(series[i]||"—")+'</td></tr>').join("")+
       '</tbody></table></div>';
@@ -2800,7 +2800,7 @@ function boot(){
   try{ setup(); }catch(e){ console.error(e); }
 }
 window.RDB_BOOT = boot;
-window.RDB_TABS=function(){try{schedule(0);}catch(e){} try{renderStandings();}catch(e){}};
+window.RDB_TABS=function(){};
 // unregister vieux SW cassés une fois
 if("serviceWorker" in navigator){
   navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
