@@ -1882,3 +1882,10 @@ input, select, textarea{ font-size:16px; }
 .book-logo.winamax{background:#111;color:#e10600;border:1px solid #e10600}
 #authModal{display:flex}
 #authModal.hidden{display:none}
+
+#standingsTable,#standingsDivView,.standings-div-grid{overflow-x:auto}
+.div-card table,.standings-table{min-width:640px}
+.rink-row{display:flex;justify-content:center;gap:16px;margin:10px 0}
+.modal{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center}
+.modal.hidden{display:none !important}
+.modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
